@@ -95,23 +95,28 @@ def validate_add_rule_kwargs(kwargs: dict) -> Optional[str]:
 
     # RSE expression may contain selectors like "site=CERN"; only validate
     # bare RSE names (no operators).
-    if rse_expression and _is_bare_rse_name(rse_expression):
-        if not is_rse_name_valid(rse_expression):
-            return f"RSE name '{rse_expression}' does not follow naming convention"
+    if (
+        rse_expression
+        and _is_bare_rse_name(rse_expression)
+        and not is_rse_name_valid(rse_expression)
+    ):
+        return f"RSE name '{rse_expression}' does not follow naming convention"
 
-    if src_expression and _is_bare_rse_name(src_expression):
-        if not is_rse_name_valid(src_expression):
-            return f"Source RSE name '{src_expression}' does not follow naming convention"
+    if (
+        src_expression
+        and _is_bare_rse_name(src_expression)
+        and not is_rse_name_valid(src_expression)
+    ):
+        return f"Source RSE name '{src_expression}' does not follow naming convention"
 
     # Protocol combo check — only if both sides are explicitly supplied
     src_proto: str = kwargs.get("source_protocol", "") or ""
     dst_proto: str = kwargs.get("dst_protocol", "") or ""
-    if src_proto and dst_proto:
-        if not is_protocol_combo_allowed(src_proto, dst_proto):
-            return (
-                f"Protocol combination {src_proto.upper()}→{dst_proto.upper()} "
-                "is not allowed (no TPC support)"
-            )
+    if src_proto and dst_proto and not is_protocol_combo_allowed(src_proto, dst_proto):
+        return (
+            f"Protocol combination {src_proto.upper()}→{dst_proto.upper()} "
+            "is not allowed (no TPC support)"
+        )
 
     return None  # all checks passed
 
