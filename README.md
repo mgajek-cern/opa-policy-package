@@ -7,6 +7,8 @@ Rucio policy packages — two phases with a clear separation of concerns:
 | 1 | `rucio-no-opa-policy` | Rucio (PDP) | Inline Python (`rules.py`) |
 | 2 | `rucio-opa-policy` | OPA (PDP) | Rego (`phase2-opa/rego/`) |
 
+> See [Policy package mechanism](docs/policy-package-mechanism.md) on how Rucio loads policy packages
+
 ---
 
 ## Repository layout
