@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Phase 1 — unit + e2e tests (no external service needed)
+  # ---------------------------------------------------------------------------
+  test-phase1:
+    name: Phase 1 tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pytest pytest-cov -e phase1-no-opa/
+
+      - name: Run Phase 1 tests
+        run: |
+          python -m pytest \
+            tests/test_phase1_rules.py \
+            tests/test_phase1_permission.py \
+            tests/test_phase1_e2e_scenarios.py \
+            -v --tb=short \
+            --cov=phase1-no-opa/src \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage-phase1.xml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-phase1
+          path: coverage-phase1.xml
+
+  # ---------------------------------------------------------------------------
+  # Phase 2 — unit tests (OPA mocked) + e2e tests (OPA via Docker)
+  # ---------------------------------------------------------------------------
+  test-phase2:
+    name: Phase 2 tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pytest pytest-cov -e phase2-opa/
+
+      - name: Run Phase 2 unit tests (OPA mocked)
+        run: |
+          python -m pytest \
+            tests/test_phase2_opa.py \
+            -v --tb=short \
+            --cov=phase2-opa/src \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage-phase2-unit.xml
+
+      - name: Start OPA via Docker Compose
+        run: |
+          cd phase2-opa/docker
+          docker compose up -d opa opa-init
+          # Wait for opa-init to complete (policy ingested)
+          docker wait rucio-opa-init
+
+      - name: Run Phase 2 e2e tests (live OPA)
+        env:
+          OPA_URL: http://localhost:8181
+        run: |
+          python -m pytest \
+            tests/test_phase2_e2e_scenarios.py \
+            -v --tb=short
+
+      - name: Tear down OPA
+        if: always()
+        run: cd phase2-opa/docker && docker compose down
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-phase2-unit
+          path: coverage-phase2-unit.xml
+
+  # ---------------------------------------------------------------------------
+  # Lint — ruff + pre-commit hooks
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files

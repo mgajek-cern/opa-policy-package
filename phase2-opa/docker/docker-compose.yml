@@ -1,0 +1,90 @@
+# docker-compose.yml — Phase 2: OPA as PDP alongside a Rucio server
+#
+# Phase 2 integration plan — actions delegated from Rucio to OPA
+# ---------------------------------------------------------------
+# The following Rucio permission actions are overridden by rucio-opa-policy
+# and forwarded to OPA for evaluation.  All others fall back to the Rego
+# privileged-only default.
+#
+#   Replication rules:  add_rule, del_rule, update_rule, approve_rule
+#   RSE management:     add_rse, update_rse, del_rse,
+#                       add_rse_attribute, del_rse_attribute
+#   Data Identifiers:   add_did, add_dids, attach_dids, detach_dids
+#
+# How to extend:
+#   1. Add a new action handler to authz.rego
+#   2. Add the action name to the relevant set in the Rego dispatch section
+#   3. Add the new kwargs keys to _PASSTHROUGH_KEYS in permission.py
+#   4. Add e2e test scenarios to test_phase2_e2e_scenarios.py
+# ---------------------------------------------------------------
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # OPA — Policy Decision Point
+  # ---------------------------------------------------------------------------
+  opa:
+    image: openpolicyagent/opa:1.8.0
+    container_name: rucio-opa
+    ports:
+      - "8181:8181"
+    command: >
+      run
+      --server
+      --log-level info
+      --addr=0.0.0.0:8181
+    # OPA's distroless image has no shell/wget/curl — healthcheck omitted.
+    # opa-init polls OPA directly before ingesting.
+
+  # ---------------------------------------------------------------------------
+  # OPA init — loads the Rego policy + admin data via REST API
+  # ---------------------------------------------------------------------------
+  opa-init:
+    image: python:3.11-slim
+    container_name: rucio-opa-init
+    depends_on:
+      - opa
+    volumes:
+      - .:/app        # ingest_policies.py
+      - ../rego:/rego # authz.rego
+    working_dir: /app
+    environment:
+      - VO_ADMINS=${VO_ADMINS:-}
+    # Wait for OPA, then ingest. --admins is only passed when VO_ADMINS is set
+    # to avoid argparse failing on an empty string argument.
+    command:
+      - sh
+      - -c
+      - |
+        echo 'Waiting for OPA...'
+        until python -c "import urllib.request; urllib.request.urlopen('http://opa:8181/health')" 2>/dev/null; do
+          sleep 1
+        done
+        echo 'OPA ready.'
+        if [ -n "$$VO_ADMINS" ]; then
+          python ingest_policies.py --opa-url http://opa:8181 --admins "$$VO_ADMINS"
+        else
+          python ingest_policies.py --opa-url http://opa:8181
+        fi
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Rucio server — configured to use the OPA policy package
+  # ---------------------------------------------------------------------------
+  rucio:
+    image: rucio/rucio-server:latest
+    container_name: rucio-server
+    depends_on:
+      opa-init:
+        condition: service_completed_successfully
+    ports:
+      - "443:443"
+    environment:
+      - RUCIO_POLICY_PACKAGE=rucio_opa_policy
+      - OPA_URL=http://opa:8181
+      - OPA_POLICY_PATH=vo/authz/allow
+      - OPA_TIMEOUT=2
+    volumes:
+      - ../../src/rucio_opa_policy:/usr/local/lib/python3.11/site-packages/rucio_opa_policy:ro
+    profiles:
+      - full
