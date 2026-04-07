@@ -6,12 +6,15 @@ Kept in a dedicated module so the logic can be unit-tested
 without a running Rucio instance.
 
 Allowed TPC transfer paths (Phase 1 scope):
-    WebDAV  → WebDAV   ✓
-    WebDAV  → S3       ✓
-    XrdHTTP → WebDAV   ✓
-    S3      → WebDAV   ✓  (same pair, reversed)
-    S3      → S3       ✗  (no TPC support)
-    S3      → XrdHTTP  ✗  (not a supported TPC path)
+    WebDAV  → WebDAV   ✓  TPC native (StoRM/dCache/XrdHTTP)
+    S3      → WebDAV   ✓  WebDAV destination can TPC-pull from S3 source
+    XrdHTTP → WebDAV   ✓  WebDAV destination can TPC-pull from XrdHTTP source
+    WebDAV  → S3       ✗  S3 cannot act as TPC destination — FTS streaming required
+    XrdHTTP → S3       ✗  S3 cannot act as TPC destination — FTS streaming required
+    S3      → S3       ✗  Neither side supports TPC pull
+    S3      → XrdHTTP  ✗  FTS or gateway required
+
+See Transfer Scenarios Overview for the full matrix verified with Rucio/FTS maintainers.
 
 RSE naming convention:
     Pattern:  <SITE>_<TYPE>
@@ -32,9 +35,10 @@ from typing import Optional
 ALLOWED_PROTOCOL_COMBOS: frozenset[tuple[str, str]] = frozenset(
     {
         ("webdav", "webdav"),
-        ("webdav", "s3"),
-        ("s3", "webdav"),
-        ("xrdhttp", "webdav"),
+        ("s3", "webdav"),  # WebDAV destination can TPC-pull from S3 source
+        ("xrdhttp", "webdav"),  # WebDAV destination can TPC-pull from XrdHTTP source
+        # ("webdav", "s3") and ("xrdhttp", "s3") excluded:
+        # S3 cannot act as a TPC destination; requires FTS streaming.
     }
 )
 

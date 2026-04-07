@@ -158,7 +158,6 @@ _perm_did_action if {
 
 _allowed_combos := {
     ["webdav", "webdav"],
-    ["webdav", "s3"],
     ["s3", "webdav"],
     ["xrdhttp", "webdav"],
 }

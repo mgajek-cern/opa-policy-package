@@ -58,15 +58,26 @@ class TestAddRuleRegularAccount:
         )
         assert has_permission(regular_account, "add_rule", kw) is False
 
-    def test_own_rule_webdav_to_s3_allowed(self, regular_account):
+    def test_own_rule_webdav_to_s3_denied(self, regular_account):
+        """S3 cannot act as TPC destination — FTS streaming required."""
         kw = _kwargs_add_rule(
             account=regular_account,
             source_protocol="webdav",
             dst_protocol="s3",
         )
+        assert has_permission(regular_account, "add_rule", kw) is False
+
+    def test_own_rule_s3_to_webdav_allowed(self, regular_account):
+        """WebDAV destination can TPC-pull from S3 source."""
+        kw = _kwargs_add_rule(
+            account=regular_account,
+            source_protocol="s3",
+            dst_protocol="webdav",
+        )
         assert has_permission(regular_account, "add_rule", kw) is True
 
     def test_own_rule_xrdhttp_to_webdav_allowed(self, regular_account):
+        """WebDAV destination can TPC-pull from XrdHTTP source."""
         kw = _kwargs_add_rule(
             account=regular_account,
             source_protocol="xrdhttp",

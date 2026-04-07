@@ -166,15 +166,11 @@ printf -- "\n"
 # ---------------------------------------------------------------------------
 printf -- "--- OPA: protocol combos ---\n"
 
+# Allowed: destination WebDAV can TPC-pull from any source
 check "webdav→webdav allowed" "True" "$(opa_query '{
     "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
     "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
     "source_protocol":"webdav","dst_protocol":"webdav"}}}')"
-
-check "webdav→s3 allowed" "True" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"webdav","dst_protocol":"s3"}}}')"
 
 check "s3→webdav allowed" "True" "$(opa_query '{
     "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
@@ -185,6 +181,17 @@ check "xrdhttp→webdav allowed" "True" "$(opa_query '{
     "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
     "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
     "source_protocol":"xrdhttp","dst_protocol":"webdav"}}}')"
+
+# Denied: S3 cannot act as TPC destination — requires FTS streaming
+check "webdav→s3 denied (S3 not TPC destination)" "False" "$(opa_query '{
+    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
+    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
+    "source_protocol":"webdav","dst_protocol":"s3"}}}')"
+
+check "xrdhttp→s3 denied (S3 not TPC destination)" "False" "$(opa_query '{
+    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
+    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
+    "source_protocol":"xrdhttp","dst_protocol":"s3"}}}')"
 
 check "s3→s3 denied (no TPC)" "False" "$(opa_query '{
     "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
@@ -200,10 +207,10 @@ check "no protocol hints skips combo check" "True" "$(opa_query '{
     "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
     "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK"}}}')"
 
-check "protocol names case-insensitive (WEBDAV→S3)" "True" "$(opa_query '{
+check "protocol names case-insensitive (S3→WEBDAV)" "True" "$(opa_query '{
     "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
     "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"WEBDAV","dst_protocol":"S3"}}}')"
+    "source_protocol":"S3","dst_protocol":"WEBDAV"}}}')"
 
 printf -- "\n"
 

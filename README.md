@@ -68,22 +68,25 @@ flowchart TD
 
     F --> G[Conveyor daemon picks up transfer]
     G --> H{Protocol pair}
-    H -->|WebDAV ↔ WebDAV\nWebDAV ↔ S3\nXrdHTTP ↔ WebDAV| I([TPC — direct storage transfer\nno FTS in data path])
+    H -->|WebDAV ↔ WebDAV\nS3 → WebDAV\nXrdHTTP → WebDAV| I([TPC — direct storage transfer\nno FTS in data path])
 ```
 
 ### What it enforces
 
-**Protocol combos** — TPC transfer paths:
+**Protocol combos** — TPC transfer paths (based on Transfer Scenarios Overview,
+verified with Rucio/FTS maintainers). The destination storage initiates TPC by
+pulling from the source — S3 cannot act as a TPC destination:
 
-| Source | Destination | Allowed |
-|--------|-------------|---------|
-| WebDAV | WebDAV | ✓ |
-| WebDAV | S3 | ✓ |
-| S3 | WebDAV | ✓ |
-| XrdHTTP | WebDAV | ✓ |
-| S3 | S3 | ✗ — no TPC support |
-| S3 | XrdHTTP | ✗ |
-| XrdHTTP | XrdHTTP | ✗ |
+| Source | Destination | Allowed | Reason |
+|--------|-------------|---------|--------|
+| WebDAV | WebDAV | ✓ | TPC native |
+| S3 | WebDAV | ✓ | WebDAV pulls from S3 |
+| XrdHTTP | WebDAV | ✓ | WebDAV pulls from XrdHTTP |
+| WebDAV | S3 | ✗ | S3 cannot act as TPC destination |
+| XrdHTTP | S3 | ✗ | S3 cannot act as TPC destination |
+| S3 | S3 | ✗ | Neither side supports TPC pull |
+| S3 | XrdHTTP | ✗ | FTS or gateway required |
+| XrdHTTP | XrdHTTP | ✗ | Not a supported TPC path |
 
 **RSE naming** — must match `<SITE>_<TYPE>` where TYPE ∈
 `{DATADISK, SCRATCHDISK, LOCALGROUPDISK, TAPE, USERDISK}`.
@@ -132,7 +135,7 @@ flowchart TD
 
     G --> H[Conveyor daemon picks up transfer]
     H --> I{Protocol pair}
-    I -->|WebDAV ↔ WebDAV\nWebDAV ↔ S3\nXrdHTTP ↔ WebDAV| J([TPC — direct storage transfer\nno FTS in data path])
+    I -->|WebDAV ↔ WebDAV\nS3 → WebDAV\nXrdHTTP → WebDAV| J([TPC — direct storage transfer\nno FTS in data path])
 ```
 
 ### Actions delegated to OPA

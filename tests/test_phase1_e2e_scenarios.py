@@ -50,89 +50,53 @@ class TestScenario_ProtocolCombos:
     """
 
     def test_A1_webdav_to_webdav_allowed(self, regular_account):
-        """WebDAV→WebDAV is a valid TPC path — user's own account, not locked."""
-        kw = _rule_kwargs(
-            regular_account,
-            source_protocol="webdav",
-            dst_protocol="webdav",
-        )
+        """WebDAV→WebDAV is a valid TPC path — TPC native."""
+        kw = _rule_kwargs(regular_account, source_protocol="webdav", dst_protocol="webdav")
         assert has_permission(regular_account, "add_rule", kw) is True
 
-    def test_A2_webdav_to_s3_allowed(self, regular_account):
-        """WebDAV→S3 is a valid TPC path."""
-        kw = _rule_kwargs(
-            regular_account,
-            source_protocol="webdav",
-            dst_protocol="s3",
-        )
+    def test_A2_s3_to_webdav_allowed(self, regular_account):
+        """S3→WebDAV: WebDAV destination can TPC-pull from S3 source."""
+        kw = _rule_kwargs(regular_account, source_protocol="s3", dst_protocol="webdav")
         assert has_permission(regular_account, "add_rule", kw) is True
 
-    def test_A3_s3_to_webdav_allowed(self, regular_account):
-        """S3→WebDAV is a valid TPC path."""
-        kw = _rule_kwargs(
-            regular_account,
-            source_protocol="s3",
-            dst_protocol="webdav",
-        )
+    def test_A3_xrdhttp_to_webdav_allowed(self, regular_account):
+        """XrdHTTP→WebDAV: WebDAV destination can TPC-pull from XrdHTTP source."""
+        kw = _rule_kwargs(regular_account, source_protocol="xrdhttp", dst_protocol="webdav")
         assert has_permission(regular_account, "add_rule", kw) is True
 
-    def test_A4_xrdhttp_to_webdav_allowed(self, regular_account):
-        """XrdHTTP→WebDAV is a valid TPC path."""
-        kw = _rule_kwargs(
-            regular_account,
-            source_protocol="xrdhttp",
-            dst_protocol="webdav",
-        )
-        assert has_permission(regular_account, "add_rule", kw) is True
-
-    def test_A5_s3_to_s3_denied_for_regular_user(self, regular_account):
-        """
-        S3→S3 has no TPC support — denied regardless of who requests it.
-        This is the primary policy violation from the README flowchart.
-        """
-        kw = _rule_kwargs(
-            regular_account,
-            source_protocol="s3",
-            dst_protocol="s3",
-        )
+    def test_A4_webdav_to_s3_denied(self, regular_account):
+        """WebDAV→S3: S3 cannot act as TPC destination — FTS streaming required."""
+        kw = _rule_kwargs(regular_account, source_protocol="webdav", dst_protocol="s3")
         assert has_permission(regular_account, "add_rule", kw) is False
 
-    def test_A6_s3_to_s3_denied_even_for_root(self, root):
-        """
-        Root cannot bypass the protocol policy.
-        Domain rules run before privilege checks.
-        """
-        kw = _rule_kwargs(
-            root,
-            source_protocol="s3",
-            dst_protocol="s3",
-        )
+    def test_A5_xrdhttp_to_s3_denied(self, regular_account):
+        """XrdHTTP→S3: S3 cannot act as TPC destination — FTS streaming required."""
+        kw = _rule_kwargs(regular_account, source_protocol="xrdhttp", dst_protocol="s3")
+        assert has_permission(regular_account, "add_rule", kw) is False
+
+    def test_A6_s3_to_s3_denied_for_regular_user(self, regular_account):
+        """S3→S3: neither side supports TPC pull — denied regardless of account."""
+        kw = _rule_kwargs(regular_account, source_protocol="s3", dst_protocol="s3")
+        assert has_permission(regular_account, "add_rule", kw) is False
+
+    def test_A7_s3_to_s3_denied_even_for_root(self, root):
+        """Root cannot bypass the protocol policy — domain rules run first."""
+        kw = _rule_kwargs(root, source_protocol="s3", dst_protocol="s3")
         assert has_permission(root, "add_rule", kw) is False
 
-    def test_A7_s3_to_xrdhttp_denied(self, regular_account):
-        """S3→XrdHTTP is not a recognised TPC path."""
-        kw = _rule_kwargs(
-            regular_account,
-            source_protocol="s3",
-            dst_protocol="xrdhttp",
-        )
+    def test_A8_s3_to_xrdhttp_denied(self, regular_account):
+        """S3→XrdHTTP: FTS or gateway required."""
+        kw = _rule_kwargs(regular_account, source_protocol="s3", dst_protocol="xrdhttp")
         assert has_permission(regular_account, "add_rule", kw) is False
 
-    def test_A8_case_insensitive_protocol_names(self, regular_account):
+    def test_A9_case_insensitive_protocol_names(self, regular_account):
         """Protocol names are normalised to lowercase before checking."""
-        kw = _rule_kwargs(
-            regular_account,
-            source_protocol="WebDAV",
-            dst_protocol="S3",
-        )
+        kw = _rule_kwargs(regular_account, source_protocol="S3", dst_protocol="WEBDAV")
         assert has_permission(regular_account, "add_rule", kw) is True
 
-    def test_A9_no_protocol_hints_skips_combo_check(self, regular_account):
-        """
-        When protocol hints are absent Rucio selects the protocol.
-        The policy must not block the rule creation in this case.
-        """
-        kw = _rule_kwargs(regular_account)  # no source/dst protocol
+    def test_A10_no_protocol_hints_skips_combo_check(self, regular_account):
+        """When protocol hints are absent Rucio selects the protocol — no block."""
+        kw = _rule_kwargs(regular_account)
         assert has_permission(regular_account, "add_rule", kw) is True
 
 

@@ -167,21 +167,8 @@ class TestOPA_ProtocolCombos:
             is True
         )
 
-    def test_A2_webdav_to_s3_allowed(self):
-        assert (
-            _query(
-                "alice",
-                "add_rule",
-                account="alice",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="webdav",
-                dst_protocol="s3",
-            )
-            is True
-        )
-
-    def test_A3_s3_to_webdav_allowed(self):
+    def test_A2_s3_to_webdav_allowed(self):
+        """WebDAV destination can TPC-pull from S3 source."""
         assert (
             _query(
                 "alice",
@@ -195,7 +182,8 @@ class TestOPA_ProtocolCombos:
             is True
         )
 
-    def test_A4_xrdhttp_to_webdav_allowed(self):
+    def test_A3_xrdhttp_to_webdav_allowed(self):
+        """WebDAV destination can TPC-pull from XrdHTTP source."""
         assert (
             _query(
                 "alice",
@@ -209,7 +197,37 @@ class TestOPA_ProtocolCombos:
             is True
         )
 
-    def test_A5_s3_to_s3_denied(self):
+    def test_A4_webdav_to_s3_denied(self):
+        """S3 cannot act as a TPC destination — requires FTS streaming."""
+        assert (
+            _query(
+                "alice",
+                "add_rule",
+                account="alice",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                source_protocol="webdav",
+                dst_protocol="s3",
+            )
+            is False
+        )
+
+    def test_A5_xrdhttp_to_s3_denied(self):
+        """S3 cannot act as a TPC destination — requires FTS streaming."""
+        assert (
+            _query(
+                "alice",
+                "add_rule",
+                account="alice",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                source_protocol="xrdhttp",
+                dst_protocol="s3",
+            )
+            is False
+        )
+
+    def test_A6_s3_to_s3_denied(self):
         assert (
             _query(
                 "alice",
@@ -223,7 +241,7 @@ class TestOPA_ProtocolCombos:
             is False
         )
 
-    def test_A6_s3_to_s3_denied_even_for_root(self):
+    def test_A7_s3_to_s3_denied_even_for_root(self):
         assert (
             _query(
                 "root",
@@ -238,7 +256,7 @@ class TestOPA_ProtocolCombos:
             is False
         )
 
-    def test_A7_no_protocol_hints_allowed(self):
+    def test_A8_no_protocol_hints_allowed(self):
         assert (
             _query(
                 "alice", "add_rule", account="alice", locked=False, rse_expression="CERN_DATADISK"
@@ -246,7 +264,8 @@ class TestOPA_ProtocolCombos:
             is True
         )
 
-    def test_A8_case_insensitive(self):
+    def test_A9_case_insensitive(self):
+        """Protocol names are normalised to lowercase before checking."""
         assert (
             _query(
                 "alice",
@@ -254,8 +273,8 @@ class TestOPA_ProtocolCombos:
                 account="alice",
                 locked=False,
                 rse_expression="CERN_DATADISK",
-                source_protocol="WebDAV",
-                dst_protocol="S3",
+                source_protocol="S3",
+                dst_protocol="WEBDAV",
             )
             is True
         )

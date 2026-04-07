@@ -23,11 +23,11 @@ class TestProtocolCombos:
     @pytest.mark.parametrize(
         "src, dst",
         [
-            ("webdav", "webdav"),
+            ("webdav", "webdav"),  # TPC native
             ("WebDAV", "WebDAV"),  # case-insensitive
-            ("webdav", "s3"),
-            ("s3", "webdav"),
-            ("xrdhttp", "webdav"),
+            ("s3", "webdav"),  # WebDAV pulls from S3
+            ("S3", "WebDAV"),  # mixed case
+            ("xrdhttp", "webdav"),  # WebDAV pulls from XrdHTTP
             ("XrdHTTP", "WebDAV"),  # mixed case
         ],
     )
@@ -37,21 +37,22 @@ class TestProtocolCombos:
     @pytest.mark.parametrize(
         "src, dst",
         [
-            ("s3", "s3"),  # no TPC support
-            ("s3", "xrdhttp"),
-            ("xrdhttp", "s3"),
-            ("xrdhttp", "xrdhttp"),
-            ("ftp", "webdav"),
-            ("", "webdav"),
+            ("s3", "s3"),  # neither side supports TPC pull
+            ("webdav", "s3"),  # S3 cannot act as TPC destination
+            ("xrdhttp", "s3"),  # S3 cannot act as TPC destination
+            ("s3", "xrdhttp"),  # FTS or gateway required
+            ("xrdhttp", "xrdhttp"),  # not a supported TPC path
+            ("ftp", "webdav"),  # unknown protocol
+            ("", "webdav"),  # empty source
         ],
     )
     def test_blocked_combos(self, src, dst):
         assert is_protocol_combo_allowed(src, dst) is False
 
-    def test_allowed_set_is_symmetric_for_webdav_s3(self):
-        # S3↔WebDAV is allowed in both directions; S3↔S3 must not be
-        assert ("webdav", "s3") in ALLOWED_PROTOCOL_COMBOS
+    def test_s3_webdav_asymmetric(self):
+        """S3→WebDAV is allowed (WebDAV pulls); WebDAV→S3 is not (S3 cannot TPC-receive)."""
         assert ("s3", "webdav") in ALLOWED_PROTOCOL_COMBOS
+        assert ("webdav", "s3") not in ALLOWED_PROTOCOL_COMBOS
         assert ("s3", "s3") not in ALLOWED_PROTOCOL_COMBOS
 
 
@@ -105,12 +106,12 @@ class TestValidateAddRuleKwargs:
     def test_bare_valid_rse_valid_protocol_combo(self):
         kwargs = {
             "rse_expression": "CERN_DATADISK",
-            "source_protocol": "webdav",
-            "dst_protocol": "s3",
+            "source_protocol": "s3",
+            "dst_protocol": "webdav",
         }
         assert validate_add_rule_kwargs(kwargs) is None
 
-    def test_bare_valid_rse_invalid_protocol_combo(self):
+    def test_bare_valid_rse_invalid_protocol_combo_s3_s3(self):
         kwargs = {
             "rse_expression": "CERN_DATADISK",
             "source_protocol": "s3",
@@ -119,6 +120,17 @@ class TestValidateAddRuleKwargs:
         error = validate_add_rule_kwargs(kwargs)
         assert error is not None
         assert "S3→S3" in error or "not allowed" in error
+
+    def test_bare_valid_rse_invalid_protocol_combo_webdav_s3(self):
+        """webdav→s3 denied: S3 cannot act as TPC destination."""
+        kwargs = {
+            "rse_expression": "CERN_DATADISK",
+            "source_protocol": "webdav",
+            "dst_protocol": "s3",
+        }
+        error = validate_add_rule_kwargs(kwargs)
+        assert error is not None
+        assert "not allowed" in error
 
     def test_bare_invalid_rse_name(self):
         kwargs = {"rse_expression": "cern_datadisk"}
