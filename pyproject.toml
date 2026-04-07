@@ -21,19 +21,23 @@ select = [
     "B",        # bugbear
     "SIM",      # simplify
 ]
+ignore = [
+    "E501",  # line too long — handled by ruff-format
+    "S310",  # urllib.urlopen — all uses talk to a trusted local OPA endpoint
+]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = [
-    "S101",
-    "S105",
-    "S106",
-    "S311",
-    "N801",
-    "N802",
+    "S101",  # assert statements are expected in tests
+    "S105",  # hardcoded password strings (test fixtures)
+    "S106",  # hardcoded password function arguments
+    "S311",  # non-cryptographic random usage in tests is fine
+    "N801",  # test class names use underscores for group readability (TestScenario_X)
+    "N802",  # test method names use uppercase group labels (test_A1_..., test_B2_...)
 ]
 "tests/test_phase2_e2e_scenarios.py" = [
-    "S603",
-    "S607",
-    "S310",
+    "S603",  # subprocess call is a controlled test fixture spawning a known binary
+    "S607",  # partial executable path (opa) is intentional — resolved via PATH
 ]
 
 [tool.ruff.lint.isort]
