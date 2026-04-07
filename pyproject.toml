@@ -21,12 +21,20 @@ select = [
     "B",        # bugbear
     "SIM",      # simplify
 ]
-ignore = [
-    "E501",  # line too long — handled by ruff-format
-]
-
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]  # assert statements are fine in tests
+"tests/*" = [
+    "S101",
+    "S105",
+    "S106",
+    "S311",
+    "N801",
+    "N802",
+]
+"tests/test_phase2_e2e_scenarios.py" = [
+    "S603",
+    "S607",
+    "S310",
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["rucio_no_opa_policy", "rucio_opa_policy"]

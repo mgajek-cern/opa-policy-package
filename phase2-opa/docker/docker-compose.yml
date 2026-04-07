@@ -50,8 +50,6 @@ services:
     working_dir: /app
     environment:
       - VO_ADMINS=${VO_ADMINS:-}
-    # Wait for OPA, then ingest. --admins is only passed when VO_ADMINS is set
-    # to avoid argparse failing on an empty string argument.
     command:
       - sh
       - -c
@@ -69,22 +67,65 @@ services:
     restart: "no"
 
   # ---------------------------------------------------------------------------
+  # PostgreSQL — Rucio metadata store
+  # ---------------------------------------------------------------------------
+  ruciodb:
+    image: postgres:14
+    container_name: ruciodb
+    hostname: ruciodb
+    environment:
+      - POSTGRES_USER=rucio
+      - POSTGRES_PASSWORD=rucio
+      - POSTGRES_DB=rucio
+    volumes:
+      - ruciodb-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rucio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    profiles:
+      - full
+
+  # ---------------------------------------------------------------------------
   # Rucio server — configured to use the OPA policy package
   # ---------------------------------------------------------------------------
   rucio:
     image: rucio/rucio-server:latest
     container_name: rucio-server
+    hostname: rucio
     depends_on:
       opa-init:
         condition: service_completed_successfully
+      ruciodb:
+        condition: service_healthy
     ports:
-      - "443:443"
+      - "80:80"
     environment:
-      - RUCIO_POLICY_PACKAGE=rucio_opa_policy
       - OPA_URL=http://opa:8181
       - OPA_POLICY_PATH=vo/authz/allow
       - OPA_TIMEOUT=2
     volumes:
-      - ../../src/rucio_opa_policy:/usr/local/lib/python3.11/site-packages/rucio_opa_policy:ro
+      - ./rucio.cfg:/opt/rucio/etc/rucio.cfg:ro
+      - ./bootstrap-db.py:/tmp/bootstrap-db.py:ro
+      - ./alembic.ini:/opt/rucio/etc/alembic.ini:ro
+      - ../../:/policy-package:ro
+    entrypoint:
+      - bash
+      - -c
+      - |
+        cp -r /policy-package/phase2-opa /tmp/rucio-opa-policy &&
+        pip install -q /tmp/rucio-opa-policy &&
+        python3 /tmp/bootstrap-db.py &&
+        exec /docker-entrypoint.sh httpd -DFOREGROUND
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 20
     profiles:
       - full
+
+volumes:
+  ruciodb-data:

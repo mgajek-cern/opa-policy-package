@@ -70,7 +70,6 @@ jobs:
         run: |
           cd phase2-opa/docker
           docker compose up -d opa opa-init
-          # Wait for opa-init to complete (policy ingested)
           docker wait rucio-opa-init
 
       - name: Run Phase 2 e2e tests (live OPA)
@@ -89,6 +88,48 @@ jobs:
         with:
           name: coverage-phase2-unit
           path: coverage-phase2-unit.xml
+
+  # ---------------------------------------------------------------------------
+  # Smoke test — full stack (OPA + PostgreSQL + Rucio) + smoke_test.sh
+  # ---------------------------------------------------------------------------
+  smoke-test:
+    name: Full stack smoke test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start full stack
+        run: |
+          cd phase2-opa/docker
+          docker compose --profile full up -d
+          # Wait for Rucio to become healthy (polls /ping internally)
+          docker wait rucio-opa-init
+          echo "Waiting for Rucio server to be healthy..."
+          for i in $(seq 1 30); do
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
+            if [ "$STATUS" = "healthy" ]; then
+              echo "Rucio is healthy."
+              break
+            fi
+            echo "  attempt $i/30 — status: $STATUS"
+            sleep 5
+          done
+
+      - name: Run smoke tests
+        run: |
+          cd phase2-opa/docker
+          bash smoke_test.sh
+
+      - name: Print OPA request log
+        if: always()
+        run: |
+          echo "=== OPA request log ==="
+          docker logs rucio-opa 2>&1 | grep "req_path\|req_method\|resp_status" | grep -v "/health"
+
+      - name: Tear down full stack
+        if: always()
+        run: cd phase2-opa/docker && docker compose --profile full down -v
 
   # ---------------------------------------------------------------------------
   # Lint — ruff + pre-commit hooks
