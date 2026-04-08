@@ -29,6 +29,10 @@ class TestProtocolCombos:
             ("S3", "WebDAV"),  # mixed case
             ("xrdhttp", "webdav"),  # WebDAV pulls from XrdHTTP
             ("XrdHTTP", "WebDAV"),  # mixed case
+            ("s3", "xrdhttp"),  # XrdHTTP pulls from S3 via pre-signed URL
+            ("S3", "XrdHTTP"),  # mixed case
+            ("xrdhttp", "xrdhttp"),  # Native HTTP TPC
+            ("XrdHTTP", "XrdHTTP"),  # mixed case
         ],
     )
     def test_allowed_combos(self, src, dst):
@@ -40,8 +44,6 @@ class TestProtocolCombos:
             ("s3", "s3"),  # neither side supports TPC pull
             ("webdav", "s3"),  # S3 cannot act as TPC destination
             ("xrdhttp", "s3"),  # S3 cannot act as TPC destination
-            ("s3", "xrdhttp"),  # FTS or gateway required
-            ("xrdhttp", "xrdhttp"),  # not a supported TPC path
             ("ftp", "webdav"),  # unknown protocol
             ("", "webdav"),  # empty source
         ],
@@ -54,6 +56,15 @@ class TestProtocolCombos:
         assert ("s3", "webdav") in ALLOWED_PROTOCOL_COMBOS
         assert ("webdav", "s3") not in ALLOWED_PROTOCOL_COMBOS
         assert ("s3", "s3") not in ALLOWED_PROTOCOL_COMBOS
+
+    def test_s3_xrdhttp_asymmetric(self):
+        """S3→XrdHTTP is allowed (XrdHTTP pulls); XrdHTTP→S3 is not (S3 cannot TPC-receive)."""
+        assert ("s3", "xrdhttp") in ALLOWED_PROTOCOL_COMBOS
+        assert ("xrdhttp", "s3") not in ALLOWED_PROTOCOL_COMBOS
+
+    def test_xrdhttp_xrdhttp_symmetric(self):
+        """XrdHTTP↔XrdHTTP native HTTP TPC is allowed in both directions."""
+        assert ("xrdhttp", "xrdhttp") in ALLOWED_PROTOCOL_COMBOS
 
 
 # ---------------------------------------------------------------------------
@@ -103,11 +114,27 @@ class TestValidateAddRuleKwargs:
         kwargs = {"rse_expression": "CERN_DATADISK"}
         assert validate_add_rule_kwargs(kwargs) is None
 
-    def test_bare_valid_rse_valid_protocol_combo(self):
+    def test_bare_valid_rse_valid_protocol_combo_s3_webdav(self):
         kwargs = {
             "rse_expression": "CERN_DATADISK",
             "source_protocol": "s3",
             "dst_protocol": "webdav",
+        }
+        assert validate_add_rule_kwargs(kwargs) is None
+
+    def test_bare_valid_rse_valid_protocol_combo_s3_xrdhttp(self):
+        kwargs = {
+            "rse_expression": "CERN_DATADISK",
+            "source_protocol": "s3",
+            "dst_protocol": "xrdhttp",
+        }
+        assert validate_add_rule_kwargs(kwargs) is None
+
+    def test_bare_valid_rse_valid_protocol_combo_xrdhttp_xrdhttp(self):
+        kwargs = {
+            "rse_expression": "CERN_DATADISK",
+            "source_protocol": "xrdhttp",
+            "dst_protocol": "xrdhttp",
         }
         assert validate_add_rule_kwargs(kwargs) is None
 
@@ -126,6 +153,17 @@ class TestValidateAddRuleKwargs:
         kwargs = {
             "rse_expression": "CERN_DATADISK",
             "source_protocol": "webdav",
+            "dst_protocol": "s3",
+        }
+        error = validate_add_rule_kwargs(kwargs)
+        assert error is not None
+        assert "not allowed" in error
+
+    def test_bare_valid_rse_invalid_protocol_combo_xrdhttp_s3(self):
+        """xrdhttp→s3 denied: S3 cannot act as TPC destination."""
+        kwargs = {
+            "rse_expression": "CERN_DATADISK",
+            "source_protocol": "xrdhttp",
             "dst_protocol": "s3",
         }
         error = validate_add_rule_kwargs(kwargs)

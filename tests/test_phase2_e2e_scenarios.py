@@ -197,7 +197,37 @@ class TestOPA_ProtocolCombos:
             is True
         )
 
-    def test_A4_webdav_to_s3_denied(self):
+    def test_A4_s3_to_xrdhttp_allowed(self):
+        """XrdHTTP destination can pull from S3 via pre-signed URL."""
+        assert (
+            _query(
+                "alice",
+                "add_rule",
+                account="alice",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                source_protocol="s3",
+                dst_protocol="xrdhttp",
+            )
+            is True
+        )
+
+    def test_A5_xrdhttp_to_xrdhttp_allowed(self):
+        """XrdHTTP↔XrdHTTP native HTTP TPC is supported."""
+        assert (
+            _query(
+                "alice",
+                "add_rule",
+                account="alice",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                source_protocol="xrdhttp",
+                dst_protocol="xrdhttp",
+            )
+            is True
+        )
+
+    def test_A6_webdav_to_s3_denied(self):
         """S3 cannot act as a TPC destination — requires FTS streaming."""
         assert (
             _query(
@@ -212,7 +242,7 @@ class TestOPA_ProtocolCombos:
             is False
         )
 
-    def test_A5_xrdhttp_to_s3_denied(self):
+    def test_A7_xrdhttp_to_s3_denied(self):
         """S3 cannot act as a TPC destination — requires FTS streaming."""
         assert (
             _query(
@@ -227,7 +257,7 @@ class TestOPA_ProtocolCombos:
             is False
         )
 
-    def test_A6_s3_to_s3_denied(self):
+    def test_A8_s3_to_s3_denied(self):
         assert (
             _query(
                 "alice",
@@ -241,7 +271,7 @@ class TestOPA_ProtocolCombos:
             is False
         )
 
-    def test_A7_s3_to_s3_denied_even_for_root(self):
+    def test_A9_s3_to_s3_denied_even_for_root(self):
         assert (
             _query(
                 "root",
@@ -256,7 +286,7 @@ class TestOPA_ProtocolCombos:
             is False
         )
 
-    def test_A8_no_protocol_hints_allowed(self):
+    def test_A10_no_protocol_hints_allowed(self):
         assert (
             _query(
                 "alice", "add_rule", account="alice", locked=False, rse_expression="CERN_DATADISK"
@@ -264,7 +294,7 @@ class TestOPA_ProtocolCombos:
             is True
         )
 
-    def test_A9_case_insensitive(self):
+    def test_A11_case_insensitive(self):
         """Protocol names are normalised to lowercase before checking."""
         assert (
             _query(
@@ -275,6 +305,21 @@ class TestOPA_ProtocolCombos:
                 rse_expression="CERN_DATADISK",
                 source_protocol="S3",
                 dst_protocol="WEBDAV",
+            )
+            is True
+        )
+
+    def test_A12_case_insensitive_xrdhttp_xrdhttp(self):
+        """Mixed-case XrdHTTP↔XrdHTTP is also normalised correctly."""
+        assert (
+            _query(
+                "alice",
+                "add_rule",
+                account="alice",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                source_protocol="XrdHTTP",
+                dst_protocol="XrdHTTP",
             )
             is True
         )

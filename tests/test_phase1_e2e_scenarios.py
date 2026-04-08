@@ -37,9 +37,15 @@ def _rule_kwargs(
 # ---------------------------------------------------------------------------
 # Scenario group A — Protocol combo enforcement (add_rule)
 #
-# These scenarios map to the "Protocol pair" decision in the flowchart:
-#   WebDAV↔WebDAV / WebDAV↔S3 / XrdHTTP↔WebDAV  → allowed (TPC path)
-#   S3↔S3                                          → denied  (no TPC)
+# Allowed TPC paths (verified with Rucio/FTS maintainers):
+#   WebDAV  → WebDAV   ✓  TPC native
+#   S3      → WebDAV   ✓  WebDAV pulls from S3
+#   XrdHTTP → WebDAV   ✓  WebDAV pulls from XrdHTTP
+#   S3      → XrdHTTP  ✓  XrdHTTP pulls from S3 via pre-signed URL
+#   XrdHTTP → XrdHTTP  ✓  Native HTTP TPC
+#   WebDAV  → S3       ✗  S3 cannot act as TPC destination
+#   XrdHTTP → S3       ✗  S3 cannot act as TPC destination
+#   S3      → S3       ✗  Neither side supports TPC pull
 # ---------------------------------------------------------------------------
 
 
@@ -64,37 +70,47 @@ class TestScenario_ProtocolCombos:
         kw = _rule_kwargs(regular_account, source_protocol="xrdhttp", dst_protocol="webdav")
         assert has_permission(regular_account, "add_rule", kw) is True
 
-    def test_A4_webdav_to_s3_denied(self, regular_account):
+    def test_A4_s3_to_xrdhttp_allowed(self, regular_account):
+        """S3→XrdHTTP: XrdHTTP destination can pull from S3 via pre-signed URL."""
+        kw = _rule_kwargs(regular_account, source_protocol="s3", dst_protocol="xrdhttp")
+        assert has_permission(regular_account, "add_rule", kw) is True
+
+    def test_A5_xrdhttp_to_xrdhttp_allowed(self, regular_account):
+        """XrdHTTP→XrdHTTP: native HTTP TPC is supported."""
+        kw = _rule_kwargs(regular_account, source_protocol="xrdhttp", dst_protocol="xrdhttp")
+        assert has_permission(regular_account, "add_rule", kw) is True
+
+    def test_A6_webdav_to_s3_denied(self, regular_account):
         """WebDAV→S3: S3 cannot act as TPC destination — FTS streaming required."""
         kw = _rule_kwargs(regular_account, source_protocol="webdav", dst_protocol="s3")
         assert has_permission(regular_account, "add_rule", kw) is False
 
-    def test_A5_xrdhttp_to_s3_denied(self, regular_account):
+    def test_A7_xrdhttp_to_s3_denied(self, regular_account):
         """XrdHTTP→S3: S3 cannot act as TPC destination — FTS streaming required."""
         kw = _rule_kwargs(regular_account, source_protocol="xrdhttp", dst_protocol="s3")
         assert has_permission(regular_account, "add_rule", kw) is False
 
-    def test_A6_s3_to_s3_denied_for_regular_user(self, regular_account):
+    def test_A8_s3_to_s3_denied_for_regular_user(self, regular_account):
         """S3→S3: neither side supports TPC pull — denied regardless of account."""
         kw = _rule_kwargs(regular_account, source_protocol="s3", dst_protocol="s3")
         assert has_permission(regular_account, "add_rule", kw) is False
 
-    def test_A7_s3_to_s3_denied_even_for_root(self, root):
+    def test_A9_s3_to_s3_denied_even_for_root(self, root):
         """Root cannot bypass the protocol policy — domain rules run first."""
         kw = _rule_kwargs(root, source_protocol="s3", dst_protocol="s3")
         assert has_permission(root, "add_rule", kw) is False
 
-    def test_A8_s3_to_xrdhttp_denied(self, regular_account):
-        """S3→XrdHTTP: FTS or gateway required."""
-        kw = _rule_kwargs(regular_account, source_protocol="s3", dst_protocol="xrdhttp")
-        assert has_permission(regular_account, "add_rule", kw) is False
-
-    def test_A9_case_insensitive_protocol_names(self, regular_account):
+    def test_A10_case_insensitive_protocol_names(self, regular_account):
         """Protocol names are normalised to lowercase before checking."""
         kw = _rule_kwargs(regular_account, source_protocol="S3", dst_protocol="WEBDAV")
         assert has_permission(regular_account, "add_rule", kw) is True
 
-    def test_A10_no_protocol_hints_skips_combo_check(self, regular_account):
+    def test_A11_case_insensitive_xrdhttp_xrdhttp(self, regular_account):
+        """Mixed-case XrdHTTP↔XrdHTTP is also normalised correctly."""
+        kw = _rule_kwargs(regular_account, source_protocol="XrdHTTP", dst_protocol="XrdHTTP")
+        assert has_permission(regular_account, "add_rule", kw) is True
+
+    def test_A12_no_protocol_hints_skips_combo_check(self, regular_account):
         """When protocol hints are absent Rucio selects the protocol — no block."""
         kw = _rule_kwargs(regular_account)
         assert has_permission(regular_account, "add_rule", kw) is True

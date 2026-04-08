@@ -166,7 +166,7 @@ printf -- "\n"
 # ---------------------------------------------------------------------------
 printf -- "--- OPA: protocol combos ---\n"
 
-# Allowed: destination WebDAV can TPC-pull from any source
+# Allowed: destination WebDAV and XrdHttp can TPC-pull from any source
 check "webdav→webdav allowed" "True" "$(opa_query '{
     "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
     "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
@@ -181,6 +181,16 @@ check "xrdhttp→webdav allowed" "True" "$(opa_query '{
     "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
     "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
     "source_protocol":"xrdhttp","dst_protocol":"webdav"}}}')"
+
+check "s3→xrdhttp allowed" "True" "$(opa_query '{
+    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
+    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
+    "source_protocol":"s3","dst_protocol":"xrdhttp"}}}')"
+
+check "xrdhttp→xrdhttp allowed" "True" "$(opa_query '{
+    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
+    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
+    "source_protocol":"xrdhttp","dst_protocol":"xrdhttp"}}}')"
 
 # Denied: S3 cannot act as TPC destination — requires FTS streaming
 check "webdav→s3 denied (S3 not TPC destination)" "False" "$(opa_query '{
@@ -198,10 +208,6 @@ check "s3→s3 denied (no TPC)" "False" "$(opa_query '{
     "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
     "source_protocol":"s3","dst_protocol":"s3"}}}')"
 
-check "s3→xrdhttp denied" "False" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"s3","dst_protocol":"xrdhttp"}}}')"
 
 check "no protocol hints skips combo check" "True" "$(opa_query '{
     "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
