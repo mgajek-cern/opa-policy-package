@@ -24,7 +24,7 @@ Domain rules run **before** privilege checks — root cannot bypass them.
 
 ## What it enforces
 
-**Protocol combos** — see [Transfer Scenarios Overview](../docs/storage-transfer-overview.md).
+**Protocol combos** — see [Transfer Scenarios Overview](../docs/transfer-scenarios-overview.md).
 
 | Source | Destination | |
 |--------|-------------|-|
