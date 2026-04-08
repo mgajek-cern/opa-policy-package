@@ -1,0 +1,111 @@
+services:
+
+  # ---------------------------------------------------------------------------
+  # OPA — Policy Decision Point
+  # ---------------------------------------------------------------------------
+  opa:
+    image: openpolicyagent/opa:1.8.0
+    container_name: rucio-opa
+    ports:
+      - "8181:8181"
+    command: >
+      run
+      --server
+      --log-level info
+      --addr=0.0.0.0:8181
+    # OPA's distroless image has no shell/wget/curl — healthcheck omitted.
+    # opa-init polls OPA directly before ingesting.
+
+  # ---------------------------------------------------------------------------
+  # OPA init — loads the Rego policy + admin data via REST API
+  # ---------------------------------------------------------------------------
+  opa-init:
+    image: python:3.11-slim
+    container_name: rucio-opa-init
+    depends_on:
+      - opa
+    volumes:
+      - .:/app        # ingest_policies.py
+      - ../rego:/rego # authz.rego
+    working_dir: /app
+    environment:
+      - VO_ADMINS=${VO_ADMINS:-}
+    command:
+      - sh
+      - -c
+      - |
+        echo 'Waiting for OPA...'
+        until python -c "import urllib.request; urllib.request.urlopen('http://opa:8181/health')" 2>/dev/null; do
+          sleep 1
+        done
+        echo 'OPA ready.'
+        if [ -n "$$VO_ADMINS" ]; then
+          python ingest_policies.py --opa-url http://opa:8181 --admins "$$VO_ADMINS"
+        else
+          python ingest_policies.py --opa-url http://opa:8181
+        fi
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — Rucio metadata store
+  # ---------------------------------------------------------------------------
+  ruciodb:
+    image: postgres:14
+    container_name: ruciodb
+    hostname: ruciodb
+    environment:
+      - POSTGRES_USER=rucio
+      - POSTGRES_PASSWORD=rucio
+      - POSTGRES_DB=rucio
+    volumes:
+      - ruciodb-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rucio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    profiles:
+      - full
+
+  # ---------------------------------------------------------------------------
+  # Rucio server — configured to use the OPA policy package
+  # ---------------------------------------------------------------------------
+  rucio:
+    image: rucio/rucio-server:latest
+    container_name: rucio-server
+    hostname: rucio
+    depends_on:
+      opa-init:
+        condition: service_completed_successfully
+      ruciodb:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    environment:
+      - OPA_URL=http://opa:8181
+      - OPA_POLICY_PATH=vo/authz/v2/allow
+      - OPA_TIMEOUT=2
+    volumes:
+      - ./rucio.cfg:/opt/rucio/etc/rucio.cfg:ro
+      - ./bootstrap-db.py:/tmp/bootstrap-db.py:ro
+      - ./alembic.ini:/opt/rucio/etc/alembic.ini:ro
+      - ../../:/policy-package:ro
+    entrypoint:
+      - bash
+      - -c
+      - |
+        cp -r /policy-package/phase3-opa /tmp/rucio-opa-policy &&
+        pip install -q /tmp/rucio-opa-policy &&
+        python3 /tmp/bootstrap-db.py &&
+        exec /docker-entrypoint.sh httpd -DFOREGROUND
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 20
+    profiles:
+      - full
+
+volumes:
+  ruciodb-data:

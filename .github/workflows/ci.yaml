@@ -90,7 +90,58 @@ jobs:
           path: coverage-phase2-unit.xml
 
   # ---------------------------------------------------------------------------
+  # Phase 3 — unit tests (OPA mocked) + e2e tests (OPA via Docker)
+  # ---------------------------------------------------------------------------
+  test-phase3:
+    name: Phase 3 tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pytest pytest-cov -e phase3-opa/
+
+      - name: Run Phase 3 unit tests (OPA mocked)
+        run: |
+          python -m pytest \
+            tests/test_phase3_opa.py \
+            -v --tb=short \
+            --cov=phase3-opa/src \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage-phase3-unit.xml
+
+      - name: Start OPA via Docker Compose
+        run: |
+          cd phase3-opa/docker
+          docker compose up -d opa opa-init
+          docker wait rucio-opa-init
+
+      - name: Run Phase 3 e2e tests (live OPA)
+        env:
+          OPA_URL: http://localhost:8181
+        run: |
+          python -m pytest \
+            tests/test_phase3_e2e_scenarios.py \
+            -v --tb=short
+
+      - name: Tear down OPA
+        if: always()
+        run: cd phase3-opa/docker && docker compose down
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-phase3-unit
+          path: coverage-phase3-unit.xml
+
+  # ---------------------------------------------------------------------------
   # Smoke test — full stack (OPA + PostgreSQL + Rucio) + smoke_test.sh
+  # Phase 2 and Phase 3 stacks run sequentially in the same job to avoid
+  # port conflicts on :80 and :8181.
   # ---------------------------------------------------------------------------
   smoke-test:
     name: Full stack smoke test
@@ -99,37 +150,57 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Start full stack
+      - name: Phase 2 — start full stack
         run: |
           cd phase2-opa/docker
           docker compose --profile full up -d
-          # Wait for Rucio to become healthy (polls /ping internally)
           docker wait rucio-opa-init
-          echo "Waiting for Rucio server to be healthy..."
+          echo "Waiting for Rucio (Phase 2) to be healthy..."
           for i in $(seq 1 30); do
             STATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
-            if [ "$STATUS" = "healthy" ]; then
-              echo "Rucio is healthy."
-              break
-            fi
+            [ "$STATUS" = "healthy" ] && echo "Rucio is healthy." && break
             echo "  attempt $i/30 — status: $STATUS"
             sleep 5
           done
 
-      - name: Run smoke tests
-        run: |
-          cd phase2-opa/docker
-          bash smoke_test.sh
+      - name: Phase 2 — run smoke tests
+        run: cd phase2-opa/docker && bash smoke_test.sh
 
-      - name: Print OPA request log
+      - name: Phase 2 — print OPA request log
         if: always()
         run: |
-          echo "=== OPA request log ==="
-          docker logs rucio-opa 2>&1 | grep "req_path\|req_method\|resp_status" | grep -v "/health"
+          echo "=== Phase 2 OPA request log ==="
+          docker logs rucio-opa 2>&1 | grep "req_path\|req_method\|resp_status" | grep -v "/health" || true
 
-      - name: Tear down full stack
+      - name: Phase 2 — tear down full stack
         if: always()
         run: cd phase2-opa/docker && docker compose --profile full down -v
+
+      - name: Phase 3 — start full stack
+        run: |
+          cd phase3-opa/docker
+          docker compose --profile full up -d
+          docker wait rucio-opa-init
+          echo "Waiting for Rucio (Phase 3) to be healthy..."
+          for i in $(seq 1 30); do
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
+            [ "$STATUS" = "healthy" ] && echo "Rucio is healthy." && break
+            echo "  attempt $i/30 — status: $STATUS"
+            sleep 5
+          done
+
+      - name: Phase 3 — run smoke tests
+        run: cd phase3-opa/docker && bash smoke_test.sh
+
+      - name: Phase 3 — print OPA request log
+        if: always()
+        run: |
+          echo "=== Phase 3 OPA request log ==="
+          docker logs rucio-opa 2>&1 | grep "req_path\|req_method\|resp_status" | grep -v "/health" || true
+
+      - name: Phase 3 — tear down full stack
+        if: always()
+        run: cd phase3-opa/docker && docker compose --profile full down -v
 
   # ---------------------------------------------------------------------------
   # Lint — ruff + pre-commit hooks

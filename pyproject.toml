@@ -1,12 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+# ---------------------------------------------------------------------------
+# pytest
+#
+# pythonpath makes the src layouts importable without installation when
+# running pytest directly from the repo root — but the packages must still
+# be installed (pip install -e phase1-no-opa/ etc.) for imports to resolve
+# correctly, because Rucio stubs in conftest.py rely on the installed
+# package metadata.  Run:
+#
+#   pip install -e phase1-no-opa/ -e phase2-opa/ -e phase3-opa/
+#
+# before running the full test suite locally.
+# ---------------------------------------------------------------------------
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
-pythonpath = ["phase1-no-opa/src", "phase2-opa/src"]
+pythonpath = ["phase1-no-opa/src", "phase2-opa/src", "phase3-opa/src"]
 
 [tool.ruff]
 target-version = "py39"
 line-length = 100
-src = ["phase1-no-opa/src", "phase2-opa/src", "tests"]
+src = ["phase1-no-opa/src", "phase2-opa/src", "phase3-opa/src", "tests"]
 exclude = [".git", ".venv", "__pycache__", "build", "dist"]
 
 [tool.ruff.lint]
@@ -39,9 +57,13 @@ ignore = [
     "S603",  # subprocess call is a controlled test fixture spawning a known binary
     "S607",  # partial executable path (opa) is intentional — resolved via PATH
 ]
+"tests/test_phase3_e2e_scenarios.py" = [
+    "S603",
+    "S607",
+]
 
 [tool.ruff.lint.isort]
-known-first-party = ["rucio_no_opa_policy", "rucio_opa_policy"]
+known-first-party = ["rucio_no_opa_policy", "rucio_opa_policy", "rucio_opa_v2_policy"]
 
 [tool.ruff.format]
 quote-style = "double"

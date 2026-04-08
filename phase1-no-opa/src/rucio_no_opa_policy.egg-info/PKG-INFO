@@ -1,3 +1,25 @@
+Metadata-Version: 2.4
+Name: rucio-no-opa-policy
+Version: 0.1.0
+Summary: Phase 1 — Rucio policy package (Rucio as PDP, no external service)
+Author-email: someone <placeholder@cern.ch>
+License: Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+
+            http://www.apache.org/licenses/LICENSE-2.0
+
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: rucio>=35.0.0; extra == "dev"
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Dynamic: license-file
+
 # rucio-no-opa-policy
 
 Phase 1 Rucio policy package — Rucio as PDP, all permission logic inline in Python.
@@ -63,8 +85,8 @@ python3 -m pip install pytest -e phase1-no-opa/
 python3 -m pytest tests/test_phase1_rules.py tests/test_phase1_permission.py tests/test_phase1_e2e_scenarios.py -v
 ```
 
-| File | What it covers |
-|------|----------------|
-| `test_phase1_rules.py` | Pure domain logic — protocol combos, RSE naming, kwargs validation |
-| `test_phase1_permission.py` | `has_permission()` dispatch, all covered actions |
-| `test_phase1_e2e_scenarios.py` | Scenario tests: flowchart allow/deny paths |
+| File | Tests | What it covers |
+|------|-------|----------------|
+| `test_phase1_rules.py` | 35 | Pure domain logic — protocol combos, RSE naming, kwargs validation |
+| `test_phase1_permission.py` | 21 | `has_permission()` dispatch, all covered actions |
+| `test_phase1_e2e_scenarios.py` | 30 | Scenario tests: flowchart allow/deny paths |

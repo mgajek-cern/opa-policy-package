@@ -1,3 +1,26 @@
+Metadata-Version: 2.4
+Name: rucio-opa-policy
+Version: 0.1.0
+Summary: Phase 2 — Rucio policy package (OPA as PDP)
+Author-email: someone <placeholder@cern.ch>
+License: Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+
+            http://www.apache.org/licenses/LICENSE-2.0
+
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: rucio>=35.0.0; extra == "dev"
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: responses; extra == "dev"
+Dynamic: license-file
+
 # rucio-opa-policy
 
 Phase 2 Rucio policy package — OPA as PDP, all authorisation logic in Rego.
@@ -100,7 +123,7 @@ OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase2_e2e_scenarios.
 cd phase2-opa/docker && docker compose down
 ```
 
-| File | What it covers |
-|------|----------------|
-| `test_phase2_opa.py` | OPA client fail-closed, input construction |
-| `test_phase2_e2e_scenarios.py` | Live OPA: protocol combos, RSE naming, DIDs, RSE attrs |
+| File | Tests | What it covers |
+|------|-------|----------------|
+| `test_phase2_opa.py` | 21 | OPA client fail-closed, input construction |
+| `test_phase2_e2e_scenarios.py` | 39 | Live OPA: protocol combos, RSE naming, DIDs, RSE attrs |
