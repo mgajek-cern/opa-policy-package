@@ -9,7 +9,7 @@ Rucio policy packages across three phases of increasing capability:
 | 3 | [`rucio-opa-v2-policy`](phase3-opa/README.md) | OPA (PDP) | Rego (`phase3-opa/rego/`) + data bundle |
 
 > See [Policy package mechanism](docs/policy-package-mechanism.md) for how Rucio loads policy packages.
-> See [Action → Policy Mapping](docs/action-policy-mapping.md) for the full `has_permission()` coverage map.
+> See [Action → Policy Mapping](docs/action-policy-mapping.md) for the full `has_permission()` coverage map — **required reading for writing meaningful Rego or ODRL policies** (action strings, available input fields and domain checks that apply independently of privilege).
 > See [Policy Lifecycle](docs/policy-lifecycle.md) for the ODRL → OPA → Rucio relationship and input document options.
 
 ---
@@ -111,7 +111,7 @@ actions and enabling richer ABAC without redeploying Python code. Requires a
 running OPA server. See [phase2-opa/README.md](phase2-opa/README.md).
 
 **Phase 3** extends Phase 2 with data-driven configuration, self-service rule
-management, `attach_dids_to_dids` delegation, and protocol scheme enforcement.
+management, `attach_dids_to_dids` delegation and protocol scheme enforcement.
 See [phase3-opa/README.md](phase3-opa/README.md).
 
 ---
