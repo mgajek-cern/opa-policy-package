@@ -33,16 +33,38 @@ not a requirement imposed by the framework.
 
 ---
 
+## Full call chain
+
+```
+rucio/gateway/permission.py          ← entry point from REST API layer
+    │  converts strings → InternalAccount / InternalScope (VO-aware)
+    │  resolves rse_id from rse name if needed
+    ▼
+rucio/core/permission/__init__.py    ← dynamic import via importlib
+    │  importlib.import_module(f"{package}.permission").has_permission(...)
+    ▼
+{package}/permission.py              ← code (Phase 1 / 2 / 3)
+    │  has_permission(issuer, action, kwargs, session)
+    ▼
+OPA / inline Python                  ← policy decision
+```
+
+The gateway layer (`rucio/gateway/permission.py`) is responsible for the
+string-to-internal-type conversion — `has_permission()` always receives
+fully resolved `InternalAccount` and `InternalScope` objects, never raw strings.
+
+---
+
 ## Call sequence — Phase 1 (inline Python PDP)
 
 ```
 User request (e.g. POST /rses/CERN_DATADISK)
     │
     ▼
-Rucio REST API layer
-    │  resolves action = "add_rse"
+rucio/gateway/permission.py
+    │  issuer str → InternalAccount, rse str → rse_id
     ▼
-rucio.core.permission.has_permission(issuer, "add_rse", kwargs)
+rucio/core/permission/__init__.py
     │  imports rucio_no_opa_policy.permission
     ▼
 rucio_no_opa_policy.permission.has_permission()
@@ -68,10 +90,10 @@ testable without any Rucio infrastructure.
 User request (e.g. POST /rses/CERN_DATADISK)
     │
     ▼
-Rucio REST API layer
-    │  resolves action = "add_rse"
+rucio/gateway/permission.py
+    │  issuer str → InternalAccount, rse str → rse_id
     ▼
-rucio.core.permission.has_permission(issuer, "add_rse", kwargs)
+rucio/core/permission/__init__.py
     │  imports rucio_opa_policy.permission
     ▼
 rucio_opa_policy.permission.has_permission()
@@ -136,6 +158,7 @@ query_opa() catches URLError / TimeoutError
 
 The only hard requirement imposed by Rucio is a `permission` module with
 this exact signature:
+
 ```python
 def has_permission(
     issuer: InternalAccount,
@@ -149,9 +172,10 @@ def has_permission(
 
 The `action` strings (`"add_rse"`, `"add_rule"`, `"del_rse"`, etc.) are
 **fixed identifiers defined by Rucio core** — they are hardcoded at the
-call sites in `rucio/api/` and cannot be renamed by a policy package.
-The kwargs dict structure is equally fixed: `kwargs["rse"]` for RSE actions,
-`kwargs["account"]` and `kwargs["locked"]` for rules, and so on. The
+call sites in `rucio/gateway/` and cannot be renamed by a policy package.
+The kwargs dict structure is equally fixed and arrives pre-converted by the
+gateway layer: `kwargs["rse_id"]` for RSE actions, `kwargs["account"]`
+(as `InternalAccount`) and `kwargs["locked"]` for rules, and so on. The
 package can only decide what to *do* with these values, not change what
 they are called.
 
