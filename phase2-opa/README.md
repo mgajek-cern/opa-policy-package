@@ -1,29 +1,6 @@
 # rucio-opa-policy
 
-Phase 2 Rucio policy package — OPA as PDP, all authorisation logic in Rego.
-
-```
-User request
-    │
-    ▼
-Rucio server
-    │
-    ▼
-has_permission()          Python — thin serialisation layer only
-    │  _build_input()          resolve is_root / is_admin (one DB call max)
-    │  _serialisable_kwargs()  strip Session, stringify InternalAccount
-    │
-    │  POST /v1/data/vo/authz/allow
-    ▼
-OPA server                Rego — all policy logic lives here
-    │  authz.rego              protocol combos, RSE naming, account checks
-    │
-    ▼
-{ "result": true/false }
-    │
-    ▼
-allow / deny              fail-closed: network error → deny
-```
+Phase 2 — OPA as PDP, all authorisation logic in Rego.
 
 ---
 

@@ -1,35 +1,6 @@
 # rucio-opa-v2-policy
 
-Phase 3 Rucio policy package — OPA as PDP, data-driven configuration, broader action coverage.
-
-```
-User request
-    │
-    ▼
-Rucio server
-    │
-    ▼
-has_permission()          Python — serialisation + is_admin resolution
-    │
-    │  POST /v1/data/vo/authz/v2/allow
-    ▼
-OPA server                Rego — policy + runtime data bundle
-    │
-    ├─ data.vo.policy             loaded by ingest_policies.py
-    │     ├─ allowed_protocol_combos   (runtime-configurable)
-    │     ├─ known_rse_types           (runtime-configurable)
-    │     └─ allowed_schemes           (runtime-configurable)
-    │
-    ├─ data.vo.admins             {account: true, ...}
-    │
-    └─ authz.rego                 falls back to hardcoded defaults if no bundle
-    │
-    ▼
-{ "result": true/false }
-    │
-    ▼
-allow / deny              fail-closed: network error → deny
-```
+Phase 3 — OPA as PDP, data-driven configuration, broader action coverage. Policy bundle (`data.vo.policy`) is pushed at deploy time via `ingest_policies.py`. Rego falls back to hardcoded defaults when no bundle is loaded.
 
 ---
 

@@ -2,24 +2,6 @@
 
 Phase 1 Rucio policy package — Rucio as PDP, permission logic inline in Python.
 
-```
-User request
-    │
-    ▼
-Rucio server  ──►  has_permission(issuer, action, kwargs)
-                        │
-                        ├─ Domain checks (rules.py — no DB, no network)
-                        │     ├─ Protocol combo allowed?  (S3→S3 ✗, WebDAV→WebDAV ✓ ...)
-                        │     └─ RSE name valid?          (CERN_DATADISK ✓, cern_bad ✗)
-                        │
-                        └─ Account checks
-                              ├─ Own rule, not locked?  → allow
-                              ├─ Root or admin?         → allow
-                              └─ Otherwise              → deny
-```
-
-Domain rules run **before** privilege checks — root cannot bypass them.
-
 ---
 
 ## What it enforces
