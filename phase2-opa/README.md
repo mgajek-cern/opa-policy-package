@@ -2,6 +2,29 @@
 
 Phase 2 Rucio policy package — OPA as PDP, all authorisation logic in Rego.
 
+```
+User request
+    │
+    ▼
+Rucio server
+    │
+    ▼
+has_permission()          Python — thin serialisation layer only
+    │  _build_input()          resolve is_root / is_admin (one DB call max)
+    │  _serialisable_kwargs()  strip Session, stringify InternalAccount
+    │
+    │  POST /v1/data/vo/authz/allow
+    ▼
+OPA server                Rego — all policy logic lives here
+    │  authz.rego              protocol combos, RSE naming, account checks
+    │
+    ▼
+{ "result": true/false }
+    │
+    ▼
+allow / deny              fail-closed: network error → deny
+```
+
 ---
 
 ## Actions delegated to OPA
@@ -17,90 +40,59 @@ Phase 2 Rucio policy package — OPA as PDP, all authorisation logic in Rego.
 
 ```json
 {
-  "issuer":   "alice",
-  "action":   "add_rule",
-  "is_root":  false,
-  "is_admin": false,
-  "kwargs": {
-    "account":         "alice",
-    "locked":          false,
-    "rse_expression":  "CERN_DATADISK",
-    "source_protocol": "webdav",
-    "dst_protocol":    "s3"
-  }
+  "issuer": "alice", "action": "add_rule",
+  "is_root": false,  "is_admin": false,
+  "kwargs": { "account": "alice", "locked": false,
+              "rse_expression": "CERN_DATADISK",
+              "source_protocol": "webdav", "dst_protocol": "s3" }
 }
 ```
 
-`is_admin` is resolved by `has_account_attribute()` in Python before the HTTP
-call — Rego never needs a DB round-trip. If OPA is unreachable, `query_opa()`
-returns `False` and the request is denied (fail-closed).
-
 ---
 
-## Install
+## Install & configure
 
 ```bash
 python3 -m pip install -e phase2-opa/
 ```
 
-## Configure
-
 ```bash
 export RUCIO_POLICY_PACKAGE=rucio_opa_policy
-export OPA_URL=http://localhost:8181      # default
-export OPA_POLICY_PATH=vo/authz/allow    # default
-export OPA_TIMEOUT=2                     # seconds
+export OPA_URL=http://localhost:8181       # default
+export OPA_POLICY_PATH=vo/authz/allow     # default
+export OPA_TIMEOUT=2
 ```
 
 ```ini
-# rucio.cfg
-[policy]
+# rucio.cfg  [policy]
 package = rucio_opa_policy
 ```
 
-## Start OPA only
+## Tests
 
 ```bash
-cd phase2-opa/docker
-docker compose up -d opa opa-init
-# Optionally seed admin accounts:
-VO_ADMINS=alice,bob docker compose up -d opa opa-init
-```
-
-## Start full stack (OPA + PostgreSQL + Rucio)
-
-```bash
-cd phase2-opa/docker
-docker compose --profile full up -d
-bash smoke_test.sh
-```
-
-## Ingest policies manually
-
-```bash
-cd phase2-opa/docker
-python3 ingest_policies.py \
-    --opa-url http://localhost:8181 \
-    --admins alice,bob
-```
-
----
-
-## Running the tests
-
-```bash
-python3 -m pip install pytest -e phase2-opa/
-
-# Unit tests (OPA mocked)
 python3 -m pytest tests/test_phase2_opa.py -v
 
-# e2e tests (requires live OPA)
+# e2e (requires live OPA)
 cd phase2-opa/docker && docker compose up -d opa opa-init && cd ../..
 OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase2_e2e_scenarios.py -v
 cd phase2-opa/docker && docker compose down
 ```
 
-| File | What it covers |
-|------|----------------|
+| File | Covers |
+|------|--------|
 | `test_phase2_opa.py` | OPA client fail-closed, input construction |
 | `test_phase2_e2e_scenarios.py` | Live OPA: protocol combos, RSE naming, DIDs, RSE attrs |
+
+## Smoke Tests
+
+```bash
+# Full stack (OPA + PostgreSQL + Rucio)
+docker compose --profile full up -d
+
+# Run smoke tests against Rucio REST API
+bash smoke_test.sh
+
+# Teardown (add -v to also wipe the DB volume)
+docker compose --profile full down -v
+```

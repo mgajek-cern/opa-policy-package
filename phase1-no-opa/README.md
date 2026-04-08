@@ -1,52 +1,58 @@
 # rucio-no-opa-policy
 
-Phase 1 Rucio policy package — Rucio as PDP, all permission logic inline in Python.
+Phase 1 Rucio policy package — Rucio as PDP, permission logic inline in Python.
+
+```
+User request
+    │
+    ▼
+Rucio server  ──►  has_permission(issuer, action, kwargs)
+                        │
+                        ├─ Domain checks (rules.py — no DB, no network)
+                        │     ├─ Protocol combo allowed?  (S3→S3 ✗, WebDAV→WebDAV ✓ ...)
+                        │     └─ RSE name valid?          (CERN_DATADISK ✓, cern_bad ✗)
+                        │
+                        └─ Account checks
+                              ├─ Own rule, not locked?  → allow
+                              ├─ Root or admin?         → allow
+                              └─ Otherwise              → deny
+```
+
+Domain rules run **before** privilege checks — root cannot bypass them.
 
 ---
 
 ## What it enforces
 
-**Protocol combos** — TPC transfer paths verified with Rucio/FTS maintainers.
-The destination storage initiates TPC by pulling from the source — S3 cannot
-act as a TPC destination.
-See [Transfer Scenarios Overview](../docs/transfer-scenarios-overview.md) for the full matrix.
+**Protocol combos** — see [Transfer Scenarios Overview](../docs/storage-transfer-overview.md).
 
-| Source | Destination | Allowed |
-|--------|-------------|---------|
-| WebDAV | WebDAV | ✓ TPC native |
-| S3 | WebDAV | ✓ WebDAV pulls from S3 |
-| XrdHTTP | WebDAV | ✓ WebDAV pulls from XrdHTTP |
-| S3 | XrdHTTP | ✓ XrdHTTP pulls from S3 |
-| XrdHTTP | XrdHTTP | ✓ Native HTTP TPC |
-| WebDAV | S3 | ✗ S3 cannot act as TPC destination |
-| XrdHTTP | S3 | ✗ S3 cannot act as TPC destination |
+| Source | Destination | |
+|--------|-------------|-|
+| WebDAV | WebDAV | ✓ |
+| S3 | WebDAV | ✓ |
+| XrdHTTP | WebDAV | ✓ |
+| S3 | XrdHTTP | ✓ |
+| XrdHTTP | XrdHTTP | ✓ |
+| WebDAV / XrdHTTP | S3 | ✗ S3 cannot act as TPC destination |
 | S3 | S3 | ✗ Neither side supports TPC pull |
 
-**RSE naming** — must match `<SITE>_<TYPE>` where TYPE ∈
-`{DATADISK, SCRATCHDISK, LOCALGROUPDISK, TAPE, USERDISK}`.
+**RSE naming** — `<SITE>_<TYPE>`, TYPE ∈ `{DATADISK, SCRATCHDISK, LOCALGROUPDISK, TAPE, USERDISK}`.
 
-Examples: `CERN_DATADISK` ✓ · `BNL_TAPE` ✓ · `cern_datadisk` ✗ · `CERN_UNKNOWN` ✗
-
-**Actions with custom logic** (all others fall back to root-or-admin):
+**Actions with custom logic:**
 
 | Action | Extra check |
 |--------|-------------|
 | `add_rule` | Protocol combo + RSE naming + account ownership |
-| `add_rse` | Privileged + RSE naming convention |
+| `add_rse` | Privileged + RSE naming |
 | `update_rse` | Privileged + RSE naming on rename |
-
-**Domain rules run before privilege checks** — even root cannot register
-`cern_bad` as an RSE or push an S3→S3 transfer.
 
 ---
 
-## Install
+## Install & configure
 
 ```bash
 python3 -m pip install -e phase1-no-opa/
 ```
-
-## Configure Rucio
 
 ```ini
 # rucio.cfg
@@ -54,17 +60,14 @@ python3 -m pip install -e phase1-no-opa/
 package = rucio_no_opa_policy
 ```
 
----
-
-## Running the tests
+## Tests
 
 ```bash
-python3 -m pip install pytest -e phase1-no-opa/
 python3 -m pytest tests/test_phase1_rules.py tests/test_phase1_permission.py tests/test_phase1_e2e_scenarios.py -v
 ```
 
-| File | What it covers |
-|------|----------------|
-| `test_phase1_rules.py` | Pure domain logic — protocol combos, RSE naming, kwargs validation |
-| `test_phase1_permission.py` | `has_permission()` dispatch, all covered actions |
-| `test_phase1_e2e_scenarios.py` | Scenario tests: flowchart allow/deny paths |
+| File | Covers |
+|------|--------|
+| `test_phase1_rules.py` | Protocol combos, RSE naming, kwargs validation |
+| `test_phase1_permission.py` | `has_permission()` dispatch |
+| `test_phase1_e2e_scenarios.py` | Allow/deny scenario paths |
