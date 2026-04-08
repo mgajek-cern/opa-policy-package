@@ -76,7 +76,7 @@ python3 -m pytest tests/test_phase2_opa.py -v
 # e2e (requires live OPA)
 cd phase2-opa/docker && docker compose up -d opa opa-init && cd ../..
 OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase2_e2e_scenarios.py -v
-cd phase2-opa/docker && docker compose down
+cd phase2-opa/docker && docker compose down && cd ../..
 ```
 
 | File | Covers |
@@ -87,12 +87,17 @@ cd phase2-opa/docker && docker compose down
 ## Smoke Tests
 
 ```bash
+cd phase2-opa/docker
+
 # Full stack (OPA + PostgreSQL + Rucio)
 docker compose --profile full up -d
 
 # Run smoke tests against Rucio REST API
+sleep 5
 bash smoke_test.sh
 
 # Teardown (add -v to also wipe the DB volume)
 docker compose --profile full down -v
+
+cd ../..
 ```

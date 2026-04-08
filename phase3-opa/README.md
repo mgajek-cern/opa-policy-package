@@ -99,12 +99,17 @@ cd phase3-opa/docker && docker compose down
 ## Smoke Tests
 
 ```bash
+cd phase3-opa/docker
+
 # Full stack (OPA + PostgreSQL + Rucio)
 docker compose --profile full up -d
 
 # Run smoke tests against Rucio REST API
+sleep 5
 bash smoke_test.sh
 
 # Teardown (add -v to also wipe the DB volume)
 docker compose --profile full down -v
+
+cd ../..
 ```
