@@ -1,0 +1,88 @@
+{
+  "realm": "rucio",
+  "enabled": true,
+  "accessTokenLifespan": 3600,
+  "sslRequired": "none",
+
+  "groups": [
+    {
+      "name": "rucio",
+      "path": "/rucio",
+      "subGroups": [
+        { "name": "admins", "path": "/rucio/admins" },
+        { "name": "users",  "path": "/rucio/users" }
+      ]
+    },
+    {
+      "name": "atlas",
+      "path": "/atlas",
+      "subGroups": [
+        { "name": "production", "path": "/atlas/production" },
+        { "name": "users",      "path": "/atlas/users" }
+      ]
+    }
+  ],
+
+  "users": [
+    {
+      "username": "alice",
+      "email": "alice@example.org",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "alice123", "temporary": false }],
+      "groups": ["/rucio/users", "/atlas/users"]
+    },
+    {
+      "username": "adminuser",
+      "email": "admin@example.org",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "admin123", "temporary": false }],
+      "groups": ["/rucio/admins", "/atlas/production"]
+    }
+  ],
+
+  "clients": [
+    {
+      "clientId": "rucio-oidc",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "rucio-oidc-secret",
+      "publicClient": false,
+      "redirectUris": ["http://rucio/*", "http://localhost/*"],
+      "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "defaultClientScopes": ["openid", "profile", "email", "wlcg"]
+    }
+  ],
+
+  "clientScopes": [
+    {
+      "name": "wlcg",
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "wlcg-version",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "wlcg.ver",
+            "claim.value": "1.0",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "wlcg-groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "wlcg.groups",
+            "full.path": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

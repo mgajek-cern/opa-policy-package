@@ -1,0 +1,136 @@
+# docker-compose.yml — Phase 4: OPA + Keycloak + PostgreSQL + Rucio
+#
+# What's new vs Phase 3:
+#   - Keycloak issues JWTs with wlcg.groups claims (single realm, no federation)
+#   - Rucio configured for OIDC via idpsecrets.json
+#   - OPA evaluates wlcg.groups from the token — no DB privilege lookup
+#   - Group→privilege mapping in data.vo.group_policy (pushed by opa-init)
+#
+# Test users (Keycloak):
+#   alice     / alice123  — /rucio/users, /atlas/users    (non-privileged)
+#   adminuser / admin123  — /rucio/admins, /atlas/production (privileged)
+#
+# Bootstrap account (Rucio userpass, no OIDC token):
+#   ddmlab / secret  (root account, allowed unconditionally by Rego)
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Keycloak — single realm, wlcg.groups emitted in JWT
+  # ---------------------------------------------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.1
+    container_name: rucio-keycloak
+    hostname: keycloak
+    command: start-dev --health-enabled=true --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak-realm.json:/opt/keycloak/data/import/rucio-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 10s
+      start_period: 120s
+      retries: 30
+
+  # ---------------------------------------------------------------------------
+  # OPA — Policy Decision Point
+  # ---------------------------------------------------------------------------
+  opa:
+    image: openpolicyagent/opa:1.8.0
+    container_name: rucio-opa
+    ports:
+      - "8181:8181"
+    command: run --server --log-level info --addr=0.0.0.0:8181
+
+  # ---------------------------------------------------------------------------
+  # OPA init — loads Rego + policy data + group policy bundle
+  # ---------------------------------------------------------------------------
+  opa-init:
+    image: python:3.11-slim
+    container_name: rucio-opa-init
+    depends_on:
+      - opa
+    volumes:
+      - .:/app
+      - ../rego:/rego
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - |
+        echo 'Waiting for OPA...'
+        until python -c "import urllib.request; urllib.request.urlopen('http://opa:8181/health')" 2>/dev/null; do
+          sleep 1
+        done
+        python ingest_policies.py --opa-url http://opa:8181
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL
+  # ---------------------------------------------------------------------------
+  ruciodb:
+    image: postgres:14
+    container_name: ruciodb
+    hostname: ruciodb
+    environment:
+      POSTGRES_USER: rucio
+      POSTGRES_PASSWORD: rucio
+      POSTGRES_DB: rucio
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rucio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    profiles:
+      - full
+
+  # ---------------------------------------------------------------------------
+  # Rucio server — OIDC configured, Phase 4 policy package
+  # ---------------------------------------------------------------------------
+  rucio:
+    image: rucio/rucio-server:latest
+    container_name: rucio-server
+    hostname: rucio
+    depends_on:
+      opa-init:
+        condition: service_completed_successfully
+      ruciodb:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    ports:
+      - "80:80"
+    environment:
+      OPA_URL: http://opa:8181
+      OPA_POLICY_PATH: vo/authz/v3/allow
+      OPA_TIMEOUT: 2
+    volumes:
+      - ./rucio.cfg:/opt/rucio/etc/rucio.cfg:ro
+      - ./idpsecrets.json:/opt/rucio/etc/idpsecrets.json:ro
+      - ./bootstrap-db.py:/tmp/bootstrap-db.py:ro
+      - ./alembic.ini:/opt/rucio/etc/alembic.ini:ro
+      - ../../:/policy-package:ro
+    entrypoint:
+      - bash
+      - -c
+      - |
+        cp -r /policy-package/phase4-opa /tmp/rucio-opa-policy &&
+        pip install -q /tmp/rucio-opa-policy &&
+        python3 /tmp/bootstrap-db.py &&
+        exec /docker-entrypoint.sh httpd -DFOREGROUND
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 20
+    profiles:
+      - full
+
+volumes:
+  ruciodb-data:

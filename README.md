@@ -1,18 +1,21 @@
 # opa-policy-package
 
-Rucio policy packages across three phases of increasing capability:
+Rucio policy packages across four phases of increasing capability:
 
 | Phase | Package | Who decides? | Where is the logic? |
 |-------|---------|-------------|---------------------|
 | 1 | [`rucio-no-opa-policy`](phase1-no-opa/README.md) | Rucio (PDP) | Inline Python (`rules.py`) |
 | 2 | [`rucio-opa-policy`](phase2-opa/README.md) | OPA (PDP) | Rego (`phase2-opa/rego/`) |
 | 3 | [`rucio-opa-v2-policy`](phase3-opa/README.md) | OPA (PDP) | Rego (`phase3-opa/rego/`) + data bundle |
+| 4 | [`rucio-opa-v3-policy`](phase4-opa/README.md) | OPA (PDP) | Rego (`phase4-opa/rego/`) + group policy bundle + Keycloak |
 
 > See [Policy package mechanism](docs/policy-package-mechanism.md) for how Rucio loads policy packages.
 > See [Action → Policy Mapping](docs/action-policy-mapping.md) for the full `has_permission()` coverage map — **required reading for writing meaningful Rego or ODRL policies** (action strings, available input fields and domain checks that apply independently of privilege).
 > See [Policy Lifecycle](docs/policy-lifecycle.md) for the ODRL → OPA → Rucio relationship and input document options.
 
----
+## TODO
+
+- Derive phase 5 from phase 4 which should also include integration with FTS and one source and one destination storage system supporting third-party copy (e.g. StoRM WebDAV or dCache/Teapot), both configured to accept OIDC tokens. Work depends on progress in the [rucio-storage-testbed GH repository](https://github.com/mgajek-cern/rucio-storage-testbed).
 
 ## High-level vision
 
@@ -25,11 +28,11 @@ sequenceDiagram
     participant FTS as FTS (Transfer)
 
     User->>KC: authenticate
-    KC-->>User: JWT (sub, groups, entitlements)
+    KC-->>User: JWT (sub, wlcg.groups, entitlements)
 
     User->>Rucio: API request + JWT
     Rucio->>Rucio: validate token (issuer, expiry)
-    Rucio->>OPA: has_permission?\n{ action, issuer/token, kwargs }
+    Rucio->>OPA: has_permission?\n{ action, issuer, token.groups, kwargs }
     OPA-->>Rucio: allow / deny
 
     alt allowed
@@ -42,12 +45,47 @@ sequenceDiagram
     end
 ```
 
-In the current implementation (Phase 1–3) Rucio resolves `is_root`/`is_admin`
-from its own DB before calling OPA. The Phase 4 target is to pass the raw JWT
-claims to OPA directly, letting Rego evaluate group membership and entitlements
-without a DB round-trip — see [TODO](#todo) below.
+Phase 5 shall implement this vision e2e with all systems shown: Keycloak issues JWTs with `wlcg.groups`
+claims; OPA evaluates group membership against `data.vo.group_policy` in the
+bundle — no Rucio DB round-trip per authorisation decision.
 
----
+## Group membership and URN entitlements
+
+Phase 4 uses WLCG group paths (`/rucio/admins`, `/atlas/production`) as the
+privilege signal. This is **conceptually equivalent** to URN-based entitlement
+claims used in federated AAI deployments:
+
+| Phase 4 (wlcg.groups) | URN entitlement equivalent |
+|----------------------|---------------------------|
+| `/rucio/admins` | `urn:...:group:rucio-admins:role=member` |
+| `/atlas/production` | `urn:geant:atlas.cern.ch:group:production:role=member` |
+
+OPA evaluates whichever claim format the IdP emits — the `data.vo.group_policy`
+bundle is the mapping layer. To adopt URN entitlements instead of group paths,
+update `ingest_policies.py` to push URN strings as keys and adjust the Rego
+`_group_privilege` lookup accordingly. No changes to Rucio or the Python
+permission module are needed.
+
+This design is intentional: it gives any federated research infrastructure
+deploying OPA as a PDP a clear integration path into Rucio's authorisation
+layer, with the group-to-privilege mapping externalised and updatable at
+runtime without redeployment.
+
+An example OPA request body with a URN entitlement claim could resemble:
+
+```json
+{
+    "input": {
+        "action": "add_rule",
+        "resource": { "rse_expression": "CERN_DATADISK" },
+        "token": {
+            "entitlements": [
+                "urn:example:aai.example.org:group:rucio-admins:role=member"
+            ]
+        }
+    }
+}
+```
 
 ## Repository layout
 
@@ -55,48 +93,21 @@ without a DB round-trip — see [TODO](#todo) below.
 opa-policy-package/
 │
 ├── phase1-no-opa/               # Phase 1 — Rucio as PDP
-│   ├── pyproject.toml
-│   ├── README.md
-│   └── src/rucio_no_opa_policy/
-│       ├── permission.py         # has_permission() dispatch
-│       └── rules.py              # Protocol & RSE naming logic (pure Python)
+├── phase2-opa/                  # Phase 2 — OPA as PDP
+├── phase3-opa/                  # Phase 3 — OPA as PDP, data-driven
+├── phase4-opa/                  # Phase 4 — OPA as PDP, OIDC/wlcg.groups
+│   ├── src/rucio_opa_v3_policy/
+│   ├── rego/authz.rego
+│   └── docker/                  # OPA + Keycloak + PostgreSQL + Rucio stack
 │
-├── phase2-opa/                   # Phase 2 — OPA as PDP
-│   ├── pyproject.toml
-│   ├── README.md
-│   ├── src/rucio_opa_policy/
-│   │   ├── permission.py         # has_permission() → builds input → OPA
-│   │   └── opa_client.py         # Thin stdlib HTTP client for OPA REST API
-│   ├── rego/authz.rego           # All authorisation logic in Rego
-│   └── docker/                   # OPA + PostgreSQL + Rucio stack
-│
-├── phase3-opa/                   # Phase 3 — OPA as PDP, data-driven
-│   ├── pyproject.toml
-│   ├── README.md
-│   ├── src/rucio_opa_v2_policy/
-│   │   ├── permission.py         # has_permission() → builds input → OPA
-│   │   └── opa_client.py         # Thin stdlib HTTP client for OPA REST API
-│   ├── rego/authz.rego           # Extended Rego with data-driven config
-│   └── docker/                   # OPA + PostgreSQL + Rucio stack
-│
-├── tests/
-│   ├── conftest.py               # Rucio stubs + shared fixtures
-│   ├── test_phase1_rules.py
-│   ├── test_phase1_permission.py
-│   ├── test_phase1_e2e_scenarios.py
-│   ├── test_phase2_opa.py
-│   ├── test_phase2_e2e_scenarios.py
-│   ├── test_phase3_opa.py
-│   └── test_phase3_e2e_scenarios.py
-│
+├── tests/                       # Phase 1–3 unit + e2e tests
+├── tests4/                      # Phase 4 e2e tests
 └── docs/
     ├── policy-package-mechanism.md
     ├── action-policy-mapping.md
-    ├── policy-lifecycle.md        # ODRL → OPA → Rucio relationship
+    ├── policy-lifecycle.md
     └── storage-transfer-overview.md
 ```
-
----
 
 ## Phase progression
 
@@ -107,64 +118,17 @@ desired package and restart. No data migration required.
 no external dependencies. See [phase1-no-opa/README.md](phase1-no-opa/README.md).
 
 **Phase 2** moves all policy logic to OPA/Rego, delegating a wider set of
-actions and enabling richer ABAC without redeploying Python code. Requires a
-running OPA server. See [phase2-opa/README.md](phase2-opa/README.md).
+actions and enabling richer ABAC without redeploying Python code.
+See [phase2-opa/README.md](phase2-opa/README.md).
 
 **Phase 3** extends Phase 2 with data-driven configuration, self-service rule
 management, `attach_dids_to_dids` delegation and protocol scheme enforcement.
 See [phase3-opa/README.md](phase3-opa/README.md).
 
----
-
-## TODO
-
-- **Phase 4 — OIDC token-native authorisation:** integrate Keycloak (or any
-  OIDC-compliant IdP) as the identity source. Instead of pre-resolving
-  `is_root`/`is_admin` from the Rucio DB, the policy package forwards the raw
-  JWT claims to OPA:
-
-  ```json
-  {
-    "input": {
-      "action": "add_rule",
-      "resource": { "rse_expression": "CERN_DATADISK" },
-      "token": {
-        "entitlements": [
-          "urn:example:aai.example.org:group:rucio-admins:role=member"
-        ]
-      }
-    }
-  }
-  ```
-
-  Rego evaluates the URN entitlements against a group-to-privilege mapping in
-  the OPA data bundle — no DB round-trip per request. This aligns with the
-  claims-based approach described in
-  [docs/policy-lifecycle.md](docs/policy-lifecycle.md) (Option B).
-
----
-
-## Running the full test suite
-
-No Rucio installation needed — Rucio modules are stubbed in `conftest.py`.
-
-```bash
-# Install all three packages
-python3 -m pip install -e phase1-no-opa/ -e phase2-opa/ -e phase3-opa/
-
-# Run all unit and mocked tests (Phase 2/3 e2e skipped without OPA binary)
-python3 -m pytest
-
-# Run with coverage
-python3 -m pip install pytest-cov
-python3 -m pytest \
-  --cov=phase1-no-opa/src \
-  --cov=phase2-opa/src \
-  --cov=phase3-opa/src \
-  --cov-report=term-missing
-```
-
----
+**Phase 4** replaces the `is_root`/`is_admin` DB lookup with OIDC token-native
+group evaluation — Keycloak issues JWTs with `wlcg.groups`; OPA evaluates them
+against `data.vo.group_policy`. Zero DB calls per authorisation decision.
+See [phase4-opa/README.md](phase4-opa/README.md).
 
 ## References
 
