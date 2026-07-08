@@ -38,7 +38,7 @@ Rucio and the AAI IAM (on behalf of storage endpoints) shall integrate with a WP
 
 FTS remains a DEP component but is not a direct consumer of the Authorization Service at this phase — it is not a Policy Enforcement Point in this decision. Authorization for FTS-orchestrated transfers is covered by the two PEPs already defined: Rucio (`rule.create`/`transfer.create`) and the storage endpoint (`transfer.authorize`, obtained via IAM). Extending direct Authorization Service integration to FTS is out of scope for this ADR and can be revisited as a separate decision if a future requirement calls for it.
 
-OPA remains the current policy evaluation engine; however, its interfaces are treated as internal implementation details rather than consumer-facing contracts. For the storage path, token introspection and the authorization decision are both handled by IAM as one flow on the storage endpoint's behalf, but remain two distinct, distinctly logged operations against two distinct systems (IAM's own introspection, and IAM's call to the Authorization Service) — not a single combined check.
+OPA remains the current policy evaluation engine; however, its interfaces are treated as internal implementation details rather than consumer-facing contracts. The Authorization Service is deliberately **PDP-agnostic**: OPA is today's choice of Policy Decision Point, not a permanent architectural commitment. Because the API contract models authorization concepts rather than OPA/Rego specifics, the PDP behind it could later be swapped or run alongside alternatives without any consumer-facing change — this flexibility is a direct consequence of the contract boundary chosen here, not a separate feature to build. For the storage path, token introspection and the authorization decision are both handled by IAM as one flow on the storage endpoint's behalf, but remain two distinct, distinctly logged operations against two distinct systems (IAM's own introspection, and IAM's call to the Authorization Service) — not a single combined check.
 
 A structural reason Option 2 is preferable, beyond decoupling: OPA's REST API accepts an arbitrary `input` document per Rego package, with no standard, versioned schema suitable for OpenAPI client generation. Rego has no ecosystem convention analogous to an OpenAPI contract — its input shape is an implementation detail of the current policy, not a designed interface. A stable, generated client is only possible against a contract designed to remain stable, which is what the Authorization Service provides and direct OPA access does not.
 
@@ -97,7 +97,6 @@ OPA
 * Bad, because changes to policy input models require coordinated client changes.
 * Bad, because auditing, caching and context enrichment are duplicated across clients.
 * Bad, because OPA's `input` document has no versioned, tool-generated client contract — every direct caller, including IAM, would hand-build Rego-shaped requests.
-* Bad, because direct OPA integration assumes every consumer can host and maintain authorization integration logic. This is not true for all DEP components, particularly storage technologies that expose token introspection integration through IAM rather than a Rucio-like authorization plugin model.
 
 ## Option 2: WP4 Authorization Service with OpenAPI Contract
 
