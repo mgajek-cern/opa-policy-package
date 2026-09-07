@@ -13,9 +13,7 @@ Rucio policy packages across four phases of increasing capability:
 > See [Action → Policy Mapping](docs/action-policy-mapping.md) for the full `has_permission()` coverage map — **required reading for writing meaningful Rego or ODRL policies** (action strings, available input fields and domain checks that apply independently of privilege).
 > See [Policy Lifecycle](docs/policy-lifecycle.md) for the ODRL → OPA → Rucio relationship and input document options.
 
-## TODO
-
-- Derive phase 5 from phase 4 which should also include integration with FTS and one source and one destination storage system supporting third-party copy (e.g. StoRM WebDAV or dCache/Teapot), both configured to accept OIDC tokens. Work depends on progress in the [rucio-storage-testbed GH repository](https://github.com/mgajek-cern/rucio-storage-testbed).
+See [BACKLOG.md](BACKLOG.md) for planned work not yet scheduled into a phase.
 
 ## High-level vision
 
@@ -51,9 +49,10 @@ bundle — no Rucio DB round-trip per authorisation decision.
 
 ## Group membership and URN entitlements
 
-Phase 4 uses WLCG group paths (`/rucio/admins`, `/atlas/production`) as the
-privilege signal. This is **conceptually equivalent** to URN-based entitlement
-claims used in federated AAI deployments:
+Phase 4 currently uses WLCG group paths (`/rucio/admins`, `/atlas/production`)
+as the privilege signal. Moving to URN-based entitlement claims instead —
+while preserving the same group information — is planned next; see
+[BACKLOG.md](BACKLOG.md). The two are **conceptually equivalent**:
 
 | Phase 4 (wlcg.groups) | URN entitlement equivalent |
 |----------------------|---------------------------|
@@ -87,6 +86,9 @@ An example OPA request body with a URN entitlement claim could resemble:
 }
 ```
 
+Fine-grained, resource-level permissions (beyond group/role membership) are
+deferred — see [BACKLOG.md](BACKLOG.md).
+
 ## Repository layout
 
 ```
@@ -98,15 +100,18 @@ opa-policy-package/
 ├── phase4-opa/                  # Phase 4 — OPA as PDP, OIDC/wlcg.groups
 │   ├── src/rucio_opa_v3_policy/
 │   ├── rego/authz.rego
-│   └── docker/                  # OPA + Keycloak + PostgreSQL + Rucio stack
+│   └── deploy/                  # OPA + Keycloak + PostgreSQL + Rucio stack
 │
-├── tests/                       # Phase 1–3 unit + e2e tests
-├── tests4/                      # Phase 4 e2e tests
+├── tests/                       # Phase 1–4 unit + e2e + smoke tests
 └── docs/
     ├── policy-package-mechanism.md
     ├── action-policy-mapping.md
+    ├── authz-flow-diagrams.md
     ├── policy-lifecycle.md
-    └── storage-transfer-overview.md
+    └── adrs/
+        ├── adr-001-authz-service.md
+        ├── adr-002-multi-aai-credential-file.md
+        └── adr-003-opa-deploy-topology.md
 ```
 
 ## Phase progression
