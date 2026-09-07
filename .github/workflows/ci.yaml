@@ -7,9 +7,19 @@ on:
     branches: [main]
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Phase 1 — Unit tests (no external service needed)
-  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pre-commit
+        run: pip install pre-commit
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files
+
   test-phase1:
     name: Phase 1 - Tests
     runs-on: ubuntu-latest
@@ -34,169 +44,44 @@ jobs:
           name: coverage-phase1
           path: coverage-phase1.xml
 
-  # ---------------------------------------------------------------------------
-  # Phase 2 — Unit tests (OPA mocked) + E2E tests (OPA via Docker)
-  # ---------------------------------------------------------------------------
   test-phase2:
-    name: Phase 2 - Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: pip install pytest pytest-cov -e phase2-opa/
-      - name: Phase 2 - Unit tests (OPA mocked)
-        run: |
-          python -m pytest \
-            tests/test_phase2_opa.py \
-            -v --tb=short \
-            --cov=phase2-opa/src \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage-phase2-unit.xml
-      - name: Phase 2 — Start full stack
-        run: |
-          cd phase2-opa/deploy
-          docker compose --profile full up -d
-          docker wait rucio-opa-init
-          for i in $(seq 1 30); do
-            STATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
-            [ "$STATUS" = "healthy" ] && echo "Rucio healthy." && break
-            echo "  attempt $i/30 — $STATUS"; sleep 5
-          done
-      - name: Phase 2 — E2E tests (live OPA)
-        env:
-          OPA_URL: http://localhost:8181
-        run: |
-          python -m pytest \
-            tests/test_phase2_e2e.py \
-            -v --tb=short
-      - name: Phase 2 — Run smoke tests
-        run: |
-          python -m pytest \
-            tests/test_phase2_smoke.py \
-            -v --tb=short
-      - name: Phase 2 — Tear down OPA
-        if: always()
-        run: cd phase2-opa/deploy && docker compose down
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-phase2-unit
-          path: coverage-phase2-unit.xml
+    name: Phase 2
+    uses: ./.github/workflows/_phase-opa-tests.yml
+    with:
+      phase_dir: phase2-opa
+      phase_label: "Phase 2"
+      unit_test_file: tests/test_phase2_opa.py
+      coverage_src: phase2-opa/src
+      e2e_test_file: tests/test_phase2_e2e.py
+      smoke_test_file: tests/test_phase2_smoke.py
 
-  # ---------------------------------------------------------------------------
-  # Phase 3 — Unit tests (OPA mocked) + E2E tests (OPA via Docker)
-  # ---------------------------------------------------------------------------
   test-phase3:
-    name: Phase 3 - tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: pip install pytest pytest-cov -e phase3-opa/
-      - name: Phase 3 - Unit tests (OPA mocked)
-        run: |
-          python -m pytest \
-            tests/test_phase3_opa.py \
-            -v --tb=short \
-            --cov=phase3-opa/src \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage-phase3-unit.xml
-      - name: Phase 3 - Start full stack
-        run: |
-          cd phase3-opa/deploy
-          docker compose --profile full up -d
-          docker wait rucio-opa-init
-          for i in $(seq 1 30); do
-            STATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
-            [ "$STATUS" = "healthy" ] && echo "Rucio healthy." && break
-            echo "  attempt $i/30 — $STATUS"; sleep 5
-          done
-      - name: Phase 3 - E2E tests (live OPA)
-        env:
-          OPA_URL: http://localhost:8181
-        run: |
-          python -m pytest \
-            tests/test_phase3_e2e.py \
-            -v --tb=short
-      - name: Phase 3 — Run smoke tests
-        run: |
-          python -m pytest \
-            tests/test_phase3_smoke.py \
-            -v --tb=short
-      - name: Phase 3 - Tear down OPA
-        if: always()
-        run: cd phase3-opa/deploy && docker compose down
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-phase3-unit
-          path: coverage-phase3-unit.xml
+    name: Phase 3
+    uses: ./.github/workflows/_phase-opa-tests.yml
+    with:
+      phase_dir: phase3-opa
+      phase_label: "Phase 3"
+      unit_test_file: tests/test_phase3_opa.py
+      coverage_src: phase3-opa/src
+      e2e_test_file: tests/test_phase3_e2e.py
+      smoke_test_file: tests/test_phase3_smoke.py
 
-  # ---------------------------------------------------------------------------
-  # Phase 4 — E2E tests (OPA + Keycloak via Docker)
-  # No unit test job: Phase 4 has no mocked tests — the core logic is the
-  # group_policy bundle evaluation which requires a live OPA.
-  # ---------------------------------------------------------------------------
   test-phase4:
-    name: Phase 4 - Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: pip install pytest -e phase4-opa/
-      - name: Phase 4 - Start full stack
-        run: |
-          cd phase4-opa/deploy
-          docker compose --profile full up -d
-          docker wait rucio-opa-init
-          echo "Waiting for Keycloak token endpoint..."
-          for i in $(seq 1 30); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              -X POST http://localhost:8080/realms/rucio/protocol/openid-connect/token \
-              -d "grant_type=password&client_id=rucio-oidc&client_secret=rucio-oidc-secret&username=alice&password=alice123" || echo "000")
-            [ "$STATUS" = "200" ] && echo "Keycloak token endpoint ready." && break
-            echo "  attempt $i/30 — HTTP $STATUS"; sleep 5
-          done
-          for i in $(seq 1 30); do
-            RSTATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
-            [ "$RSTATUS" = "healthy" ] && echo "Rucio healthy." && break
-            echo "  attempt $i/30 — $RSTATUS"; sleep 5
-          done
-      - name: Phase 4 - E2E tests (live OPA)
-        env:
-          OPA_URL: http://localhost:8181
-        run: |
-          python -m pytest \
-            tests/test_phase4_e2e.py \
-            -v --tb=short
-      - name: Phase 4 — Run smoke tests
-        run: |
-          python -m pytest \
-            tests/test_phase4_smoke.py \
-            -v --tb=short
-      - name: Phase 4 - Tear down
-        if: always()
-        run: cd phase4-opa/deploy && docker compose down
+    name: Phase 4
+    uses: ./.github/workflows/_phase-opa-tests.yml
+    with:
+      phase_dir: phase4-opa
+      phase_label: "Phase 4"
+      needs_keycloak: true
+      e2e_test_file: tests/test_phase4_e2e.py
+      smoke_test_file: tests/test_phase4_smoke.py
 
-  # ---------------------------------------------------------------------------
-  # Lint
-  # ---------------------------------------------------------------------------
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install pre-commit
-        run: pip install pre-commit
-      - name: Run pre-commit hooks
-        run: pre-commit run --all-files
+  test-phase5:
+    name: Phase 5
+    uses: ./.github/workflows/_phase-opa-tests.yml
+    with:
+      phase_dir: phase5-opa
+      phase_label: "Phase 5"
+      needs_keycloak: true
+      e2e_test_file: tests/test_phase5_e2e.py
+      smoke_test_file: tests/test_phase5_smoke.py
