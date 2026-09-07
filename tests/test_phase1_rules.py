@@ -18,9 +18,7 @@ from rucio_no_opa_policy.rules import (
     validate_add_rule_kwargs,
 )
 
-# ---------------------------------------------------------------------------
 # RSE naming tests
-# ---------------------------------------------------------------------------
 
 
 class TestRseNaming:
@@ -55,9 +53,7 @@ class TestRseNaming:
         assert is_rse_name_valid(name) is False
 
 
-# ---------------------------------------------------------------------------
 # validate_add_rule_kwargs tests
-# ---------------------------------------------------------------------------
 
 
 class TestValidateAddRuleKwargs:

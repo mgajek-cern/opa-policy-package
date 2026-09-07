@@ -1,0 +1,100 @@
+name: Phase OPA Tests
+
+on:
+  workflow_call:
+    inputs:
+      phase_dir:
+        required: true
+        type: string
+        description: e.g. phase2-opa
+      phase_label:
+        required: true
+        type: string
+        description: e.g. "Phase 2"
+      e2e_test_file:
+        required: true
+        type: string
+        description: e.g. tests/test_phase2_e2e.py
+      smoke_test_file:
+        required: true
+        type: string
+        description: e.g. tests/test_phase2_smoke.py
+      unit_test_file:
+        required: false
+        type: string
+        default: ""
+        description: e.g. tests/test_phase2_opa.py — omit for phases with no mocked-OPA unit tests (Phase 4/5)
+      coverage_src:
+        required: false
+        type: string
+        default: ""
+        description: e.g. phase2-opa/src — omit to skip coverage upload
+      needs_keycloak:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    name: ${{ inputs.phase_label }} - Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pytest pytest-cov -e ${{ inputs.phase_dir }}/
+
+      - name: Unit tests (OPA mocked)
+        if: inputs.unit_test_file != ''
+        run: |
+          python -m pytest ${{ inputs.unit_test_file }} \
+            -v --tb=short \
+            --cov=${{ inputs.coverage_src }} \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage-${{ inputs.phase_dir }}-unit.xml
+
+      - name: Start full stack
+        run: |
+          cd ${{ inputs.phase_dir }}/deploy
+          docker compose --profile full up -d
+          docker wait rucio-opa-init
+
+      - name: Wait for Keycloak token endpoint
+        if: inputs.needs_keycloak
+        run: |
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST http://localhost:8080/realms/rucio/protocol/openid-connect/token \
+              -d "grant_type=password&client_id=rucio-oidc&client_secret=rucio-oidc-secret&username=alice&password=alice123" || echo "000")
+            [ "$STATUS" = "200" ] && echo "Keycloak token endpoint ready." && break
+            echo "  attempt $i/30 — HTTP $STATUS"; sleep 5
+          done
+
+      - name: Wait for Rucio
+        run: |
+          for i in $(seq 1 30); do
+            RSTATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
+            [ "$RSTATUS" = "healthy" ] && echo "Rucio healthy." && break
+            echo "  attempt $i/30 — $RSTATUS"; sleep 5
+          done
+
+      - name: E2E tests (live OPA)
+        env:
+          OPA_URL: http://localhost:8181
+        run: python -m pytest ${{ inputs.e2e_test_file }} -v --tb=short
+
+      - name: Smoke tests
+        run: python -m pytest ${{ inputs.smoke_test_file }} -v --tb=short
+
+      - name: Tear down
+        if: always()
+        run: cd ${{ inputs.phase_dir }}/deploy && docker compose down
+
+      - if: inputs.coverage_src != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ inputs.phase_dir }}-unit
+          path: coverage-${{ inputs.phase_dir }}-unit.xml

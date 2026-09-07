@@ -17,9 +17,7 @@ import rucio.core.account as ra
 from rucio_opa_policy.opa_client import query_opa
 from rucio_opa_policy.permission import _build_input, has_permission
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _mock_opa_response(result: bool):
@@ -32,9 +30,7 @@ def _mock_opa_response(result: bool):
     return mock_resp
 
 
-# ---------------------------------------------------------------------------
 # opa_client tests
-# ---------------------------------------------------------------------------
 
 
 class TestOpaClient:
@@ -84,9 +80,7 @@ class TestOpaClient:
         assert called_url == "http://opa-server:8181/v1/data/custom/allow"
 
 
-# ---------------------------------------------------------------------------
 # _build_input tests
-# ---------------------------------------------------------------------------
 
 
 class TestBuildInput:
@@ -163,9 +157,7 @@ class TestBuildInput:
         assert doc["kwargs"]["name"] == "dataset1"
 
 
-# ---------------------------------------------------------------------------
 # has_permission (Phase 2) integration — OPA response drives the result
-# ---------------------------------------------------------------------------
 
 
 class TestPhase2HasPermission:

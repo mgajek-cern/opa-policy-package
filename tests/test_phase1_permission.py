@@ -13,9 +13,7 @@ significant overlap once protocol-combo cases were removed.
 
 from rucio_no_opa_policy.permission import has_permission
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _kwargs_add_rule(
@@ -32,9 +30,7 @@ def _kwargs_add_rule(
     return kw
 
 
-# ---------------------------------------------------------------------------
 # add_rule
-# ---------------------------------------------------------------------------
 
 
 class TestAddRule:
@@ -85,9 +81,7 @@ class TestAddRule:
         assert has_permission(admin_account, "add_rule", kw) is True
 
 
-# ---------------------------------------------------------------------------
 # add_rse
-# ---------------------------------------------------------------------------
 
 
 class TestAddRse:
@@ -114,9 +108,7 @@ class TestAddRse:
             )
 
 
-# ---------------------------------------------------------------------------
 # update_rse
-# ---------------------------------------------------------------------------
 
 
 class TestUpdateRse:
@@ -139,9 +131,7 @@ class TestUpdateRse:
         assert has_permission(admin_account, "update_rse", kw) is True
 
 
-# ---------------------------------------------------------------------------
 # Unknown / unrecognised actions — fall back to root-or-admin
-# ---------------------------------------------------------------------------
 
 
 class TestUnknownAction:

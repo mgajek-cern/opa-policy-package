@@ -1,4 +1,4 @@
-package vo.authz.v2
+package vo.authz.v4
 
 import rego.v1
 
@@ -6,11 +6,9 @@ import rego.v1
 
 default allow := false
 
-allow if {
-    _action_allowed
-}
+allow if { _action_allowed }
 
-# Action sets
+# Action sets — identical to Phase 4
 
 _rse_actions      := {"add_rse", "update_rse", "del_rse",
                        "add_rse_attribute", "del_rse_attribute"}
@@ -21,51 +19,17 @@ _protocol_actions := {"add_protocol", "del_protocol", "update_protocol"}
 
 _all_known_actions := _rule_actions | _rse_actions | _did_actions | _protocol_actions
 
-# Dispatch
+# Dispatch — identical to Phase 4
 
-_action_allowed if {
-    input.action == "add_rule"
-    _perm_add_rule
-}
+_action_allowed if { input.action == "add_rule";                                _perm_add_rule }
+_action_allowed if { input.action in {"del_rule", "update_rule"};               _perm_rule_owner_or_privileged }
+_action_allowed if { input.action == "approve_rule";                            _is_privileged }
+_action_allowed if { input.action == "add_rse";                                 _perm_add_rse }
+_action_allowed if { input.action == "update_rse";                              _perm_update_rse }
+_action_allowed if { input.action in (_rse_actions - {"add_rse","update_rse"}); _is_privileged }
+_action_allowed if { input.action in _did_actions;                              _perm_did_action }
+_action_allowed if { input.action in _protocol_actions;                         _perm_protocol_action }
 
-_action_allowed if {
-    input.action in {"del_rule", "update_rule"}
-    _perm_rule_owner_or_privileged
-}
-
-_action_allowed if {
-    input.action == "approve_rule"
-    _is_privileged
-}
-
-_action_allowed if {
-    input.action == "add_rse"
-    _perm_add_rse
-}
-
-_action_allowed if {
-    input.action == "update_rse"
-    _perm_update_rse
-}
-
-_action_allowed if {
-    input.action in (_rse_actions - {"add_rse", "update_rse"})
-    _is_privileged
-}
-
-_action_allowed if {
-    input.action in _did_actions
-    _perm_did_action
-}
-
-_action_allowed if {
-    input.action in _protocol_actions
-    _perm_protocol_action
-}
-
-# Privileged-only fallback for everything not in a known action set.
-# FIX: `not x in set` in Rego v1 parses as `(not x) in set` — ambiguous
-# precedence bug. Use a named helper to make negation unambiguous.
 _action_allowed if {
     not _is_known_action(input.action)
     _is_privileged
@@ -79,9 +43,6 @@ _perm_add_rule if {
     _dst_rse_name_valid
     _src_rse_name_valid
     input.kwargs.account == input.issuer
-    # FIX: use == false rather than `not input.kwargs.locked`
-    # `not` on a boolean value works, but == false is explicit and avoids
-    # the case where locked is absent (undefined) being treated as unlocked.
     input.kwargs.locked == false
 }
 
@@ -91,51 +52,33 @@ _perm_add_rule if {
     _is_privileged
 }
 
-# del_rule / update_rule — rule owner self-service (Phase 3 addition)
+# del_rule / update_rule — owner self-service
 
-_perm_rule_owner_or_privileged if {
-    input.kwargs.account == input.issuer
-}
-
-_perm_rule_owner_or_privileged if {
-    _is_privileged
-}
+_perm_rule_owner_or_privileged if { input.kwargs.account == input.issuer }
+_perm_rule_owner_or_privileged if { _is_privileged }
 
 # add_rse / update_rse
 
-_perm_add_rse if {
-    _is_privileged
-    _rse_name_valid(input.kwargs.rse)
-}
+_perm_add_rse if { _is_privileged; _rse_name_valid(input.kwargs.rse) }
 
+_perm_update_rse if { _is_privileged; not input.kwargs.parameters.rse }
 _perm_update_rse if {
     _is_privileged
-    not input.kwargs.parameters.rse
+    _rse_name_valid(input.kwargs.parameters.rse)
 }
 
-_perm_update_rse if {
-    _is_privileged
-    new_name := input.kwargs.parameters.rse
-    _rse_name_valid(new_name)
-}
-
-# DID actions — scope-owner or privileged
+# DID actions
 
 _perm_did_action if { _is_privileged }
-
 _perm_did_action if { input.kwargs.scope == "mock" }
-
-_perm_did_action if {
-    startswith(input.kwargs.scope, input.issuer)
-}
-
+_perm_did_action if { startswith(input.kwargs.scope, input.issuer) }
 _perm_did_action if {
     input.action == "attach_dids_to_dids"
     attachment := input.kwargs.attachments[_]
     startswith(attachment.scope, input.issuer)
 }
 
-# Protocol actions — privileged + scheme allowlist
+# Protocol actions
 
 _default_allowed_schemes := {"davs", "s3", "https", "root", "xrdhttp", "gsiftp"}
 
@@ -183,16 +126,28 @@ _is_expression(expr) if { contains(expr, "=") }
 _is_expression(expr) if { contains(expr, "&") }
 _is_expression(expr) if { contains(expr, "|") }
 
-# Shared helpers
 
-# FIX: explicit default prevents partial evaluation from treating an
-# undefined _is_privileged as falsy in unexpected ways.
 default _is_privileged := false
 
-_is_privileged if { input.is_root == true }
+# Bootstrap: root account has no OIDC token — allow unconditionally.
+_is_privileged if { input.issuer == "root" }
 
-_is_privileged if { input.is_admin == true }
+# OIDC path: any group in token.groups that maps to "admin" grants privilege.
+_is_privileged if {
+    entitlement := input.token.entitlements[_]
+    _entitlement_privilege(entitlement) == "admin"
+}
 
-# FIX: require explicit `== true` — `data.vo.admins[input.issuer]` alone
-# would fire if the value is any truthy object, not just boolean true.
-_is_privileged if { data.vo.admins[input.issuer] == true }
+# Bundle-driven entitlement policy.
+_entitlement_privilege(entitlement) := level if {
+    level := data.vo.entitlement_policy[entitlement]
+}
+
+# Hardcoded fallback — used when no bundle is loaded (CI / testing).
+_entitlement_privilege(entitlement) := "admin" if {
+    not data.vo.entitlement_policy
+    entitlement in {
+        "urn:example:aai.example.org:group:rucio-admins:role=member",
+        "urn:example:aai.example.org:group:atlas-production:role=member",
+    }
+}

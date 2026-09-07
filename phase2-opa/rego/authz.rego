@@ -2,9 +2,7 @@ package vo.authz
 
 import rego.v1
 
-# ---------------------------------------------------------------------------
 # Top-level rule — the only entry point queried by the Python client
-# ---------------------------------------------------------------------------
 
 # Default: deny everything not explicitly allowed
 default allow := false
@@ -13,7 +11,6 @@ allow if {
     _action_allowed
 }
 
-# ---------------------------------------------------------------------------
 # Action dispatch
 #
 # Actions covered by this policy (selected from Rucio generic.py):
@@ -38,7 +35,6 @@ allow if {
 #     detach_dids   — scope owner or privileged
 #
 #   All other actions → privileged only (safe default)
-# ---------------------------------------------------------------------------
 
 _rse_actions       := {"add_rse", "update_rse", "del_rse",
                         "add_rse_attribute", "del_rse_attribute"}
@@ -81,9 +77,7 @@ _action_allowed if {
     _is_privileged
 }
 
-# ---------------------------------------------------------------------------
 # add_rule
-# ---------------------------------------------------------------------------
 
 _perm_add_rule if {
     # Domain checks
@@ -104,18 +98,14 @@ _perm_add_rule if {
     _is_privileged
 }
 
-# ---------------------------------------------------------------------------
 # add_rse
-# ---------------------------------------------------------------------------
 
 _perm_add_rse if {
     _is_privileged
     _rse_name_valid(input.kwargs.rse)
 }
 
-# ---------------------------------------------------------------------------
 # update_rse
-# ---------------------------------------------------------------------------
 
 _perm_update_rse if {
     _is_privileged
@@ -130,9 +120,7 @@ _perm_update_rse if {
     _rse_name_valid(new_name)
 }
 
-# ---------------------------------------------------------------------------
 # DID actions — scope owner or privileged
-# ---------------------------------------------------------------------------
 
 _perm_did_action if {
     _is_privileged
@@ -151,9 +139,7 @@ _perm_did_action if {
 }
 
 
-# ---------------------------------------------------------------------------
 # RSE naming rules
-# ---------------------------------------------------------------------------
 
 _known_rse_types := {
     "DATADISK",
@@ -207,9 +193,7 @@ _is_expression(expr) if { contains(expr, "=") }
 _is_expression(expr) if { contains(expr, "&") }
 _is_expression(expr) if { contains(expr, "|") }
 
-# ---------------------------------------------------------------------------
 # Shared helpers
-# ---------------------------------------------------------------------------
 
 _is_privileged if {
     input.is_root == true

@@ -1,23 +1,22 @@
 """
-Phase 4 — smoke test against the full Rucio + OPA + Keycloak + PostgreSQL stack.
+Phase 5 — smoke test against the full Rucio + OPA + Keycloak + PostgreSQL stack.
 
-Same boundary as Phase 2/3's smoke tests, plus Keycloak wlcg.groups claim
-verification since Phase 4's whole privilege model depends on it. Does not
-duplicate OPA policy content (group privilege, self-service, root bootstrap,
-runtime bundle overrides) — covered by tests/test_phase4_e2e.py.
+Same boundary as Phase 4's smoke tests, plus Keycloak `entitlements` claim
+verification since Phase 5's whole privilege model depends on it. Does not
+duplicate OPA policy content (entitlement privilege, self-service, root
+bootstrap, runtime bundle overrides) — covered by tests/test_phase5_e2e.py.
 
 rucio_call and rucio_opa_container_logs are shared helpers from conftest.py.
-stack_urls/root_token are redefined locally (below) rather than reusing the
-shared conftest.py fixtures, since this phase needs a third URL (Keycloak)
-that Phase 2/3 don't — a local fixture cleanly shadows the shared one for
-this module only, without forcing a Keycloak-shaped tuple onto Phase 2/3.
+stack_urls/root_token are redefined locally (below), same pattern as
+test_phase4_smoke.py, since this phase also needs the Keycloak URL that
+Phase 2/3 don't.
 
 Requires a running stack:
-    cd phase4-opa/deploy
+    cd phase5-opa/deploy
     docker compose --profile full up -d
     RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
         KEYCLOAK_URL=http://localhost:8080 \
-        pytest tests/test_phase4_smoke.py -v
+        pytest tests/test_phase5_smoke.py -v
 
 Skips automatically if the stack isn't reachable.
 """
@@ -86,7 +85,7 @@ def root_token(stack_urls):
     return token
 
 
-# Helpers unique to Phase 4 — Keycloak token issuance / JWT decode
+# Helpers unique to Phase 5 — Keycloak token issuance / JWT decode
 
 
 def _keycloak_password_token(keycloak_url: str, username: str, password: str) -> str:
@@ -98,7 +97,7 @@ def _keycloak_password_token(keycloak_url: str, username: str, password: str) ->
             "client_secret": KEYCLOAK_CLIENT_SECRET,
             "username": username,
             "password": password,
-            "scope": "openid wlcg",
+            "scope": "openid entitlements",
         }
     ).encode()
     req = Request(
@@ -121,26 +120,34 @@ def _decode_jwt_claims(token: str) -> dict:
     return json.loads(base64.urlsafe_b64decode(padded))
 
 
-# Keycloak — confirms wlcg.groups is actually issued
+# Keycloak — confirms entitlements is actually issued, since Phase 5's whole
+# privilege model depends on it. This is real IdP behavior nothing else tests.
+#
+# Unlike Phase 4's wlcg.groups (nested under a "wlcg" claim namespace),
+# entitlements is a flat top-level claim — confirmed against a live token:
+#   {"entitlements": ["urn:...:group:rucio-users:role=member", ...]}
 
 
-class TestKeycloakGroupsClaim:
-    def test_alice_jwt_has_rucio_users_group(self, stack_urls):
+class TestKeycloakEntitlementsClaim:
+    def test_alice_jwt_has_rucio_users_entitlement(self, stack_urls):
         _, _, keycloak_url = stack_urls
         token = _keycloak_password_token(keycloak_url, "alice", "alice123")
         claims = _decode_jwt_claims(token)
-        groups = claims.get("wlcg", {}).get("groups", [])
-        assert "/rucio/users" in groups, f"Expected /rucio/users in {groups}"
+        entitlements = claims.get("entitlements", [])
+        expected = "urn:example:aai.example.org:group:rucio-users:role=member"
+        assert expected in entitlements, f"Expected {expected} in {entitlements}"
 
-    def test_adminuser_jwt_has_rucio_admins_group(self, stack_urls):
+    def test_adminuser_jwt_has_rucio_admins_entitlement(self, stack_urls):
         _, _, keycloak_url = stack_urls
         token = _keycloak_password_token(keycloak_url, "adminuser", "admin123")
         claims = _decode_jwt_claims(token)
-        groups = claims.get("wlcg", {}).get("groups", [])
-        assert "/rucio/admins" in groups, f"Expected /rucio/admins in {groups}"
+        entitlements = claims.get("entitlements", [])
+        expected = "urn:example:aai.example.org:group:rucio-admins:role=member"
+        assert expected in entitlements, f"Expected {expected} in {entitlements}"
 
 
-# RSE management via root bootstrap
+# RSE management via root bootstrap — real Rucio REST calls, schema vs.
+# policy rejection, same as Phase 2/3/4's smoke tests
 
 
 class TestRseManagement:
@@ -148,9 +155,10 @@ class TestRseManagement:
     def test_create_valid_rse(self, stack_urls, root_token, rse):
         rucio_url, _, _ = stack_urls
         status, _ = _rucio_call(rucio_url, f"/rses/{rse}", root_token, "POST", {"rse_type": "DISK"})
-        assert status in (201, 409)
+        assert status in (201, 409)  # 409 if already created by a prior run
 
     def test_reject_unknown_rse_type_via_policy(self, stack_urls, root_token):
+        """Well-formed but disallowed name — rejected by the OPA policy, not the schema."""
         rucio_url, _, _ = stack_urls
         status, _ = _rucio_call(
             rucio_url, "/rses/CERN_UNKNOWN", root_token, "POST", {"rse_type": "DISK"}
@@ -171,14 +179,14 @@ class TestOpaWiring:
         logs = _rucio_opa_container_logs()
         if logs is None:
             pytest.skip("docker not available or rucio-opa container not running")
-        assert "vo/authz/v3/allow" in logs, (
-            "Expected Rucio to have called OPA's authz/v3/allow endpoint."
+        assert "vo/authz/v4/allow" in logs, (
+            "Expected Rucio to have called OPA's authz/v4/allow endpoint."
         )
 
     def test_opa_policy_was_loaded_via_rest(self):
         logs = _rucio_opa_container_logs()
         if logs is None:
             pytest.skip("docker not available or rucio-opa container not running")
-        assert "v1/policies/authz_v3" in logs, (
+        assert "v1/policies/authz_v4" in logs, (
             "Expected the Rego policy to have been PUT to OPA on startup."
         )

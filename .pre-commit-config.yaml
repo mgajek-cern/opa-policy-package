@@ -1,7 +1,5 @@
 repos:
-  # ---------------------------------------------------------------------------
   # General file hygiene
-  # ---------------------------------------------------------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -14,9 +12,7 @@ repos:
         args: [--maxkb=500]
       - id: debug-statements       # catches leftover breakpoint() / pdb
 
-  # ---------------------------------------------------------------------------
   # Python — ruff (linter + formatter, replaces flake8/black/isort)
-  # ---------------------------------------------------------------------------
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.9.10
     hooks:

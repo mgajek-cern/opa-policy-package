@@ -62,9 +62,7 @@ def _root(action: str, **kw) -> bool:
     return query_opa({"issuer": "root", "action": action, "token": {"groups": []}, "kwargs": kw})
 
 
-# ---------------------------------------------------------------------------
 # Group-based privilege
-# ---------------------------------------------------------------------------
 
 
 class TestK_GroupPrivilege:
@@ -105,9 +103,7 @@ class TestK_GroupPrivilege:
         assert _q("adminuser", "approve_rule", groups=["/rucio/admins"]) is True
 
 
-# ---------------------------------------------------------------------------
 # User group self-service actions
-# ---------------------------------------------------------------------------
 
 
 class TestL_UserGroupActions:
@@ -170,9 +166,7 @@ class TestL_UserGroupActions:
         assert _q("alice", "del_rule", groups=["/rucio/users"], account="bob") is False
 
 
-# ---------------------------------------------------------------------------
 # Root bootstrap (no OIDC token)
-# ---------------------------------------------------------------------------
 
 
 class TestM_RootBootstrap:
@@ -200,9 +194,7 @@ class TestM_RootBootstrap:
         assert _q("alice", "del_rse", groups=[]) is False
 
 
-# ---------------------------------------------------------------------------
 # Group policy bundle override (runtime)
-# ---------------------------------------------------------------------------
 
 
 class TestN_GroupPolicyBundle:

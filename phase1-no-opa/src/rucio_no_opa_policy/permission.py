@@ -26,9 +26,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 
-# ---------------------------------------------------------------------------
 # Entry point called by Rucio
-# ---------------------------------------------------------------------------
 
 
 def has_permission(
@@ -48,9 +46,7 @@ def has_permission(
     return handler(issuer=issuer, kwargs=kwargs, session=session)
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _is_root(issuer: "InternalAccount") -> bool:
@@ -71,9 +67,7 @@ def _perm_default(
     return _is_root(issuer) or _is_admin(issuer, session=session)
 
 
-# ---------------------------------------------------------------------------
 # Action-specific permission functions
-# ---------------------------------------------------------------------------
 
 
 def perm_add_rule(

@@ -17,9 +17,7 @@ RSE naming convention:
 import re
 from typing import Optional
 
-# ---------------------------------------------------------------------------
 # Constants
-# ---------------------------------------------------------------------------
 
 KNOWN_RSE_TYPES: frozenset[str] = frozenset(
     {
@@ -35,9 +33,7 @@ KNOWN_RSE_TYPES: frozenset[str] = frozenset(
 _RSE_NAME_RE = re.compile(r"^[A-Z0-9]+_[A-Z0-9]+$")
 
 
-# ---------------------------------------------------------------------------
 # Public helpers
-# ---------------------------------------------------------------------------
 
 
 def is_rse_name_valid(rse_name: str) -> bool:
@@ -83,9 +79,7 @@ def validate_add_rule_kwargs(kwargs: dict) -> Optional[str]:
     return None  # all checks passed
 
 
-# ---------------------------------------------------------------------------
 # Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _is_bare_rse_name(expr: str) -> bool:
