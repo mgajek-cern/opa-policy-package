@@ -5,7 +5,7 @@ Phase 1 permission module — Rucio acts as the Policy Decision Point.
 All decisions are made in Python without calling an external service.
 The main additions over the generic permission module are:
 
-  - perm_add_rule   : enforces protocol-combo and RSE naming rules
+  - perm_add_rule   : enforces RSE naming rules
   - perm_add_rse    : enforces RSE naming convention on creation
   - perm_update_rse : enforces RSE naming convention on rename
 
@@ -92,7 +92,6 @@ def perm_add_rule(
     Additions:
       - The destination RSE (rse_expression) must follow the naming convention
         when it is a bare RSE name.
-      - The source→destination protocol combination must be in the allowed set.
     """
     # --- Domain checks first (fast, no DB) ---
     error = validate_add_rule_kwargs(kwargs)

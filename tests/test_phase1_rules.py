@@ -1,71 +1,22 @@
 """
 Unit tests for phase1-no-opa rules.py
 
-These tests cover the pure domain logic — protocol combos and RSE naming —
-without touching Rucio internals.  They run without a live Rucio instance.
+These tests cover the pure domain logic — RSE naming — without touching
+Rucio internals. They run without a live Rucio instance.
+
+Protocol-combo enforcement was removed from the policy package: Rucio
+core already resolves TPC feasibility dynamically per-RSE via the
+third_party_copy_read / third_party_copy_write protocol capability flags
+(see lib/rucio/core/rse.py, lib/rucio/core/transfer.py), so a hardcoded
+combo table in the policy package was a stale, duplicate source of truth.
 """
 
 import pytest
 
 from rucio_no_opa_policy.rules import (
-    ALLOWED_PROTOCOL_COMBOS,
-    is_protocol_combo_allowed,
     is_rse_name_valid,
     validate_add_rule_kwargs,
 )
-
-# ---------------------------------------------------------------------------
-# Protocol combo tests
-# ---------------------------------------------------------------------------
-
-
-class TestProtocolCombos:
-    @pytest.mark.parametrize(
-        "src, dst",
-        [
-            ("webdav", "webdav"),  # TPC native
-            ("WebDAV", "WebDAV"),  # case-insensitive
-            ("s3", "webdav"),  # WebDAV pulls from S3
-            ("S3", "WebDAV"),  # mixed case
-            ("xrdhttp", "webdav"),  # WebDAV pulls from XrdHTTP
-            ("XrdHTTP", "WebDAV"),  # mixed case
-            ("s3", "xrdhttp"),  # XrdHTTP pulls from S3 via pre-signed URL
-            ("S3", "XrdHTTP"),  # mixed case
-            ("xrdhttp", "xrdhttp"),  # Native HTTP TPC
-            ("XrdHTTP", "XrdHTTP"),  # mixed case
-        ],
-    )
-    def test_allowed_combos(self, src, dst):
-        assert is_protocol_combo_allowed(src, dst) is True
-
-    @pytest.mark.parametrize(
-        "src, dst",
-        [
-            ("s3", "s3"),  # neither side supports TPC pull
-            ("webdav", "s3"),  # S3 cannot act as TPC destination
-            ("xrdhttp", "s3"),  # S3 cannot act as TPC destination
-            ("ftp", "webdav"),  # unknown protocol
-            ("", "webdav"),  # empty source
-        ],
-    )
-    def test_blocked_combos(self, src, dst):
-        assert is_protocol_combo_allowed(src, dst) is False
-
-    def test_s3_webdav_asymmetric(self):
-        """S3→WebDAV is allowed (WebDAV pulls); WebDAV→S3 is not (S3 cannot TPC-receive)."""
-        assert ("s3", "webdav") in ALLOWED_PROTOCOL_COMBOS
-        assert ("webdav", "s3") not in ALLOWED_PROTOCOL_COMBOS
-        assert ("s3", "s3") not in ALLOWED_PROTOCOL_COMBOS
-
-    def test_s3_xrdhttp_asymmetric(self):
-        """S3→XrdHTTP is allowed (XrdHTTP pulls); XrdHTTP→S3 is not (S3 cannot TPC-receive)."""
-        assert ("s3", "xrdhttp") in ALLOWED_PROTOCOL_COMBOS
-        assert ("xrdhttp", "s3") not in ALLOWED_PROTOCOL_COMBOS
-
-    def test_xrdhttp_xrdhttp_symmetric(self):
-        """XrdHTTP↔XrdHTTP native HTTP TPC is allowed in both directions."""
-        assert ("xrdhttp", "xrdhttp") in ALLOWED_PROTOCOL_COMBOS
-
 
 # ---------------------------------------------------------------------------
 # RSE naming tests
@@ -110,67 +61,11 @@ class TestRseNaming:
 
 
 class TestValidateAddRuleKwargs:
-    def test_bare_valid_rse_no_protocols(self):
+    def test_valid_bare_rse_name(self):
         kwargs = {"rse_expression": "CERN_DATADISK"}
         assert validate_add_rule_kwargs(kwargs) is None
 
-    def test_bare_valid_rse_valid_protocol_combo_s3_webdav(self):
-        kwargs = {
-            "rse_expression": "CERN_DATADISK",
-            "source_protocol": "s3",
-            "dst_protocol": "webdav",
-        }
-        assert validate_add_rule_kwargs(kwargs) is None
-
-    def test_bare_valid_rse_valid_protocol_combo_s3_xrdhttp(self):
-        kwargs = {
-            "rse_expression": "CERN_DATADISK",
-            "source_protocol": "s3",
-            "dst_protocol": "xrdhttp",
-        }
-        assert validate_add_rule_kwargs(kwargs) is None
-
-    def test_bare_valid_rse_valid_protocol_combo_xrdhttp_xrdhttp(self):
-        kwargs = {
-            "rse_expression": "CERN_DATADISK",
-            "source_protocol": "xrdhttp",
-            "dst_protocol": "xrdhttp",
-        }
-        assert validate_add_rule_kwargs(kwargs) is None
-
-    def test_bare_valid_rse_invalid_protocol_combo_s3_s3(self):
-        kwargs = {
-            "rse_expression": "CERN_DATADISK",
-            "source_protocol": "s3",
-            "dst_protocol": "s3",
-        }
-        error = validate_add_rule_kwargs(kwargs)
-        assert error is not None
-        assert "S3→S3" in error or "not allowed" in error
-
-    def test_bare_valid_rse_invalid_protocol_combo_webdav_s3(self):
-        """webdav→s3 denied: S3 cannot act as TPC destination."""
-        kwargs = {
-            "rse_expression": "CERN_DATADISK",
-            "source_protocol": "webdav",
-            "dst_protocol": "s3",
-        }
-        error = validate_add_rule_kwargs(kwargs)
-        assert error is not None
-        assert "not allowed" in error
-
-    def test_bare_valid_rse_invalid_protocol_combo_xrdhttp_s3(self):
-        """xrdhttp→s3 denied: S3 cannot act as TPC destination."""
-        kwargs = {
-            "rse_expression": "CERN_DATADISK",
-            "source_protocol": "xrdhttp",
-            "dst_protocol": "s3",
-        }
-        error = validate_add_rule_kwargs(kwargs)
-        assert error is not None
-        assert "not allowed" in error
-
-    def test_bare_invalid_rse_name(self):
+    def test_invalid_bare_rse_name(self):
         kwargs = {"rse_expression": "cern_datadisk"}
         error = validate_add_rule_kwargs(kwargs)
         assert error is not None
@@ -190,16 +85,9 @@ class TestValidateAddRuleKwargs:
         assert error is not None
         assert "Source RSE" in error
 
-    def test_no_protocols_supplied_skips_combo_check(self):
-        # When no protocol hints are given the combo check must be skipped
-        kwargs = {"rse_expression": "BNL_TAPE"}
-        assert validate_add_rule_kwargs(kwargs) is None
-
-    def test_only_one_protocol_supplied_skips_combo_check(self):
-        # Combo check requires BOTH src and dst to be present
+    def test_valid_source_and_destination(self):
         kwargs = {
-            "rse_expression": "BNL_TAPE",
-            "source_protocol": "s3",
-            # dst_protocol absent
+            "rse_expression": "CERN_DATADISK",
+            "source_rse_expression": "BNL_TAPE",
         }
         assert validate_add_rule_kwargs(kwargs) is None

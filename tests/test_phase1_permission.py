@@ -17,18 +17,12 @@ def _kwargs_add_rule(
     locked=False,
     rse_expression="CERN_DATADISK",
     source_rse_expression=None,
-    source_protocol=None,
-    dst_protocol=None,
 ):
     kw = {"locked": locked, "rse_expression": rse_expression}
     if account is not None:
         kw["account"] = account
     if source_rse_expression is not None:
         kw["source_rse_expression"] = source_rse_expression
-    if source_protocol is not None:
-        kw["source_protocol"] = source_protocol
-    if dst_protocol is not None:
-        kw["dst_protocol"] = dst_protocol
     return kw
 
 
@@ -50,41 +44,6 @@ class TestAddRuleRegularAccount:
         kw = _kwargs_add_rule(account=regular_account, rse_expression="cern_bad")
         assert has_permission(regular_account, "add_rule", kw) is False
 
-    def test_own_rule_s3_to_s3_denied(self, regular_account):
-        kw = _kwargs_add_rule(
-            account=regular_account,
-            source_protocol="s3",
-            dst_protocol="s3",
-        )
-        assert has_permission(regular_account, "add_rule", kw) is False
-
-    def test_own_rule_webdav_to_s3_denied(self, regular_account):
-        """S3 cannot act as TPC destination — FTS streaming required."""
-        kw = _kwargs_add_rule(
-            account=regular_account,
-            source_protocol="webdav",
-            dst_protocol="s3",
-        )
-        assert has_permission(regular_account, "add_rule", kw) is False
-
-    def test_own_rule_s3_to_webdav_allowed(self, regular_account):
-        """WebDAV destination can TPC-pull from S3 source."""
-        kw = _kwargs_add_rule(
-            account=regular_account,
-            source_protocol="s3",
-            dst_protocol="webdav",
-        )
-        assert has_permission(regular_account, "add_rule", kw) is True
-
-    def test_own_rule_xrdhttp_to_webdav_allowed(self, regular_account):
-        """WebDAV destination can TPC-pull from XrdHTTP source."""
-        kw = _kwargs_add_rule(
-            account=regular_account,
-            source_protocol="xrdhttp",
-            dst_protocol="webdav",
-        )
-        assert has_permission(regular_account, "add_rule", kw) is True
-
     def test_rule_for_other_account_denied(self, regular_account, make_account):
         other = make_account("bob")
         kw = _kwargs_add_rule(account=other)
@@ -102,15 +61,6 @@ class TestAddRuleRoot:
         other = make_account("bob")
         kw = _kwargs_add_rule(account=other)
         assert has_permission(root, "add_rule", kw) is True
-
-    def test_root_still_blocked_by_protocol_policy(self, root):
-        """Even root must respect the protocol combo rules."""
-        kw = _kwargs_add_rule(
-            account=root,
-            source_protocol="s3",
-            dst_protocol="s3",
-        )
-        assert has_permission(root, "add_rule", kw) is False
 
     def test_root_still_blocked_by_rse_naming(self, root):
         kw = _kwargs_add_rule(rse_expression="bad_name")
