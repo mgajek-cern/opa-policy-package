@@ -1,7 +1,7 @@
 services:
 
   # ---------------------------------------------------------------------------
-  # Keycloak — single realm, wlcg.groups emitted in JWT
+  # Keycloak — single realm, entitlements emitted in JWT
   # ---------------------------------------------------------------------------
   keycloak:
     image: quay.io/keycloak/keycloak:23.0.1
@@ -92,7 +92,7 @@ services:
       - "80:80"
     environment:
       OPA_URL: http://opa:8181
-      OPA_POLICY_PATH: vo/authz/v3/allow
+      OPA_POLICY_PATH: vo/authz/v4/allow
       OPA_TIMEOUT: 2
     volumes:
       - ./rucio.cfg:/opt/rucio/etc/rucio.cfg:ro
@@ -104,7 +104,7 @@ services:
       - bash
       - -c
       - |
-        cp -r /policy-package/phase4-opa /tmp/rucio-opa-policy &&
+        cp -r /policy-package/phase5-opa /tmp/rucio-opa-policy &&
         pip install -q /tmp/rucio-opa-policy &&
         python3 /tmp/bootstrap-db.py &&
         exec /docker-entrypoint.sh httpd -DFOREGROUND
