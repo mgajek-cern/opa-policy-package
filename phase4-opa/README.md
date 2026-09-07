@@ -117,5 +117,5 @@ print(base64.urlsafe_b64decode(sys.stdin.read() + '===').decode())
 " | python3 -m json.tool
 ```
 
-Expected for `alice`: `"wlcg.groups": ["/rucio/users", "/atlas/users"]`
-Expected for `adminuser`: `"wlcg.groups": ["/rucio/admins", "/atlas/production"]`
+- Expected for `alice`: `"wlcg.groups": ["/rucio/users", "/atlas/users"]`
+- Expected for `adminuser`: `"wlcg.groups": ["/rucio/admins", "/atlas/production"]`

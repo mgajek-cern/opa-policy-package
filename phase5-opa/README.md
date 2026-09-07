@@ -120,5 +120,5 @@ print(base64.urlsafe_b64decode(sys.stdin.read() + '===').decode())
 " | python3 -m json.tool
 ```
 
-Expected for `alice`: `"entitlements": ["urn:example:aai.example.org:group:rucio-users:role=member", "urn:example:aai.example.org:group:atlas-users:role=member"]`
-Expected for `adminuser`: `"entitlements": ["urn:example:aai.example.org:group:rucio-admins:role=member", "urn:example:aai.example.org:group:atlas-production:role=member"]`
+- Expected for `alice`: `"entitlements": ["urn:example:aai.example.org:group:rucio-users:role=member", "urn:example:aai.example.org:group:atlas-users:role=member"]`
+- Expected for `adminuser`: `"entitlements": ["urn:example:aai.example.org:group:rucio-admins:role=member", "urn:example:aai.example.org:group:atlas-production:role=member"]`
