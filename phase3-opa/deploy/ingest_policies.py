@@ -21,9 +21,7 @@ from urllib.request import Request, urlopen
 REGO_PATH = Path(__file__).parent.parent / "rego" / "authz.rego"
 POLICY_ID = "authz_v2"
 
-# ---------------------------------------------------------------------------
 # Default policy data — operators override via OPA bundle or re-ingestion
-# ---------------------------------------------------------------------------
 
 DEFAULT_POLICY_DATA = {
     "known_rse_types": [

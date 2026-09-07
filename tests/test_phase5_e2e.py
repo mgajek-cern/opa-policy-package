@@ -71,9 +71,7 @@ def _root(action: str, **kw) -> bool:
     )
 
 
-# ---------------------------------------------------------------------------
 # Entitlement-based privilege
-# ---------------------------------------------------------------------------
 
 
 class TestK_EntitlementPrivilege:
@@ -114,9 +112,7 @@ class TestK_EntitlementPrivilege:
         assert _q("adminuser", "approve_rule", entitlements=[ADMIN]) is True
 
 
-# ---------------------------------------------------------------------------
 # User entitlement self-service actions
-# ---------------------------------------------------------------------------
 
 
 class TestL_UserEntitlementActions:
@@ -172,9 +168,7 @@ class TestL_UserEntitlementActions:
         assert _q("alice", "del_rule", entitlements=[USER], account="bob") is False
 
 
-# ---------------------------------------------------------------------------
 # Root bootstrap (no OIDC token)
-# ---------------------------------------------------------------------------
 
 
 class TestM_RootBootstrap:
@@ -202,9 +196,7 @@ class TestM_RootBootstrap:
         assert _q("alice", "del_rse", entitlements=[]) is False
 
 
-# ---------------------------------------------------------------------------
 # Entitlement policy bundle override (runtime)
-# ---------------------------------------------------------------------------
 
 
 class TestN_EntitlementPolicyBundle:

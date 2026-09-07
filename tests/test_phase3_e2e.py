@@ -35,9 +35,7 @@ from tests.conftest import build_opa_server_fixture
 
 from rucio_opa_v2_policy.opa_client import query_opa
 
-# ---------------------------------------------------------------------------
 # OPA server fixture
-# ---------------------------------------------------------------------------
 
 REGO_PATH = Path(__file__).parent.parent / "phase3-opa" / "rego" / "authz.rego"
 opa_server = build_opa_server_fixture(REGO_PATH, "vo/authz/allow")
@@ -49,9 +47,7 @@ def _point_client_at_opa(opa_server, monkeypatch):
     monkeypatch.setenv("OPA_POLICY_PATH", "vo/authz/v2/allow")
 
 
-# ---------------------------------------------------------------------------
 # Helper — push data bundle into OPA for data-driven tests
-# ---------------------------------------------------------------------------
 
 
 def _put_data(opa_url: str, path: str, data: dict) -> None:
@@ -62,9 +58,7 @@ def _put_data(opa_url: str, path: str, data: dict) -> None:
         pass
 
 
-# ---------------------------------------------------------------------------
 # Helper — build input and query OPA
-# ---------------------------------------------------------------------------
 
 
 def _query(
@@ -86,9 +80,7 @@ def _query(
     )
 
 
-# ---------------------------------------------------------------------------
 # RSE naming (inherited, unchanged)
-# ---------------------------------------------------------------------------
 
 
 class TestP3_RseNaming:
@@ -106,9 +98,7 @@ class TestP3_RseNaming:
             assert _query("root", "add_rse", is_root=True, rse=f"CERN_{rse_type}") is True
 
 
-# ---------------------------------------------------------------------------
 # Account checks on add_rule (inherited, unchanged)
-# ---------------------------------------------------------------------------
 
 
 class TestP3_AccountChecks:
@@ -148,9 +138,7 @@ class TestP3_AccountChecks:
         )
 
 
-# ---------------------------------------------------------------------------
 # DID actions (inherited, unchanged)
-# ---------------------------------------------------------------------------
 
 
 class TestP3_DidActions:
@@ -173,9 +161,7 @@ class TestP3_DidActions:
         assert _query("alice", "detach_dids", scope="carol.data", name="container") is False
 
 
-# ---------------------------------------------------------------------------
 # RSE management (inherited, unchanged)
-# ---------------------------------------------------------------------------
 
 
 class TestP3_RseManagement:
@@ -201,9 +187,7 @@ class TestP3_RseManagement:
         )
 
 
-# ---------------------------------------------------------------------------
 # Unknown action fallback (inherited, unchanged)
-# ---------------------------------------------------------------------------
 
 
 class TestP3_Fallback:
@@ -214,9 +198,7 @@ class TestP3_Fallback:
         assert _query("alice", "some_unknown_action") is False
 
 
-# ---------------------------------------------------------------------------
 # attach_dids_to_dids (Phase 3 — rucio-it-tools gap closed)
-# ---------------------------------------------------------------------------
 
 
 class TestP3_AttachDidsToDids:
@@ -300,9 +282,7 @@ class TestP3_AttachDidsToDids:
         )
 
 
-# ---------------------------------------------------------------------------
 # del_rule / update_rule owner self-service (Phase 3 addition)
-# ---------------------------------------------------------------------------
 
 
 class TestP3_RuleOwnerSelfService:
@@ -342,9 +322,7 @@ class TestP3_RuleOwnerSelfService:
         assert _query("root", "approve_rule", is_root=True) is True
 
 
-# ---------------------------------------------------------------------------
 # Protocol management with scheme allowlist (Phase 3 addition)
-# ---------------------------------------------------------------------------
 
 
 class TestP3_ProtocolManagement:
@@ -387,9 +365,7 @@ class TestP3_ProtocolManagement:
         assert _query("root", "add_protocol", is_root=True, scheme="srm") is False
 
 
-# ---------------------------------------------------------------------------
 # Data-driven policy bundle overrides (Phase 3 addition)
-# ---------------------------------------------------------------------------
 
 
 class TestP3_DataDrivenBundle:

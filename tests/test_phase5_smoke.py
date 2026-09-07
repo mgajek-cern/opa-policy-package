@@ -38,10 +38,8 @@ KEYCLOAK_CLIENT_ID = "rucio-oidc"
 KEYCLOAK_CLIENT_SECRET = "rucio-oidc-secret"
 
 
-# ---------------------------------------------------------------------------
 # Local stack_urls / root_token — shadow conftest.py's versions for this
 # module only, adding the Keycloak URL Phase 2/3 don't need.
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module")
@@ -87,9 +85,7 @@ def root_token(stack_urls):
     return token
 
 
-# ---------------------------------------------------------------------------
 # Helpers unique to Phase 5 — Keycloak token issuance / JWT decode
-# ---------------------------------------------------------------------------
 
 
 def _keycloak_password_token(keycloak_url: str, username: str, password: str) -> str:
@@ -124,14 +120,12 @@ def _decode_jwt_claims(token: str) -> dict:
     return json.loads(base64.urlsafe_b64decode(padded))
 
 
-# ---------------------------------------------------------------------------
 # Keycloak — confirms entitlements is actually issued, since Phase 5's whole
 # privilege model depends on it. This is real IdP behavior nothing else tests.
 #
 # Unlike Phase 4's wlcg.groups (nested under a "wlcg" claim namespace),
 # entitlements is a flat top-level claim — confirmed against a live token:
 #   {"entitlements": ["urn:...:group:rucio-users:role=member", ...]}
-# ---------------------------------------------------------------------------
 
 
 class TestKeycloakEntitlementsClaim:
@@ -152,10 +146,8 @@ class TestKeycloakEntitlementsClaim:
         assert expected in entitlements, f"Expected {expected} in {entitlements}"
 
 
-# ---------------------------------------------------------------------------
 # RSE management via root bootstrap — real Rucio REST calls, schema vs.
 # policy rejection, same as Phase 2/3/4's smoke tests
-# ---------------------------------------------------------------------------
 
 
 class TestRseManagement:
@@ -179,9 +171,7 @@ class TestRseManagement:
         assert status == 200
 
 
-# ---------------------------------------------------------------------------
 # Wiring verification
-# ---------------------------------------------------------------------------
 
 
 class TestOpaWiring:

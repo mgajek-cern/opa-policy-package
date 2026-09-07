@@ -31,9 +31,7 @@ from tests.conftest import build_opa_server_fixture
 
 from rucio_opa_policy.opa_client import query_opa
 
-# ---------------------------------------------------------------------------
 # OPA server fixture
-# ---------------------------------------------------------------------------
 
 REGO_PATH = Path(__file__).parent.parent / "phase2-opa" / "rego" / "authz.rego"
 opa_server = build_opa_server_fixture(REGO_PATH, "vo/authz/allow")
@@ -46,9 +44,7 @@ def _point_client_at_opa(opa_server, monkeypatch):
     monkeypatch.setenv("OPA_POLICY_PATH", "vo/authz/allow")
 
 
-# ---------------------------------------------------------------------------
 # Helper: build an input doc and query OPA directly
-# ---------------------------------------------------------------------------
 
 
 def _query(
@@ -70,9 +66,7 @@ def _query(
     )
 
 
-# ---------------------------------------------------------------------------
 # RSE naming (add_rule, add_rse)
-# ---------------------------------------------------------------------------
 
 
 class TestOPA_RseNaming:
@@ -124,9 +118,7 @@ class TestOPA_RseNaming:
             assert result is True, f"Expected CERN_{rse_type} to be accepted"
 
 
-# ---------------------------------------------------------------------------
 # Account privilege checks
-# ---------------------------------------------------------------------------
 
 
 class TestOPA_AccountChecks:
@@ -194,9 +186,7 @@ class TestOPA_AccountChecks:
         assert _query("root", "del_rule", is_root=True) is True
 
 
-# ---------------------------------------------------------------------------
 # RSE attribute management
-# ---------------------------------------------------------------------------
 
 
 class TestOPA_RseAttributes:
@@ -213,9 +203,7 @@ class TestOPA_RseAttributes:
         assert _query("adminuser", "add_rse_attribute", is_admin=True) is True
 
 
-# ---------------------------------------------------------------------------
 # DID management
-# ---------------------------------------------------------------------------
 
 
 class TestOPA_DidManagement:
@@ -241,9 +229,7 @@ class TestOPA_DidManagement:
         assert _query("alice", "detach_dids", scope="carol.data", name="container") is False
 
 
-# ---------------------------------------------------------------------------
 # Update RSE (rename)
-# ---------------------------------------------------------------------------
 
 
 class TestOPA_UpdateRse:

@@ -23,9 +23,7 @@ import pytest
 from conftest import rucio_call as _rucio_call
 from conftest import rucio_opa_container_logs as _rucio_opa_container_logs
 
-# ---------------------------------------------------------------------------
 # RSE management — exercises schema validation vs. OPA policy rejection
-# ---------------------------------------------------------------------------
 
 
 class TestRseManagement:
@@ -56,10 +54,8 @@ class TestRseManagement:
         assert status == 200
 
 
-# ---------------------------------------------------------------------------
 # Wiring verification — proves Rucio actually calls OPA, not just that OPA
 # answers correctly in isolation (that part is test_phase3_e2e.py)
-# ---------------------------------------------------------------------------
 
 
 class TestOpaWiring:

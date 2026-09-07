@@ -2,9 +2,7 @@ package vo.authz.v2
 
 import rego.v1
 
-# ---------------------------------------------------------------------------
 # Top-level entry point
-# ---------------------------------------------------------------------------
 
 default allow := false
 
@@ -12,9 +10,7 @@ allow if {
     _action_allowed
 }
 
-# ---------------------------------------------------------------------------
 # Action sets
-# ---------------------------------------------------------------------------
 
 _rse_actions      := {"add_rse", "update_rse", "del_rse",
                        "add_rse_attribute", "del_rse_attribute"}
@@ -25,9 +21,7 @@ _protocol_actions := {"add_protocol", "del_protocol", "update_protocol"}
 
 _all_known_actions := _rule_actions | _rse_actions | _did_actions | _protocol_actions
 
-# ---------------------------------------------------------------------------
 # Dispatch
-# ---------------------------------------------------------------------------
 
 _action_allowed if {
     input.action == "add_rule"
@@ -79,9 +73,7 @@ _action_allowed if {
 
 _is_known_action(action) if { action in _all_known_actions }
 
-# ---------------------------------------------------------------------------
 # add_rule
-# ---------------------------------------------------------------------------
 
 _perm_add_rule if {
     _dst_rse_name_valid
@@ -99,9 +91,7 @@ _perm_add_rule if {
     _is_privileged
 }
 
-# ---------------------------------------------------------------------------
 # del_rule / update_rule — rule owner self-service (Phase 3 addition)
-# ---------------------------------------------------------------------------
 
 _perm_rule_owner_or_privileged if {
     input.kwargs.account == input.issuer
@@ -111,9 +101,7 @@ _perm_rule_owner_or_privileged if {
     _is_privileged
 }
 
-# ---------------------------------------------------------------------------
 # add_rse / update_rse
-# ---------------------------------------------------------------------------
 
 _perm_add_rse if {
     _is_privileged
@@ -131,9 +119,7 @@ _perm_update_rse if {
     _rse_name_valid(new_name)
 }
 
-# ---------------------------------------------------------------------------
 # DID actions — scope-owner or privileged
-# ---------------------------------------------------------------------------
 
 _perm_did_action if { _is_privileged }
 
@@ -149,9 +135,7 @@ _perm_did_action if {
     startswith(attachment.scope, input.issuer)
 }
 
-# ---------------------------------------------------------------------------
 # Protocol actions — privileged + scheme allowlist
-# ---------------------------------------------------------------------------
 
 _default_allowed_schemes := {"davs", "s3", "https", "root", "xrdhttp", "gsiftp"}
 
@@ -164,9 +148,7 @@ _perm_protocol_action if {
     lower(input.kwargs.scheme) in _allowed_schemes
 }
 
-# ---------------------------------------------------------------------------
 # RSE naming — data-driven with hardcoded fallback
-# ---------------------------------------------------------------------------
 
 _default_known_rse_types := {
     "DATADISK", "SCRATCHDISK", "LOCALGROUPDISK", "TAPE", "USERDISK",
@@ -201,9 +183,7 @@ _is_expression(expr) if { contains(expr, "=") }
 _is_expression(expr) if { contains(expr, "&") }
 _is_expression(expr) if { contains(expr, "|") }
 
-# ---------------------------------------------------------------------------
 # Shared helpers
-# ---------------------------------------------------------------------------
 
 # FIX: explicit default prevents partial evaluation from treating an
 # undefined _is_privileged as falsy in unexpected ways.

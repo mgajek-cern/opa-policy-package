@@ -24,9 +24,7 @@ def _mock_opa_response(result: bool):
     return mock_resp
 
 
-# ---------------------------------------------------------------------------
 # OPA client — fail-closed behaviour (same as Phase 2)
-# ---------------------------------------------------------------------------
 
 
 class TestOpaClient:
@@ -75,9 +73,7 @@ class TestOpaClient:
         assert "vo/authz/v2/allow" in called_url
 
 
-# ---------------------------------------------------------------------------
 # _build_input — new passthrough keys for Phase 3 actions
-# ---------------------------------------------------------------------------
 
 
 class TestBuildInput:
@@ -126,9 +122,7 @@ class TestBuildInput:
         assert doc["action"] == "attach_dids_to_dids"
 
 
-# ---------------------------------------------------------------------------
 # has_permission — OPA response drives the result (same pattern as Phase 2)
-# ---------------------------------------------------------------------------
 
 
 class TestPhase3HasPermission:

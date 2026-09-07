@@ -2,7 +2,6 @@
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-# ---------------------------------------------------------------------------
 # pytest
 #
 # pythonpath makes the src layouts importable without installation when
@@ -14,7 +13,6 @@ build-backend = "setuptools.build_meta"
 #   pip install -e phase1-no-opa/ -e phase2-opa/ -e phase3-opa/
 #
 # before running the full test suite locally.
-# ---------------------------------------------------------------------------
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
