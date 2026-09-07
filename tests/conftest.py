@@ -54,14 +54,6 @@ def _make_stub_modules() -> None:
 
 _make_stub_modules()
 
-# Make phase1 src importable
-sys.path.insert(
-    0, str(__import__("pathlib").Path(__file__).parent.parent / "phase1-no-opa" / "src")
-)
-# Make phase2 src importable
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent / "phase2-opa" / "src"))
-
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
