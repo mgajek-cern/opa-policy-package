@@ -16,11 +16,11 @@ Tests are automatically skipped when:
   - OPA fails to start within the timeout
 
 Run manually when OPA is installed:
-  pytest tests/test_phase2_e2e_scenarios.py -v
+  pytest tests/test_phase2_e2e.py -v
 
 Docker alternative (no local OPA binary needed):
   cd phase2-opa/docker && docker compose up -d
-  OPA_URL=http://localhost:8181 pytest tests/test_phase2_e2e_scenarios.py -v
+  OPA_URL=http://localhost:8181 pytest tests/test_phase2_e2e.py -v
   docker compose down
 """
 
@@ -48,10 +48,6 @@ def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
-
-
-def _opa_available() -> bool:
-    return shutil.which("opa") is not None
 
 
 def _wait_for_opa(port: int, timeout: float = OPA_STARTUP_TIMEOUT) -> bool:
@@ -86,17 +82,22 @@ def opa_server():
         yield external_url
         return
 
-    if not _opa_available():
+    # Resolve the full executable path up front (satisfies ruff S607 —
+    # "partial executable path") rather than passing the bare name "opa".
+    opa_path = shutil.which("opa")
+    if not opa_path:
         pytest.skip(
             "'opa' binary not found on PATH and OPA_URL is not set. "
             "Install OPA or run: cd phase2-opa/docker && docker compose up -d && "
-            "OPA_URL=http://localhost:8181 pytest tests/test_phase2_e2e_scenarios.py"
+            "OPA_URL=http://localhost:8181 pytest tests/test_phase2_e2e.py"
         )
 
     port = _free_port()
-    proc = subprocess.Popen(
+    # S603: args are a fixed, hardcoded list (no untrusted input reaches
+    # this call) and the executable path is fully resolved above (S607).
+    proc = subprocess.Popen(  # noqa: S603
         [
-            "opa",
+            opa_path,
             "run",
             "--server",
             "--log-level",

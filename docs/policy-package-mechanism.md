@@ -192,7 +192,7 @@ To delegate a new action to OPA:
 2. **Python** — add any new kwargs keys the Rego rule needs to
    `_PASSTHROUGH_KEYS` in `permission.py` so they survive serialisation.
 
-3. **Tests** — add scenario tests to `test_phase2_e2e_scenarios.py` and a
+3. **Tests** — add scenario tests to `test_phase2_e2e.py` and a
    corresponding check to `smoke_test.sh`.
 
 No changes to `has_permission()` itself are needed — it forwards everything

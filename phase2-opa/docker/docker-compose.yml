@@ -15,7 +15,7 @@
 #   1. Add a new action handler to authz.rego
 #   2. Add the action name to the relevant set in the Rego dispatch section
 #   3. Add the new kwargs keys to _PASSTHROUGH_KEYS in permission.py
-#   4. Add e2e test scenarios to test_phase2_e2e_scenarios.py
+#   4. Add e2e test scenarios to test_phase2_e2e.py
 # ---------------------------------------------------------------
 
 services:

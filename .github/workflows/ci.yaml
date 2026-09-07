@@ -8,10 +8,10 @@ on:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Phase 1 — unit + e2e tests (no external service needed)
+  # Phase 1 — Unit tests (no external service needed)
   # ---------------------------------------------------------------------------
   test-phase1:
-    name: Phase 1 tests
+    name: Phase 1 - Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install pytest pytest-cov -e phase1-no-opa/
-      - name: Run Phase 1 tests
+      - name: Phase 1 - Unit tests
         run: |
           python -m pytest \
             tests/test_phase1_rules.py \
@@ -35,10 +35,10 @@ jobs:
           path: coverage-phase1.xml
 
   # ---------------------------------------------------------------------------
-  # Phase 2 — unit tests (OPA mocked) + e2e tests (OPA via Docker)
+  # Phase 2 — Unit tests (OPA mocked) + E2E tests (OPA via Docker)
   # ---------------------------------------------------------------------------
   test-phase2:
-    name: Phase 2 tests
+    name: Phase 2 - Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install pytest pytest-cov -e phase2-opa/
-      - name: Run Phase 2 unit tests (OPA mocked)
+      - name: Phase 2 - Unit tests (OPA mocked)
         run: |
           python -m pytest \
             tests/test_phase2_opa.py \
@@ -55,19 +55,29 @@ jobs:
             --cov=phase2-opa/src \
             --cov-report=term-missing \
             --cov-report=xml:coverage-phase2-unit.xml
-      - name: Start OPA via Docker Compose
+      - name: Phase 2 — Start full stack
         run: |
           cd phase2-opa/docker
-          docker compose up -d opa opa-init
+          docker compose --profile full up -d
           docker wait rucio-opa-init
-      - name: Run Phase 2 e2e tests (live OPA)
+          for i in $(seq 1 30); do
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
+            [ "$STATUS" = "healthy" ] && echo "Rucio healthy." && break
+            echo "  attempt $i/30 — $STATUS"; sleep 5
+          done
+      - name: Phase 2 — E2E tests (live OPA)
         env:
           OPA_URL: http://localhost:8181
         run: |
           python -m pytest \
-            tests/test_phase2_e2e_scenarios.py \
+            tests/test_phase2_e2e.py \
             -v --tb=short
-      - name: Tear down OPA
+      - name: Phase 2 — Run smoke tests
+        run: |
+          python -m pytest \
+            tests/test_phase2_smoke.py \
+            -v --tb=short
+      - name: Phase 2 — Tear down OPA
         if: always()
         run: cd phase2-opa/docker && docker compose down
       - uses: actions/upload-artifact@v4
@@ -76,10 +86,10 @@ jobs:
           path: coverage-phase2-unit.xml
 
   # ---------------------------------------------------------------------------
-  # Phase 3 — unit tests (OPA mocked) + e2e tests (OPA via Docker)
+  # Phase 3 — Unit tests (OPA mocked) + E2E tests (OPA via Docker)
   # ---------------------------------------------------------------------------
   test-phase3:
-    name: Phase 3 tests
+    name: Phase 3 - tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,7 +98,7 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install pytest pytest-cov -e phase3-opa/
-      - name: Run Phase 3 unit tests (OPA mocked)
+      - name: Phase 3 - Unit tests (OPA mocked)
         run: |
           python -m pytest \
             tests/test_phase3_opa.py \
@@ -96,19 +106,19 @@ jobs:
             --cov=phase3-opa/src \
             --cov-report=term-missing \
             --cov-report=xml:coverage-phase3-unit.xml
-      - name: Start OPA via Docker Compose
+      - name: Phase 3 - Start OPA via Docker Compose
         run: |
           cd phase3-opa/docker
           docker compose up -d opa opa-init
           docker wait rucio-opa-init
-      - name: Run Phase 3 e2e tests (live OPA)
+      - name: Phase 3 - E2E tests (live OPA)
         env:
           OPA_URL: http://localhost:8181
         run: |
           python -m pytest \
             tests/test_phase3_e2e_scenarios.py \
             -v --tb=short
-      - name: Tear down OPA
+      - name: Phase 3 - Tear down OPA
         if: always()
         run: cd phase3-opa/docker && docker compose down
       - uses: actions/upload-artifact@v4
@@ -117,12 +127,12 @@ jobs:
           path: coverage-phase3-unit.xml
 
   # ---------------------------------------------------------------------------
-  # Phase 4 — e2e tests (OPA + Keycloak via Docker)
+  # Phase 4 — E2E tests (OPA + Keycloak via Docker)
   # No unit test job: Phase 4 has no mocked tests — the core logic is the
   # group_policy bundle evaluation which requires a live OPA.
   # ---------------------------------------------------------------------------
   test-phase4:
-    name: Phase 4 tests
+    name: Phase 4 - Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -131,7 +141,7 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install pytest -e phase4-opa/
-      - name: Start OPA + Keycloak via Docker Compose
+      - name: Phase 4 - Start OPA + Keycloak via Docker Compose
         run: |
           cd phase4-opa/docker
           docker compose up -d opa opa-init keycloak
@@ -143,14 +153,14 @@ jobs:
             echo "  attempt $i/30 — HTTP $STATUS"
             sleep 5
           done
-      - name: Run Phase 4 e2e tests (live OPA)
+      - name: Phase 4 - E2E tests (live OPA)
         env:
           OPA_URL: http://localhost:8181
         run: |
           python -m pytest \
             tests/test_phase4_e2e_scenarios.py \
             -v --tb=short
-      - name: Tear down
+      - name: Phase 4 - Tear down
         if: always()
         run: cd phase4-opa/docker && docker compose down
 
@@ -164,23 +174,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Phase 2 — start full stack
-        run: |
-          cd phase2-opa/docker
-          docker compose --profile full up -d
-          docker wait rucio-opa-init
-          for i in $(seq 1 30); do
-            STATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
-            [ "$STATUS" = "healthy" ] && echo "Rucio healthy." && break
-            echo "  attempt $i/30 — $STATUS"; sleep 5
-          done
-      - name: Phase 2 — run smoke tests
-        run: cd phase2-opa/docker && bash smoke_test.sh
-      - name: Phase 2 — tear down
-        if: always()
-        run: cd phase2-opa/docker && docker compose --profile full down -v
-
-      - name: Phase 3 — start full stack
+      - name: Phase 3 — Start full stack
         run: |
           cd phase3-opa/docker
           docker compose --profile full up -d
@@ -190,13 +184,13 @@ jobs:
             [ "$STATUS" = "healthy" ] && echo "Rucio healthy." && break
             echo "  attempt $i/30 — $STATUS"; sleep 5
           done
-      - name: Phase 3 — run smoke tests
+      - name: Phase 3 — Run smoke tests
         run: cd phase3-opa/docker && bash smoke_test.sh
-      - name: Phase 3 — tear down
+      - name: Phase 3 — Tear down
         if: always()
         run: cd phase3-opa/docker && docker compose --profile full down -v
 
-      - name: Phase 4 — start full stack
+      - name: Phase 4 — Start full stack
         run: |
           cd phase4-opa/docker
           docker compose --profile full up -d
@@ -213,9 +207,9 @@ jobs:
             [ "$STATUS" = "healthy" ] && echo "Rucio healthy." && break
             echo "  attempt $i/30 — $STATUS"; sleep 5
           done
-      - name: Phase 4 — run smoke tests
+      - name: Phase 4 — Run smoke tests
         run: cd phase4-opa/docker && bash smoke_test.sh
-      - name: Phase 4 — tear down
+      - name: Phase 4 — Tear down
         if: always()
         run: cd phase4-opa/docker && docker compose --profile full down -v
 
