@@ -1,8 +1,14 @@
 """
 Tests for phase1-no-opa permission.py
 
-Tests the has_permission() dispatch table together with the domain rules.
-Rucio's DB layer is replaced with monkeypatched stubs from conftest.py.
+Tests the has_permission() dispatch table together with the domain rules,
+organized by action. Rucio's DB layer is replaced with monkeypatched stubs
+from conftest.py — no live Rucio server is needed.
+
+Previously split across test_phase1_permission.py and
+test_phase1_e2e_scenarios.py; merged here since both exercised the same
+has_permission() entry point against the same stubbed layer, with
+significant overlap once protocol-combo cases were removed.
 """
 
 from rucio_no_opa_policy.permission import has_permission
@@ -27,11 +33,11 @@ def _kwargs_add_rule(
 
 
 # ---------------------------------------------------------------------------
-# add_rule — regular account (own rules)
+# add_rule
 # ---------------------------------------------------------------------------
 
 
-class TestAddRuleRegularAccount:
+class TestAddRule:
     def test_own_unlocked_rule_valid_rse_allowed(self, regular_account):
         kw = _kwargs_add_rule(account=regular_account)
         assert has_permission(regular_account, "add_rule", kw) is True
@@ -44,19 +50,26 @@ class TestAddRuleRegularAccount:
         kw = _kwargs_add_rule(account=regular_account, rse_expression="cern_bad")
         assert has_permission(regular_account, "add_rule", kw) is False
 
+    def test_unknown_rse_type_denied(self, regular_account):
+        kw = _kwargs_add_rule(account=regular_account, rse_expression="CERN_WHATEVER")
+        assert has_permission(regular_account, "add_rule", kw) is False
+
+    def test_rse_expression_with_operators_skips_name_check(self, regular_account):
+        """Complex RSE expressions (site=X&type=Y) are not bare names — skip validation."""
+        kw = _kwargs_add_rule(account=regular_account, rse_expression="site=CERN&type=DATADISK")
+        assert has_permission(regular_account, "add_rule", kw) is True
+
+    def test_invalid_source_rse_denied(self, regular_account):
+        """Source RSE naming is also validated when supplied as a bare name."""
+        kw = _kwargs_add_rule(account=regular_account, source_rse_expression="bad_source")
+        assert has_permission(regular_account, "add_rule", kw) is False
+
     def test_rule_for_other_account_denied(self, regular_account, make_account):
         other = make_account("bob")
         kw = _kwargs_add_rule(account=other)
         # alice tries to create a rule for bob — denied
         assert has_permission(regular_account, "add_rule", kw) is False
 
-
-# ---------------------------------------------------------------------------
-# add_rule — root account
-# ---------------------------------------------------------------------------
-
-
-class TestAddRuleRoot:
     def test_root_can_create_rule_for_any_account(self, root, make_account):
         other = make_account("bob")
         kw = _kwargs_add_rule(account=other)
@@ -65,6 +78,11 @@ class TestAddRuleRoot:
     def test_root_still_blocked_by_rse_naming(self, root):
         kw = _kwargs_add_rule(rse_expression="bad_name")
         assert has_permission(root, "add_rule", kw) is False
+
+    def test_admin_creates_rule_for_other_account(self, admin_account, make_account):
+        other = make_account("carol")
+        kw = _kwargs_add_rule(account=other)
+        assert has_permission(admin_account, "add_rule", kw) is True
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +106,13 @@ class TestAddRse:
     def test_admin_valid_name_allowed(self, admin_account):
         assert has_permission(admin_account, "add_rse", {"rse": "DESY_TAPE"}) is True
 
+    def test_all_known_rse_types_accepted(self, root):
+        for rse_type in ("DATADISK", "SCRATCHDISK", "LOCALGROUPDISK", "TAPE", "USERDISK"):
+            rse_name = f"CERN_{rse_type}"
+            assert has_permission(root, "add_rse", {"rse": rse_name}) is True, (
+                f"Expected {rse_name} to be accepted"
+            )
+
 
 # ---------------------------------------------------------------------------
 # update_rse
@@ -109,13 +134,17 @@ class TestUpdateRse:
     def test_regular_user_denied(self, regular_account):
         assert has_permission(regular_account, "update_rse", {"parameters": {}}) is False
 
+    def test_admin_rename_to_valid_name_allowed(self, admin_account):
+        kw = {"parameters": {"rse": "NIKHEF_SCRATCHDISK"}}
+        assert has_permission(admin_account, "update_rse", kw) is True
+
 
 # ---------------------------------------------------------------------------
-# Fallback action
+# Unknown / unrecognised actions — fall back to root-or-admin
 # ---------------------------------------------------------------------------
 
 
-class TestDefaultAction:
+class TestUnknownAction:
     def test_root_allowed_for_unknown_action(self, root):
         assert has_permission(root, "some_other_action", {}) is True
 

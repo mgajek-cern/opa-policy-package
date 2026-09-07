@@ -33,7 +33,7 @@ package = rucio_no_opa_policy
 ## Tests
 
 ```bash
-python3 -m pytest tests/test_phase1_rules.py tests/test_phase1_permission.py tests/test_phase1_e2e_scenarios.py -v
+python3 -m pytest tests/test_phase1_rules.py tests/test_phase1_permission.py -v
 ```
 
 | File | Covers |

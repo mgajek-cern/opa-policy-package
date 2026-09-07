@@ -25,7 +25,6 @@ jobs:
           python -m pytest \
             tests/test_phase1_rules.py \
             tests/test_phase1_permission.py \
-            tests/test_phase1_e2e_scenarios.py \
             -v --tb=short \
             --cov=phase1-no-opa/src \
             --cov-report=term-missing \
