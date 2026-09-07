@@ -162,66 +162,7 @@ check "List scopes for root" "200" "$CODE"
 printf -- "\n"
 
 # ---------------------------------------------------------------------------
-# 4. OPA policy — Protocol combos (_protocol_combo_allowed)
-# ---------------------------------------------------------------------------
-printf -- "--- OPA: protocol combos ---\n"
-
-# Allowed: destination WebDAV and XrdHttp can TPC-pull from any source
-check "webdav→webdav allowed" "True" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"webdav","dst_protocol":"webdav"}}}')"
-
-check "s3→webdav allowed" "True" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"s3","dst_protocol":"webdav"}}}')"
-
-check "xrdhttp→webdav allowed" "True" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"xrdhttp","dst_protocol":"webdav"}}}')"
-
-check "s3→xrdhttp allowed" "True" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"s3","dst_protocol":"xrdhttp"}}}')"
-
-check "xrdhttp→xrdhttp allowed" "True" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"xrdhttp","dst_protocol":"xrdhttp"}}}')"
-
-# Denied: S3 cannot act as TPC destination — requires FTS streaming
-check "webdav→s3 denied (S3 not TPC destination)" "False" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"webdav","dst_protocol":"s3"}}}')"
-
-check "xrdhttp→s3 denied (S3 not TPC destination)" "False" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"xrdhttp","dst_protocol":"s3"}}}')"
-
-check "s3→s3 denied (no TPC)" "False" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"s3","dst_protocol":"s3"}}}')"
-
-
-check "no protocol hints skips combo check" "True" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK"}}}')"
-
-check "protocol names case-insensitive (S3→WEBDAV)" "True" "$(opa_query '{
-    "input":{"issuer":"alice","action":"add_rule","is_root":false,"is_admin":false,
-    "kwargs":{"account":"alice","locked":false,"rse_expression":"CERN_DATADISK",
-    "source_protocol":"S3","dst_protocol":"WEBDAV"}}}')"
-
-printf -- "\n"
-
-# ---------------------------------------------------------------------------
-# 5. OPA policy — RSE naming (_rse_name_valid)
+# 4. OPA policy — RSE naming (_rse_name_valid)
 # ---------------------------------------------------------------------------
 printf -- "--- OPA: RSE naming ---\n"
 
@@ -248,7 +189,7 @@ check "RSE expression with operator skips name check" "True" "$(opa_query '{
 printf -- "\n"
 
 # ---------------------------------------------------------------------------
-# 6. OPA policy — Account checks (_perm_add_rule)
+# 5. OPA policy — Account checks (_perm_add_rule)
 # ---------------------------------------------------------------------------
 printf -- "--- OPA: account checks ---\n"
 
@@ -275,7 +216,7 @@ check "admin allowed: rule for other account" "True" "$(opa_query '{
 printf -- "\n"
 
 # ---------------------------------------------------------------------------
-# 7. OPA policy — Privileged-only rule actions
+# 6. OPA policy — Privileged-only rule actions
 # ---------------------------------------------------------------------------
 printf -- "--- OPA: privileged-only rule actions ---\n"
 
@@ -289,7 +230,7 @@ done
 printf -- "\n"
 
 # ---------------------------------------------------------------------------
-# 8. OPA policy — Privileged-only RSE actions
+# 7. OPA policy — Privileged-only RSE actions
 # ---------------------------------------------------------------------------
 printf -- "--- OPA: privileged-only RSE actions ---\n"
 
@@ -303,7 +244,7 @@ done
 printf -- "\n"
 
 # ---------------------------------------------------------------------------
-# 9. OPA policy — update_rse (_perm_update_rse)
+# 8. OPA policy — update_rse (_perm_update_rse)
 # ---------------------------------------------------------------------------
 printf -- "--- OPA: update_rse ---\n"
 
@@ -326,7 +267,7 @@ check "user denied: update_rse" "False" "$(opa_query '{
 printf -- "\n"
 
 # ---------------------------------------------------------------------------
-# 10. OPA policy — DID actions (_perm_did_action)
+# 9. OPA policy — DID actions (_perm_did_action)
 # ---------------------------------------------------------------------------
 printf -- "--- OPA: DID actions ---\n"
 
@@ -357,7 +298,7 @@ check "other scope detach_dids denied" "False" "$(opa_query '{
 printf -- "\n"
 
 # ---------------------------------------------------------------------------
-# 11. OPA policy — Unknown action fallback
+# 10. OPA policy — Unknown action fallback
 # ---------------------------------------------------------------------------
 printf -- "--- OPA: unknown action fallback ---\n"
 
@@ -372,7 +313,7 @@ check "user denied: unknown action" "False" "$(opa_query '{
 printf -- "\n"
 
 # ---------------------------------------------------------------------------
-# 12. OPA log verification
+# 11. OPA log verification
 # ---------------------------------------------------------------------------
 printf -- "--- OPA log verification ---\n"
 

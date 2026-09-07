@@ -90,8 +90,6 @@ _PASSTHROUGH_KEYS: frozenset[str] = frozenset(
         "locked",
         "rse_expression",
         "source_rse_expression",
-        "source_protocol",
-        "dst_protocol",
         # add_rse / update_rse / del_rse / rse attributes
         "rse",
         "parameters",

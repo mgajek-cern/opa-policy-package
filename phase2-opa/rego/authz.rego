@@ -87,7 +87,6 @@ _action_allowed if {
 
 _perm_add_rule if {
     # Domain checks
-    _protocol_combo_allowed
     _dst_rse_name_valid
     _src_rse_name_valid
 
@@ -98,7 +97,6 @@ _perm_add_rule if {
 
 _perm_add_rule if {
     # Domain checks
-    _protocol_combo_allowed
     _dst_rse_name_valid
     _src_rse_name_valid
 
@@ -152,39 +150,6 @@ _perm_did_action if {
     startswith(input.kwargs.scope, input.issuer)
 }
 
-# ---------------------------------------------------------------------------
-# Protocol combo rules
-#
-# Allowed TPC transfer paths (verified with Rucio/FTS maintainers):
-#   WebDAV  → WebDAV   ✓  TPC native (StoRM/dCache/XrdHTTP)
-#   S3      → WebDAV   ✓  WebDAV destination can TPC-pull from S3 source
-#   XrdHTTP → WebDAV   ✓  WebDAV destination can TPC-pull from XrdHTTP source
-#   S3      → XrdHTTP  ✓  XrdHTTP destination can pull from S3 via pre-signed URL
-#   XrdHTTP → XrdHTTP  ✓  Native HTTP TPC supported
-#   WebDAV  → S3       ✗  S3 cannot act as TPC destination — FTS streaming required
-#   XrdHTTP → S3       ✗  S3 cannot act as TPC destination — FTS streaming required
-#   S3      → S3       ✗  Neither side supports TPC pull
-# ---------------------------------------------------------------------------
-
-_allowed_combos := {
-    ["webdav", "webdav"],    # TPC native
-    ["s3", "webdav"],        # WebDAV pulls from S3
-    ["xrdhttp", "webdav"],   # WebDAV pulls from XrdHTTP
-    ["s3", "xrdhttp"],       # XrdHTTP pulls from S3 via pre-signed URL
-    ["xrdhttp", "xrdhttp"],  # Native HTTP TPC
-}
-
-_protocol_combo_allowed if {
-    # No protocol hints supplied → skip check (Rucio will pick protocol)
-    not input.kwargs.source_protocol
-    not input.kwargs.dst_protocol
-}
-
-_protocol_combo_allowed if {
-    src := lower(input.kwargs.source_protocol)
-    dst := lower(input.kwargs.dst_protocol)
-    [src, dst] in _allowed_combos
-}
 
 # ---------------------------------------------------------------------------
 # RSE naming rules

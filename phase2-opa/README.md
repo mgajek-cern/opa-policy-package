@@ -20,8 +20,7 @@ Phase 2 — OPA as PDP, all authorisation logic in Rego.
   "issuer": "alice", "action": "add_rule",
   "is_root": false,  "is_admin": false,
   "kwargs": { "account": "alice", "locked": false,
-              "rse_expression": "CERN_DATADISK",
-              "source_protocol": "webdav", "dst_protocol": "s3" }
+              "rse_expression": "CERN_DATADISK" }
 }
 ```
 
@@ -59,7 +58,7 @@ cd phase2-opa/docker && docker compose down && cd ../..
 | File | Covers |
 |------|--------|
 | `test_phase2_opa.py` | OPA client fail-closed, input construction |
-| `test_phase2_e2e_scenarios.py` | Live OPA: protocol combos, RSE naming, DIDs, RSE attrs |
+| `test_phase2_e2e_scenarios.py` | Live OPA: RSE naming, DIDs, RSE attrs |
 
 ## Smoke Tests
 

@@ -6,6 +6,11 @@ has_permission() through the full stack — Python client → HTTP → OPA → R
 No mock is used; the tests validate that the Rego policy enforces the same
 rules as Phase 1.
 
+Protocol-combo scenarios were removed: Rucio core already resolves TPC
+feasibility dynamically per-RSE via the third_party_copy_read /
+third_party_copy_write protocol capability flags, so the Rego policy no
+longer duplicates that check.
+
 Tests are automatically skipped when:
   - the `opa` binary is not on PATH, OR
   - OPA fails to start within the timeout
@@ -146,192 +151,12 @@ def _query(
 
 
 # ---------------------------------------------------------------------------
-# Scenario group A — Protocol combos (add_rule)
-# ---------------------------------------------------------------------------
-
-
-class TestOPA_ProtocolCombos:
-    """Mirror of Phase 1 Scenario A — now evaluated by real Rego."""
-
-    def test_A1_webdav_to_webdav_allowed(self):
-        assert (
-            _query(
-                "alice",
-                "add_rule",
-                account="alice",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="webdav",
-                dst_protocol="webdav",
-            )
-            is True
-        )
-
-    def test_A2_s3_to_webdav_allowed(self):
-        """WebDAV destination can TPC-pull from S3 source."""
-        assert (
-            _query(
-                "alice",
-                "add_rule",
-                account="alice",
-                locked=False,
-                rse_expression="BNL_DATADISK",
-                source_protocol="s3",
-                dst_protocol="webdav",
-            )
-            is True
-        )
-
-    def test_A3_xrdhttp_to_webdav_allowed(self):
-        """WebDAV destination can TPC-pull from XrdHTTP source."""
-        assert (
-            _query(
-                "alice",
-                "add_rule",
-                account="alice",
-                locked=False,
-                rse_expression="DESY_TAPE",
-                source_protocol="xrdhttp",
-                dst_protocol="webdav",
-            )
-            is True
-        )
-
-    def test_A4_s3_to_xrdhttp_allowed(self):
-        """XrdHTTP destination can pull from S3 via pre-signed URL."""
-        assert (
-            _query(
-                "alice",
-                "add_rule",
-                account="alice",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="s3",
-                dst_protocol="xrdhttp",
-            )
-            is True
-        )
-
-    def test_A5_xrdhttp_to_xrdhttp_allowed(self):
-        """XrdHTTP↔XrdHTTP native HTTP TPC is supported."""
-        assert (
-            _query(
-                "alice",
-                "add_rule",
-                account="alice",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="xrdhttp",
-                dst_protocol="xrdhttp",
-            )
-            is True
-        )
-
-    def test_A6_webdav_to_s3_denied(self):
-        """S3 cannot act as a TPC destination — requires FTS streaming."""
-        assert (
-            _query(
-                "alice",
-                "add_rule",
-                account="alice",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="webdav",
-                dst_protocol="s3",
-            )
-            is False
-        )
-
-    def test_A7_xrdhttp_to_s3_denied(self):
-        """S3 cannot act as a TPC destination — requires FTS streaming."""
-        assert (
-            _query(
-                "alice",
-                "add_rule",
-                account="alice",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="xrdhttp",
-                dst_protocol="s3",
-            )
-            is False
-        )
-
-    def test_A8_s3_to_s3_denied(self):
-        assert (
-            _query(
-                "alice",
-                "add_rule",
-                account="alice",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="s3",
-                dst_protocol="s3",
-            )
-            is False
-        )
-
-    def test_A9_s3_to_s3_denied_even_for_root(self):
-        assert (
-            _query(
-                "root",
-                "add_rule",
-                is_root=True,
-                account="root",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="s3",
-                dst_protocol="s3",
-            )
-            is False
-        )
-
-    def test_A10_no_protocol_hints_allowed(self):
-        assert (
-            _query(
-                "alice", "add_rule", account="alice", locked=False, rse_expression="CERN_DATADISK"
-            )
-            is True
-        )
-
-    def test_A11_case_insensitive(self):
-        """Protocol names are normalised to lowercase before checking."""
-        assert (
-            _query(
-                "alice",
-                "add_rule",
-                account="alice",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="S3",
-                dst_protocol="WEBDAV",
-            )
-            is True
-        )
-
-    def test_A12_case_insensitive_xrdhttp_xrdhttp(self):
-        """Mixed-case XrdHTTP↔XrdHTTP is also normalised correctly."""
-        assert (
-            _query(
-                "alice",
-                "add_rule",
-                account="alice",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="XrdHTTP",
-                dst_protocol="XrdHTTP",
-            )
-            is True
-        )
-
-
-# ---------------------------------------------------------------------------
-# Scenario group B — RSE naming (add_rule, add_rse)
+# RSE naming (add_rule, add_rse)
 # ---------------------------------------------------------------------------
 
 
 class TestOPA_RseNaming:
-    def test_B1_valid_rse_name_allows_rule(self):
+    def test_valid_rse_name_allows_rule(self):
         assert (
             _query(
                 "alice", "add_rule", account="alice", locked=False, rse_expression="BNL_DATADISK"
@@ -339,7 +164,7 @@ class TestOPA_RseNaming:
             is True
         )
 
-    def test_B2_lowercase_rse_name_denies_rule(self):
+    def test_lowercase_rse_name_denies_rule(self):
         assert (
             _query(
                 "alice", "add_rule", account="alice", locked=False, rse_expression="bnl_datadisk"
@@ -347,7 +172,7 @@ class TestOPA_RseNaming:
             is False
         )
 
-    def test_B3_unknown_type_denies_rule(self):
+    def test_unknown_type_denies_rule(self):
         assert (
             _query(
                 "alice", "add_rule", account="alice", locked=False, rse_expression="CERN_UNKNOWN"
@@ -355,7 +180,7 @@ class TestOPA_RseNaming:
             is False
         )
 
-    def test_B4_expression_with_operators_allowed(self):
+    def test_expression_with_operators_allowed(self):
         assert (
             _query(
                 "alice",
@@ -367,25 +192,25 @@ class TestOPA_RseNaming:
             is True
         )
 
-    def test_B5_root_add_rse_valid_name(self):
+    def test_root_add_rse_valid_name(self):
         assert _query("root", "add_rse", is_root=True, rse="INFN_TAPE") is True
 
-    def test_B6_root_add_rse_invalid_name_denied(self):
+    def test_root_add_rse_invalid_name_denied(self):
         assert _query("root", "add_rse", is_root=True, rse="infn_tape") is False
 
-    def test_B7_all_known_types_accepted(self):
+    def test_all_known_types_accepted(self):
         for rse_type in ("DATADISK", "SCRATCHDISK", "LOCALGROUPDISK", "TAPE", "USERDISK"):
             result = _query("root", "add_rse", is_root=True, rse=f"CERN_{rse_type}")
             assert result is True, f"Expected CERN_{rse_type} to be accepted"
 
 
 # ---------------------------------------------------------------------------
-# Scenario group C — Account privilege checks
+# Account privilege checks
 # ---------------------------------------------------------------------------
 
 
 class TestOPA_AccountChecks:
-    def test_C1_user_own_unlocked_rule_allowed(self):
+    def test_user_own_unlocked_rule_allowed(self):
         assert (
             _query(
                 "alice", "add_rule", account="alice", locked=False, rse_expression="CERN_DATADISK"
@@ -393,7 +218,7 @@ class TestOPA_AccountChecks:
             is True
         )
 
-    def test_C2_user_own_locked_rule_denied(self):
+    def test_user_own_locked_rule_denied(self):
         assert (
             _query(
                 "alice", "add_rule", account="alice", locked=True, rse_expression="CERN_DATADISK"
@@ -401,13 +226,13 @@ class TestOPA_AccountChecks:
             is False
         )
 
-    def test_C3_user_rule_for_other_denied(self):
+    def test_user_rule_for_other_denied(self):
         assert (
             _query("alice", "add_rule", account="bob", locked=False, rse_expression="CERN_DATADISK")
             is False
         )
 
-    def test_C4_root_rule_for_any_account(self):
+    def test_root_rule_for_any_account(self):
         assert (
             _query(
                 "root",
@@ -420,7 +245,7 @@ class TestOPA_AccountChecks:
             is True
         )
 
-    def test_C5_admin_rule_for_other_account(self):
+    def test_admin_rule_for_other_account(self):
         assert (
             _query(
                 "adminuser",
@@ -433,92 +258,92 @@ class TestOPA_AccountChecks:
             is True
         )
 
-    def test_C6_regular_user_denied_add_rse(self):
+    def test_regular_user_denied_add_rse(self):
         assert _query("alice", "add_rse", rse="CERN_DATADISK") is False
 
-    def test_C7_regular_user_denied_del_rse(self):
+    def test_regular_user_denied_del_rse(self):
         assert _query("alice", "del_rse") is False
 
-    def test_C8_root_allowed_del_rse(self):
+    def test_root_allowed_del_rse(self):
         assert _query("root", "del_rse", is_root=True) is True
 
-    def test_C9_regular_user_denied_del_rule(self):
+    def test_regular_user_denied_del_rule(self):
         assert _query("alice", "del_rule") is False
 
-    def test_C10_root_allowed_del_rule(self):
+    def test_root_allowed_del_rule(self):
         assert _query("root", "del_rule", is_root=True) is True
 
 
 # ---------------------------------------------------------------------------
-# Scenario group D — RSE attribute management
+# RSE attribute management
 # ---------------------------------------------------------------------------
 
 
 class TestOPA_RseAttributes:
-    def test_D1_root_add_rse_attribute_allowed(self):
+    def test_root_add_rse_attribute_allowed(self):
         assert _query("root", "add_rse_attribute", is_root=True) is True
 
-    def test_D2_regular_user_denied_add_rse_attribute(self):
+    def test_regular_user_denied_add_rse_attribute(self):
         assert _query("alice", "add_rse_attribute") is False
 
-    def test_D3_root_del_rse_attribute_allowed(self):
+    def test_root_del_rse_attribute_allowed(self):
         assert _query("root", "del_rse_attribute", is_root=True) is True
 
-    def test_D4_admin_add_rse_attribute_allowed(self):
+    def test_admin_add_rse_attribute_allowed(self):
         assert _query("adminuser", "add_rse_attribute", is_admin=True) is True
 
 
 # ---------------------------------------------------------------------------
-# Scenario group E — DID management
+# DID management
 # ---------------------------------------------------------------------------
 
 
 class TestOPA_DidManagement:
-    def test_E1_root_add_did_allowed(self):
+    def test_root_add_did_allowed(self):
         assert _query("root", "add_did", is_root=True, scope="atlas", name="dataset1") is True
 
-    def test_E2_scope_owner_add_did_allowed(self):
+    def test_scope_owner_add_did_allowed(self):
         """User can add a DID to a scope they own (scope starts with issuer name)."""
         assert _query("alice", "add_did", scope="alice.physics", name="myfile") is True
 
-    def test_E3_mock_scope_always_allowed(self):
+    def test_mock_scope_always_allowed(self):
         """Mock scope is open to all users for testing."""
         assert _query("alice", "add_did", scope="mock", name="testfile") is True
 
-    def test_E4_other_user_scope_denied(self):
+    def test_other_user_scope_denied(self):
         """Alice cannot add a DID to bob's scope."""
         assert _query("alice", "add_did", scope="bob.private", name="file") is False
 
-    def test_E5_attach_dids_scope_owner_allowed(self):
+    def test_attach_dids_scope_owner_allowed(self):
         assert _query("alice", "attach_dids", scope="alice.data", name="container") is True
 
-    def test_E6_detach_dids_other_scope_denied(self):
+    def test_detach_dids_other_scope_denied(self):
         assert _query("alice", "detach_dids", scope="carol.data", name="container") is False
 
 
 # ---------------------------------------------------------------------------
-# Scenario group F — Update RSE (rename)
+# Update RSE (rename)
 # ---------------------------------------------------------------------------
 
 
 class TestOPA_UpdateRse:
-    def test_F1_root_rename_valid_allowed(self):
+    def test_root_rename_valid_allowed(self):
         assert (
             _query("root", "update_rse", is_root=True, parameters={"rse": "NIKHEF_DATADISK"})
             is True
         )
 
-    def test_F2_root_rename_invalid_denied(self):
+    def test_root_rename_invalid_denied(self):
         assert (
             _query("root", "update_rse", is_root=True, parameters={"rse": "nikhef_datadisk"})
             is False
         )
 
-    def test_F3_root_update_no_rename_allowed(self):
+    def test_root_update_no_rename_allowed(self):
         assert (
             _query("root", "update_rse", is_root=True, parameters={"availability_read": True})
             is True
         )
 
-    def test_F4_regular_user_update_rse_denied(self):
+    def test_regular_user_update_rse_denied(self):
         assert _query("alice", "update_rse", parameters={"rse": "CERN_DATADISK"}) is False

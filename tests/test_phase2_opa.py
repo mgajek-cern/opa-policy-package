@@ -126,15 +126,22 @@ class TestBuildInput:
     def test_known_kwargs_forwarded(self, root):
         kw = {
             "rse_expression": "CERN_DATADISK",
-            "source_protocol": "webdav",
-            "dst_protocol": "s3",
             "locked": False,
         }
         doc = _build_input(root, "add_rule", kw)
         assert doc["kwargs"]["rse_expression"] == "CERN_DATADISK"
-        assert doc["kwargs"]["source_protocol"] == "webdav"
-        assert doc["kwargs"]["dst_protocol"] == "s3"
         assert doc["kwargs"]["locked"] is False
+
+    def test_unlisted_kwargs_not_forwarded(self, root):
+        """Keys outside _PASSTHROUGH_KEYS (e.g. retired protocol hints) are dropped."""
+        kw = {
+            "rse_expression": "CERN_DATADISK",
+            "source_protocol": "webdav",
+            "dst_protocol": "s3",
+        }
+        doc = _build_input(root, "add_rule", kw)
+        assert "source_protocol" not in doc["kwargs"]
+        assert "dst_protocol" not in doc["kwargs"]
 
     def test_session_not_forwarded(self, root):
         """SQLAlchemy sessions must never be included in the OPA input."""
