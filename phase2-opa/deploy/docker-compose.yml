@@ -107,8 +107,8 @@ services:
       - OPA_TIMEOUT=2
     volumes:
       - ./rucio.cfg:/opt/rucio/etc/rucio.cfg:ro
-      - ./bootstrap-db.py:/tmp/bootstrap-db.py:ro
-      - ./alembic.ini:/opt/rucio/etc/alembic.ini:ro
+      - ../../common/bootstrap-db.py:/tmp/bootstrap-db.py:ro
+      - ../../common/alembic.ini:/opt/rucio/etc/alembic.ini:ro
       - ../../:/policy-package:ro
     entrypoint:
       - bash
