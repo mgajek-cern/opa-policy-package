@@ -1,18 +1,16 @@
 """
 Phase 4 — smoke test against the full Rucio + OPA + Keycloak + PostgreSQL stack.
 
-Same boundary as Phase 2/3's smoke tests: exercises real Rucio REST endpoints
-(auth, schema validation, and that Rucio's policy-package hook actually calls
-out to OPA end-to-end), and deliberately does NOT duplicate OPA policy-content
-checks — group-based privilege, user self-service, root bootstrap, and
-runtime group-policy bundle overrides are already covered by
-tests4/test_phase4_e2e.py (Groups K/L/M/N).
+Same boundary as Phase 2/3's smoke tests, plus Keycloak wlcg.groups claim
+verification since Phase 4's whole privilege model depends on it. Does not
+duplicate OPA policy content (group privilege, self-service, root bootstrap,
+runtime bundle overrides) — covered by tests/test_phase4_e2e.py.
 
-    tests4/test_phase4_e2e.py -> policy content, via OPA directly
-    this file                 -> wiring: Rucio API -> policy package -> OPA,
-                                  plus that Keycloak actually issues the
-                                  wlcg.groups claim Phase 4's privilege
-                                  model depends on
+rucio_call and rucio_opa_container_logs are shared helpers from conftest.py.
+stack_urls/root_token are redefined locally (below) rather than reusing the
+shared conftest.py fixtures, since this phase needs a third URL (Keycloak)
+that Phase 2/3 don't — a local fixture cleanly shadows the shared one for
+this module only, without forcing a Keycloak-shaped tuple onto Phase 2/3.
 
 Requires a running stack:
     cd phase4-opa/deploy
@@ -27,30 +25,28 @@ Skips automatically if the stack isn't reachable.
 import base64
 import json
 import os
-import shutil
-import subprocess
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import pytest
 
-RUCIO_ACCOUNT = "root"
-RUCIO_USERNAME = "ddmlab"
-RUCIO_PASSWORD = "secret"
+from conftest import RUCIO_ACCOUNT, RUCIO_PASSWORD, RUCIO_USERNAME
+from conftest import rucio_call as _rucio_call
+from conftest import rucio_opa_container_logs as _rucio_opa_container_logs
 
 KEYCLOAK_CLIENT_ID = "rucio-oidc"
 KEYCLOAK_CLIENT_SECRET = "rucio-oidc-secret"
 
 
 # ---------------------------------------------------------------------------
-# Stack availability + auth fixtures
+# Local stack_urls / root_token — shadow conftest.py's versions for this
+# module only, adding the Keycloak URL Phase 2/3 don't need.
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module")
 def stack_urls():
-    """Resolve and verify Rucio + OPA + Keycloak are reachable, else skip the module."""
     rucio_url = os.environ.get("RUCIO_URL", "http://localhost").rstrip("/")
     opa_url = os.environ.get("OPA_URL", "http://localhost:8181").rstrip("/")
     keycloak_url = os.environ.get("KEYCLOAK_URL", "http://localhost:8080").rstrip("/")
@@ -93,22 +89,8 @@ def root_token(stack_urls):
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Helpers unique to Phase 4 — Keycloak token issuance / JWT decode
 # ---------------------------------------------------------------------------
-
-
-def _rucio_call(rucio_url: str, path: str, token: str, method: str = "GET", json_body=None):
-    """Return (status_code, response_bytes) for an authenticated Rucio API call."""
-    data = json.dumps(json_body).encode() if json_body is not None else None
-    headers = {"X-Rucio-Auth-Token": token}
-    if data is not None:
-        headers["Content-Type"] = "application/json"
-    req = Request(f"{rucio_url}{path}", data=data, headers=headers, method=method)
-    try:
-        with urlopen(req, timeout=10) as resp:
-            return resp.status, resp.read()
-    except HTTPError as exc:
-        return exc.code, exc.read()
 
 
 def _keycloak_password_token(keycloak_url: str, username: str, password: str) -> str:
@@ -144,8 +126,7 @@ def _decode_jwt_claims(token: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Keycloak — confirms wlcg.groups is actually issued, since Phase 4's whole
-# privilege model depends on it. This is real IdP behavior nothing else tests.
+# Keycloak — confirms wlcg.groups is actually issued
 # ---------------------------------------------------------------------------
 
 
@@ -166,8 +147,7 @@ class TestKeycloakGroupsClaim:
 
 
 # ---------------------------------------------------------------------------
-# RSE management via root bootstrap — real Rucio REST calls, schema vs.
-# policy rejection, same as Phase 2/3's smoke tests
+# RSE management via root bootstrap
 # ---------------------------------------------------------------------------
 
 
@@ -176,10 +156,9 @@ class TestRseManagement:
     def test_create_valid_rse(self, stack_urls, root_token, rse):
         rucio_url, _, _ = stack_urls
         status, _ = _rucio_call(rucio_url, f"/rses/{rse}", root_token, "POST", {"rse_type": "DISK"})
-        assert status in (201, 409)  # 409 if already created by a prior run
+        assert status in (201, 409)
 
     def test_reject_unknown_rse_type_via_policy(self, stack_urls, root_token):
-        """Well-formed but disallowed name — rejected by the OPA policy, not the schema."""
         rucio_url, _, _ = stack_urls
         status, _ = _rucio_call(
             rucio_url, "/rses/CERN_UNKNOWN", root_token, "POST", {"rse_type": "DISK"}
@@ -193,28 +172,8 @@ class TestRseManagement:
 
 
 # ---------------------------------------------------------------------------
-# Wiring verification — proves Rucio actually calls OPA, not just that OPA
-# answers correctly in isolation (that part is tests4/test_phase4_e2e.py)
+# Wiring verification
 # ---------------------------------------------------------------------------
-
-
-def _rucio_opa_container_logs():
-    """Return combined stdout+stderr of `docker logs rucio-opa`, or None if unavailable.
-
-    OPA writes its structured access log to stderr, not stdout — both
-    streams are checked. Returns None (rather than raising) when Docker
-    isn't installed or the container isn't running, so callers can skip
-    cleanly instead of failing on an environment precondition.
-    """
-    docker_path = shutil.which("docker")
-    if not docker_path:
-        return None
-    result = subprocess.run(
-        [docker_path, "logs", "rucio-opa"], capture_output=True, text=True, check=False
-    )
-    if result.returncode != 0:
-        return None
-    return result.stdout + result.stderr
 
 
 class TestOpaWiring:

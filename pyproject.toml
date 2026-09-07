@@ -53,9 +53,13 @@ ignore = [
     "N801",  # test class names use underscores for group readability (TestScenario_X)
     "N802",  # test method names use uppercase group labels (test_A1_..., test_B2_...)
 ]
-"tests/test_phase2_e2e.py" = [
+"tests/conftest.py" = [
     "S603",  # subprocess call is a controlled test fixture spawning a known binary
     "S607",  # partial executable path (opa) is intentional — resolved via PATH
+]
+"tests/test_phase2_e2e.py" = [
+    "S603",
+    "S607",
 ]
 "tests/test_phase2_smoke.py" = [
     "S603",

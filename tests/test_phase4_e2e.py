@@ -15,90 +15,18 @@ Scenario groups:
 """
 
 import json
-import os
-import shutil
-import signal
-import socket
-import subprocess
-import time
 from pathlib import Path
 from urllib.request import Request, urlopen
 
 import pytest
+from tests.conftest import build_opa_server_fixture
 
 from rucio_opa_v3_policy.opa_client import query_opa
 
 REGO_PATH = Path(__file__).parent.parent / "phase4-opa" / "rego" / "authz.rego"
-OPA_STARTUP_TIMEOUT = 10
 OPA_POLICY_PATH = "vo/authz/v3/allow"
 
-
-def _free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-def _wait_for_opa(port: int, timeout: float = OPA_STARTUP_TIMEOUT) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.2):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
-
-
-DEFAULT_GROUP_POLICY = {
-    "/rucio/admins": "admin",
-    "/atlas/production": "admin",
-    "/rucio/users": "user",
-    "/atlas/users": "user",
-}
-
-
-def _seed_group_policy(opa_url: str) -> None:
-    """Push the default group policy so K-tests are not affected by N-test state."""
-    _put(opa_url, "vo/group_policy", DEFAULT_GROUP_POLICY)
-
-
-@pytest.fixture(scope="module")
-def opa_server():
-    import urllib.request as _ur
-
-    external_url = os.environ.get("OPA_URL", "").strip()
-    if external_url:
-        try:
-            _ur.urlopen(f"{external_url.rstrip('/')}/health", timeout=3)
-        except Exception as exc:
-            pytest.skip(f"OPA_URL={external_url} not reachable: {exc}")
-        _seed_group_policy(external_url)
-        yield external_url
-        return
-
-    opa_bin = shutil.which("opa") or "opa"
-    port = _free_port()
-    proc = subprocess.Popen(
-        [
-            opa_bin,
-            "run",
-            "--server",
-            "--log-level",
-            "error",
-            f"--addr=127.0.0.1:{port}",
-            str(REGO_PATH),
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if not _wait_for_opa(port):
-        proc.terminate()
-        pytest.skip(f"OPA did not start on port {port}")
-
-    yield f"http://127.0.0.1:{port}"
-    proc.send_signal(signal.SIGTERM)
-    proc.wait(timeout=5)
+opa_server = build_opa_server_fixture(REGO_PATH, "vo/authz/allow")
 
 
 @pytest.fixture(autouse=True)
