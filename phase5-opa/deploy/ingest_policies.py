@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-ingest_policies.py — Phase 4: load Rego policy + data bundle + group policy into OPA.
+ingest_policies.py — Phase 5: load Rego policy + data bundle + entitlement policy into OPA.
 
-Additions over Phase 3:
-  - Ingests vo/group_policy: maps wlcg.groups paths → privilege levels.
-    This replaces is_root/is_admin flags with token-native group evaluation.
+Additions over Phase 4:
+  - Ingests vo/entitlement_policy: maps URN entitlement strings → privilege
+    levels. Replaces Phase 4's wlcg.groups-keyed vo/group_policy with the
+    same token-native model, just a different claim shape.
 """
 
 import argparse
