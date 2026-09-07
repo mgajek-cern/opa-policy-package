@@ -20,7 +20,7 @@ rewrite avoids by drawing a clear boundary:
     this file              -> wiring: Rucio API -> policy package -> OPA
 
 Requires a running stack:
-    cd phase2-opa/docker
+    cd phase2-opa/deplopy
     docker compose --profile full up -d
     RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
         pytest tests/test_phase2_smoke.py -v

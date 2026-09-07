@@ -4,7 +4,7 @@ Phase 4 — e2e scenario tests against a live OPA server.
 Privilege is derived from token.groups (wlcg.groups) — no is_root/is_admin.
 
 Run against live OPA (recommended):
-    cd phase4-opa/docker && docker compose up -d opa opa-init && cd ../..
+    cd phase4-opa/deploy && docker compose up -d opa opa-init && cd ../..
     OPA_URL=http://localhost:8181 python3 -m pytest tests4/test_phase4_e2e.py -v
 
 Scenario groups:

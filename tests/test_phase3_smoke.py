@@ -13,7 +13,7 @@ self-service, protocol scheme allowlist, data-driven bundle overrides).
     this file             -> wiring: Rucio API -> policy package -> OPA
 
 Requires a running stack:
-    cd phase3-opa/docker
+    cd phase3-opa/deploy
     docker compose --profile full up -d
     RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
         pytest tests/test_phase3_smoke.py -v

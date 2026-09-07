@@ -65,7 +65,7 @@ package = rucio_opa_v2_policy
 python3 -m pytest tests/test_phase3_opa.py -v
 
 # Start the full stack (Rucio + OPA + PostgreSQL) once for e2e + smoke
-cd phase3-opa/docker && docker compose --profile full up -d && cd ../..
+cd phase3-opa/deploy && docker compose --profile full up -d && cd ../..
 
 # E2E — against OPA directly
 OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase3_e2e.py -v
@@ -75,5 +75,5 @@ RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
     python3 -m pytest tests/test_phase3_smoke.py -v
 
 # Teardown (add -v to also wipe the DB volume)
-cd phase3-opa/docker && docker compose --profile full down -v && cd ../..
+cd phase3-opa/deploy && docker compose --profile full down -v && cd ../..
 ```

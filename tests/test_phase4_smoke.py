@@ -15,7 +15,7 @@ tests4/test_phase4_e2e.py (Groups K/L/M/N).
                                   model depends on
 
 Requires a running stack:
-    cd phase4-opa/docker
+    cd phase4-opa/deploy
     docker compose --profile full up -d
     RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
         KEYCLOAK_URL=http://localhost:8080 \

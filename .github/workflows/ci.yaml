@@ -57,7 +57,7 @@ jobs:
             --cov-report=xml:coverage-phase2-unit.xml
       - name: Phase 2 — Start full stack
         run: |
-          cd phase2-opa/docker
+          cd phase2-opa/deploy
           docker compose --profile full up -d
           docker wait rucio-opa-init
           for i in $(seq 1 30); do
@@ -79,7 +79,7 @@ jobs:
             -v --tb=short
       - name: Phase 2 — Tear down OPA
         if: always()
-        run: cd phase2-opa/docker && docker compose down
+        run: cd phase2-opa/deploy && docker compose down
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-phase2-unit
@@ -108,7 +108,7 @@ jobs:
             --cov-report=xml:coverage-phase3-unit.xml
       - name: Phase 3 - Start full stack
         run: |
-          cd phase3-opa/docker
+          cd phase3-opa/deploy
           docker compose --profile full up -d
           docker wait rucio-opa-init
           for i in $(seq 1 30); do
@@ -130,7 +130,7 @@ jobs:
             -v --tb=short
       - name: Phase 3 - Tear down OPA
         if: always()
-        run: cd phase3-opa/docker && docker compose down
+        run: cd phase3-opa/deploy && docker compose down
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-phase3-unit
@@ -153,7 +153,7 @@ jobs:
         run: pip install pytest -e phase4-opa/
       - name: Phase 4 - Start full stack
         run: |
-          cd phase4-opa/docker
+          cd phase4-opa/deploy
           docker compose --profile full up -d
           docker wait rucio-opa-init
           echo "Waiting for Keycloak token endpoint..."
@@ -183,7 +183,7 @@ jobs:
             -v --tb=short
       - name: Phase 4 - Tear down
         if: always()
-        run: cd phase4-opa/docker && docker compose down
+        run: cd phase4-opa/deploy && docker compose down
 
   # ---------------------------------------------------------------------------
   # Lint

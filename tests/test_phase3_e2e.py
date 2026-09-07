@@ -21,7 +21,7 @@ Run manually:
   pytest tests/test_phase3_e2e.py -v
 
 Docker alternative:
-  cd phase3-opa/docker && docker compose up -d
+  cd phase3-opa/deploy && docker compose up -d
   OPA_URL=http://localhost:8181 pytest tests/test_phase3_e2e.py -v
   docker compose down
 """

@@ -19,7 +19,7 @@ Run manually when OPA is installed:
   pytest tests/test_phase2_e2e.py -v
 
 Docker alternative (no local OPA binary needed):
-  cd phase2-opa/docker && docker compose up -d
+  cd phase2-opa/deploy && docker compose up -d
   OPA_URL=http://localhost:8181 pytest tests/test_phase2_e2e.py -v
   docker compose down
 """
@@ -86,7 +86,7 @@ def opa_server():
     if not opa_path:
         pytest.skip(
             "'opa' binary not found on PATH and OPA_URL is not set. "
-            "Install OPA or run: cd phase2-opa/docker && docker compose up -d && "
+            "Install OPA or run: cd phase2-opa/deploy && docker compose up -d && "
             "OPA_URL=http://localhost:8181 pytest tests/test_phase2_e2e.py"
         )
 
