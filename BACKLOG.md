@@ -2,7 +2,7 @@
 
 Work identified but not yet scheduled into a phase, in planned sequence.
 
-## 1. [ ] Switch Phase 4 Keycloak realm from `wlcg.groups` to URN entitlements
+## 1. [x] Switch Phase 4 Keycloak realm from `wlcg.groups` to URN entitlements
 
 Preserving the same group information, e.g.:
 ```json
