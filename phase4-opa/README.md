@@ -28,8 +28,7 @@ Phase 4 — OPA as PDP, OIDC token-native authorisation via `wlcg.groups`. Keycl
     "action": "add_rule",
     "token": { "groups": ["/rucio/users", "/atlas/users"] },
     "kwargs": { "account": "alice", "locked": false,
-                "rse_expression": "CERN_DATADISK",
-                "source_protocol": "s3", "dst_protocol": "webdav" }
+                "rse_expression": "CERN_DATADISK" }
   }
 }
 ```
@@ -83,33 +82,25 @@ package = rucio_opa_v3_policy
 
 ## Tests
 
-```bash
-# e2e (requires live OPA)
-cd phase4-opa/docker && docker compose up -d opa opa-init && cd ../..
-OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase4_e2e.py -v
-cd phase4-opa/docker && docker compose down
-```
-
 | File | Covers |
 |------|--------|
-| `tests/test_phase4_e2e.py` | Live OPA: groups K/L/M/N — group privilege, user self-service, root bootstrap, runtime bundle override |
-
-## Smoke Tests
+| `tests/test_phase4_e2e.py` | Live OPA — group privilege, user self-service, root bootstrap, runtime bundle override |
+| `tests/test_phase4_smoke.py` | Live full stack — real Rucio REST API, auth, Keycloak `wlcg.groups` claim verification, and that Rucio actually calls OPA end-to-end |
 
 ```bash
-cd phase4-opa/docker
+# Start the full stack (Rucio + OPA + Keycloak + PostgreSQL) once for e2e + smoke
+cd phase4-opa/docker && docker compose --profile full up -d && cd ../..
 
-# Full stack (OPA + Keycloak + PostgreSQL + Rucio)
-docker compose --profile full up -d
+# E2E — against OPA directly
+OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase4_e2e.py -v
 
-# Run smoke tests against Rucio REST API
-sleep 5
-bash smoke_test.sh
+# Smoke — against Rucio's REST API + Keycloak
+RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
+    KEYCLOAK_URL=http://localhost:8080 \
+    python3 -m pytest tests/test_phase4_smoke.py -v
 
 # Teardown
-docker compose --profile full down -v
-
-cd ../..
+cd phase4-opa/docker && docker compose --profile full down -v && cd ../..
 ```
 
 ## Verify Keycloak issues wlcg.groups

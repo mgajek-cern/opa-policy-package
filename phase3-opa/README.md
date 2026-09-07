@@ -51,36 +51,29 @@ export OPA_TIMEOUT=2
 # rucio.cfg  [policy]
 package = rucio_opa_v2_policy
 ```
+
 ## Tests
-
-```bash
-python3 -m pytest tests/test_phase3_opa.py -v
-
-# e2e (requires live OPA)
-cd phase3-opa/docker && docker compose up -d opa opa-init && cd ../..
-OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase3_e2e.py -v
-cd phase3-opa/docker && docker compose down
-```
 
 | File | Covers |
 |------|--------|
-| `test_phase3_opa.py` | OPA client fail-closed, new passthrough keys, `has_permission` propagation |
-| `test_phase3_e2e.py` | Live OPA |
-
-## Smoke Tests
+| `test_phase3_opa.py` | Unit — OPA client fail-closed, new passthrough keys, `has_permission` propagation (mocked, no live services) |
+| `test_phase3_e2e.py` | Live OPA — RSE naming, account/DID ownership, rule owner self-service, protocol scheme allowlist, data-driven bundle overrides |
+| `test_phase3_smoke.py` | Live full stack — real Rucio REST API, auth, schema validation, and that Rucio actually calls OPA end-to-end |
 
 ```bash
-cd phase3-opa/docker
+# Unit tests — no services required
+python3 -m pytest tests/test_phase3_opa.py -v
 
-# Full stack (OPA + PostgreSQL + Rucio)
-docker compose --profile full up -d
+# Start the full stack (Rucio + OPA + PostgreSQL) once for e2e + smoke
+cd phase3-opa/docker && docker compose --profile full up -d && cd ../..
 
-# Run smoke tests against Rucio REST API
-sleep 5
-bash smoke_test.sh
+# E2E — against OPA directly
+OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase3_e2e.py -v
+
+# Smoke — against Rucio's REST API
+RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
+    python3 -m pytest tests/test_phase3_smoke.py -v
 
 # Teardown (add -v to also wipe the DB volume)
-docker compose --profile full down -v
-
-cd ../..
+cd phase3-opa/docker && docker compose --profile full down -v && cd ../..
 ```
