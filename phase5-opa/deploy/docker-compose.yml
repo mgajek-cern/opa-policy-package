@@ -66,7 +66,7 @@ services:
     profiles:
       - full
 
-  # Rucio server — OIDC configured, Phase 4 policy package
+  # Rucio server — OIDC configured, Phase 5 policy package
   rucio:
     image: rucio/rucio-server:latest
     container_name: rucio-server

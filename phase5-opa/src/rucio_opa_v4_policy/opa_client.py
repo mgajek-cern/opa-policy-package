@@ -1,10 +1,10 @@
 # Licensed under the Apache License, Version 2.0
 """
-Thin synchronous OPA REST client — identical in structure to Phase 2.
+Thin synchronous OPA REST client — identical in structure to Phase 4.
 
 Environment variables:
     OPA_URL          — base URL of the OPA server  (default: http://localhost:8181)
-    OPA_POLICY_PATH  — Rego rule path to query      (default: vo/authz/v3/allow)
+    OPA_POLICY_PATH  — Rego rule path to query      (default: vo/authz/v4/allow)
     OPA_TIMEOUT      — HTTP timeout in seconds       (default: 2)
 """
 
