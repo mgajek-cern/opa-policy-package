@@ -1,13 +1,16 @@
 # opa-policy-package
 
-Rucio policy packages across four phases of increasing capability:
+Rucio policy packages across five phases of increasing capability. Each
+phase is a drop-in replacement — configure Rucio to point at the desired
+package and restart; no data migration required.
 
-| Phase | Package | Who decides? | Where is the logic? |
-|-------|---------|-------------|---------------------|
-| 1 | [`rucio-no-opa-policy`](phase1-no-opa/README.md) | Rucio (PDP) | Inline Python (`rules.py`) |
-| 2 | [`rucio-opa-policy`](phase2-opa/README.md) | OPA (PDP) | Rego (`phase2-opa/rego/`) |
-| 3 | [`rucio-opa-v2-policy`](phase3-opa/README.md) | OPA (PDP) | Rego (`phase3-opa/rego/`) + data bundle |
-| 4 | [`rucio-opa-v3-policy`](phase4-opa/README.md) | OPA (PDP) | Rego (`phase4-opa/rego/`) + group policy bundle + Keycloak |
+| Phase | Package | Who decides? | What changed |
+|-------|---------|-------------|---------------|
+| 1 | [`rucio-no-opa-policy`](phase1-no-opa/README.md) | Rucio (PDP) | RSE naming enforced in pure Python, no external dependencies. TPC protocol-combo checks were considered but excluded — Rucio core already resolves this per-RSE via `third_party_copy_read`/`third_party_copy_write` protocol flags. |
+| 2 | [`rucio-opa-policy`](phase2-opa/README.md) | OPA (PDP) | Policy logic moves to OPA/Rego, delegating a wider set of actions and enabling richer ABAC without redeploying Python code. |
+| 3 | [`rucio-opa-v2-policy`](phase3-opa/README.md) | OPA (PDP) | Data-driven configuration, self-service rule management, `attach_dids_to_dids` delegation, protocol scheme enforcement. |
+| 4 | [`rucio-opa-v3-policy`](phase4-opa/README.md) | OPA (PDP) | `is_root`/`is_admin` DB lookup replaced by OIDC token-native group evaluation — Keycloak issues JWTs with `wlcg.groups`; OPA evaluates against `data.vo.group_policy`. Zero DB calls per decision. |
+| 5 | [`rucio-opa-v4-policy`](phase5-opa/README.md) | OPA (PDP) | Phase 4's WLCG group paths replaced by URN-based entitlement claims — Keycloak issues an `entitlements` claim (sourced from a user attribute, not the group tree); OPA evaluates against `data.vo.entitlement_policy`. Same token-native model as Phase 4, only the claim shape changed. |
 
 > See [Policy package mechanism](docs/policy-package-mechanism.md) for how Rucio loads policy packages.
 > See [Action → Policy Mapping](docs/action-policy-mapping.md) for the full `has_permission()` coverage map — **required reading for writing meaningful Rego or ODRL policies** (action strings, available input fields and domain checks that apply independently of privilege).
@@ -26,11 +29,11 @@ sequenceDiagram
     participant FTS as FTS (Transfer)
 
     User->>KC: authenticate
-    KC-->>User: JWT (sub, wlcg.groups, entitlements)
+    KC-->>User: JWT (sub, entitlements)
 
     User->>Rucio: API request + JWT
     Rucio->>Rucio: validate token (issuer, expiry)
-    Rucio->>OPA: has_permission?\n{ action, issuer, token.groups, kwargs }
+    Rucio->>OPA: has_permission?\n{ action, issuer, token.entitlements, kwargs }
     OPA-->>Rucio: allow / deny
 
     alt allowed
@@ -43,34 +46,32 @@ sequenceDiagram
     end
 ```
 
-Phase 5 shall implement this vision e2e with all systems shown: Keycloak issues JWTs with `wlcg.groups`
-claims; OPA evaluates group membership against `data.vo.group_policy` in the
-bundle — no Rucio DB round-trip per authorisation decision.
+Phase 5 implements this vision end to end with all systems shown: Keycloak
+issues JWTs with URN `entitlements` claims; OPA evaluates entitlement
+membership against `data.vo.entitlement_policy` in the bundle — no Rucio DB
+round-trip per authorisation decision. FTS integration (the transfer-job
+step above) is separate, ongoing work — see [BACKLOG.md](BACKLOG.md).
 
 ## Group membership and URN entitlements
 
-Phase 4 currently uses WLCG group paths (`/rucio/admins`, `/atlas/production`)
-as the privilege signal. Moving to URN-based entitlement claims instead —
-while preserving the same group information — is planned next; see
-[BACKLOG.md](BACKLOG.md). The two are **conceptually equivalent**:
+Phase 4 used WLCG group paths (`/rucio/admins`, `/atlas/production`) as the
+privilege signal. Phase 5 replaces this with URN-based entitlement claims,
+preserving the same group information in a federated-AAI-friendly shape. The
+two are **conceptually equivalent**:
 
-| Phase 4 (wlcg.groups) | URN entitlement equivalent |
+| Phase 4 (wlcg.groups) | Phase 5 (URN entitlement) |
 |----------------------|---------------------------|
-| `/rucio/admins` | `urn:...:group:rucio-admins:role=member` |
-| `/atlas/production` | `urn:geant:atlas.cern.ch:group:production:role=member` |
+| `/rucio/admins` | `urn:example:aai.example.org:group:rucio-admins:role=member` |
+| `/atlas/production` | `urn:example:aai.example.org:group:atlas-production:role=member` |
 
-OPA evaluates whichever claim format the IdP emits — the `data.vo.group_policy`
-bundle is the mapping layer. To adopt URN entitlements instead of group paths,
-update `ingest_policies.py` to push URN strings as keys and adjust the Rego
-`_group_privilege` lookup accordingly. No changes to Rucio or the Python
-permission module are needed.
+OPA evaluates whichever claim format the IdP emits — the
+`data.vo.entitlement_policy` bundle (Phase 4: `data.vo.group_policy`) is the
+mapping layer, kept externalised and updatable at runtime without
+redeployment. Rucio's `has_permission()` contract and the Python permission
+module's shape were unchanged by the switch — only the claim key
+(`token.groups` → `token.entitlements`) and the Rego lookup moved.
 
-This design is intentional: it gives any federated research infrastructure
-deploying OPA as a PDP a clear integration path into Rucio's authorisation
-layer, with the group-to-privilege mapping externalised and updatable at
-runtime without redeployment.
-
-An example OPA request body with a URN entitlement claim could resemble:
+An example OPA request body with a URN entitlement claim:
 
 ```json
 {
@@ -88,55 +89,6 @@ An example OPA request body with a URN entitlement claim could resemble:
 
 Fine-grained, resource-level permissions (beyond group/role membership) are
 deferred — see [BACKLOG.md](BACKLOG.md).
-
-## Repository layout
-
-```
-opa-policy-package/
-│
-├── phase1-no-opa/               # Phase 1 — Rucio as PDP
-├── phase2-opa/                  # Phase 2 — OPA as PDP
-├── phase3-opa/                  # Phase 3 — OPA as PDP, data-driven
-├── phase4-opa/                  # Phase 4 — OPA as PDP, OIDC/wlcg.groups
-│   ├── src/rucio_opa_v3_policy/
-│   ├── rego/authz.rego
-│   └── deploy/                  # OPA + Keycloak + PostgreSQL + Rucio stack
-│
-├── tests/                       # Phase 1–4 unit + e2e + smoke tests
-└── docs/
-    ├── policy-package-mechanism.md
-    ├── action-policy-mapping.md
-    ├── authz-flow-diagrams.md
-    ├── policy-lifecycle.md
-    └── adrs/
-        ├── adr-001-authz-service.md
-        ├── adr-002-multi-aai-credential-file.md
-        └── adr-003-opa-deploy-topology.md
-```
-
-## Phase progression
-
-Each phase is a drop-in replacement — configure Rucio to point at the
-desired package and restart. No data migration required.
-
-**Phase 1** enforces RSE naming in pure Python with no external
-dependencies. TPC protocol-combo checks were considered but excluded — Rucio
-core already resolves this dynamically per-RSE via the `third_party_copy_read`
-/ `third_party_copy_write` protocol capability flags, so duplicating it here
-would risk drift.
-
-**Phase 2** moves all policy logic to OPA/Rego, delegating a wider set of
-actions and enabling richer ABAC without redeploying Python code.
-See [phase2-opa/README.md](phase2-opa/README.md).
-
-**Phase 3** extends Phase 2 with data-driven configuration, self-service rule
-management, `attach_dids_to_dids` delegation and protocol scheme enforcement.
-See [phase3-opa/README.md](phase3-opa/README.md).
-
-**Phase 4** replaces the `is_root`/`is_admin` DB lookup with OIDC token-native
-group evaluation — Keycloak issues JWTs with `wlcg.groups`; OPA evaluates them
-against `data.vo.group_policy`. Zero DB calls per authorisation decision.
-See [phase4-opa/README.md](phase4-opa/README.md).
 
 ## References
 
