@@ -5,13 +5,13 @@ Privilege is derived from token.groups (wlcg.groups) — no is_root/is_admin.
 
 Run against live OPA (recommended):
     cd phase4-opa/docker && docker compose up -d opa opa-init && cd ../..
-    OPA_URL=http://localhost:8181 python3 -m pytest tests4/test_phase4_e2e_scenarios.py -v
+    OPA_URL=http://localhost:8181 python3 -m pytest tests4/test_phase4_e2e.py -v
 
 Scenario groups:
-  K — Group-based privilege (admin group → privileged)
-  L — User group actions (non-privileged but self-service still works)
-  M — Root bootstrap account (no token → allowed unconditionally)
-  N — Group policy bundle override (runtime mapping via OPA data API)
+  — Group-based privilege (admin group → privileged)
+  — User group actions (non-privileged but self-service still works)
+  — Root bootstrap account (no token → allowed unconditionally)
+  — Group policy bundle override (runtime mapping via OPA data API)
 """
 
 import json
@@ -79,7 +79,7 @@ def opa_server():
 
     opa_bin = shutil.which("opa") or "opa"
     port = _free_port()
-    proc = subprocess.Popen(  # noqa: S603
+    proc = subprocess.Popen(
         [
             opa_bin,
             "run",
@@ -91,7 +91,7 @@ def opa_server():
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-    )  # noqa: S603
+    )
     if not _wait_for_opa(port):
         proc.terminate()
         pytest.skip(f"OPA did not start on port {port}")
@@ -135,31 +135,31 @@ def _root(action: str, **kw) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Group K — Group-based privilege (Phase 4 core)
+# Group-based privilege
 # ---------------------------------------------------------------------------
 
 
 class TestK_GroupPrivilege:
-    def test_K1_admin_group_grants_del_rse(self):
+    def test_admin_group_grants_del_rse(self):
         assert _q("adminuser", "del_rse", groups=["/rucio/admins"]) is True
 
-    def test_K2_user_group_denies_del_rse(self):
+    def test_user_group_denies_del_rse(self):
         assert _q("alice", "del_rse", groups=["/rucio/users"]) is False
 
-    def test_K3_no_groups_denies_privileged_action(self):
+    def test_no_groups_denies_privileged_action(self):
         assert _q("alice", "del_rse", groups=[]) is False
 
-    def test_K4_atlas_production_is_admin(self):
+    def test_atlas_production_is_admin(self):
         assert _q("prod", "add_rse", groups=["/atlas/production"], rse="CERN_DATADISK") is True
 
-    def test_K5_atlas_users_is_not_admin(self):
+    def test_atlas_users_is_not_admin(self):
         assert _q("alice", "add_rse", groups=["/atlas/users"], rse="CERN_DATADISK") is False
 
-    def test_K6_multiple_groups_any_admin_grants_privilege(self):
+    def test_multiple_groups_any_admin_grants_privilege(self):
         assert _q("alice", "del_rse", groups=["/rucio/users", "/rucio/admins"]) is True
 
-    def test_K7_domain_rules_still_block_admin_groups(self):
-        """S3→S3 denied even with admin group — domain checks run first."""
+    def test_naming_rule_still_blocks_admin_groups(self):
+        """Invalid RSE naming denied even with admin group — domain checks run first."""
         assert (
             _q(
                 "adminuser",
@@ -167,25 +167,23 @@ class TestK_GroupPrivilege:
                 groups=["/rucio/admins"],
                 account="adminuser",
                 locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="s3",
-                dst_protocol="s3",
+                rse_expression="cern_bad",
             )
             is False
         )
 
-    def test_K8_approve_rule_requires_admin_group(self):
+    def test_approve_rule_requires_admin_group(self):
         assert _q("alice", "approve_rule", groups=["/rucio/users"]) is False
         assert _q("adminuser", "approve_rule", groups=["/rucio/admins"]) is True
 
 
 # ---------------------------------------------------------------------------
-# Group L — User group self-service actions
+# User group self-service actions
 # ---------------------------------------------------------------------------
 
 
 class TestL_UserGroupActions:
-    def test_L1_user_can_add_own_unlocked_rule(self):
+    def test_user_can_add_own_unlocked_rule(self):
         assert (
             _q(
                 "alice",
@@ -200,7 +198,7 @@ class TestL_UserGroupActions:
             is True
         )
 
-    def test_L2_user_denied_locked_rule(self):
+    def test_user_denied_locked_rule(self):
         assert (
             _q(
                 "alice",
@@ -213,7 +211,7 @@ class TestL_UserGroupActions:
             is False
         )
 
-    def test_L3_user_denied_rule_for_other_account(self):
+    def test_user_denied_rule_for_other_account(self):
         assert (
             _q(
                 "alice",
@@ -226,63 +224,61 @@ class TestL_UserGroupActions:
             is False
         )
 
-    def test_L4_user_can_add_did_to_own_scope(self):
+    def test_user_can_add_did_to_own_scope(self):
         assert (
             _q("alice", "add_did", groups=["/rucio/users"], scope="alice.data", name="file1")
             is True
         )
 
-    def test_L5_user_denied_other_scope(self):
+    def test_user_denied_other_scope(self):
         assert (
             _q("alice", "add_did", groups=["/rucio/users"], scope="bob.data", name="file1") is False
         )
 
-    def test_L6_user_can_del_own_rule(self):
+    def test_user_can_del_own_rule(self):
         assert _q("alice", "del_rule", groups=["/rucio/users"], account="alice") is True
 
-    def test_L7_user_denied_del_other_rule(self):
+    def test_user_denied_del_other_rule(self):
         assert _q("alice", "del_rule", groups=["/rucio/users"], account="bob") is False
 
 
 # ---------------------------------------------------------------------------
-# Group M — Root bootstrap (no OIDC token)
+# Root bootstrap (no OIDC token)
 # ---------------------------------------------------------------------------
 
 
 class TestM_RootBootstrap:
-    def test_M1_root_allowed_del_rse(self):
+    def test_root_allowed_del_rse(self):
         assert _root("del_rse") is True
 
-    def test_M2_root_allowed_add_rse_valid_name(self):
+    def test_root_allowed_add_rse_valid_name(self):
         assert _root("add_rse", rse="CERN_DATADISK") is True
 
-    def test_M3_root_allowed_unknown_action(self):
+    def test_root_allowed_unknown_action(self):
         assert _root("some_unknown_action") is True
 
-    def test_M4_root_blocked_by_domain_rules(self):
+    def test_root_blocked_by_naming_rule(self):
         assert (
             _root(
                 "add_rule",
                 account="root",
                 locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="s3",
-                dst_protocol="s3",
+                rse_expression="cern_bad",
             )
             is False
         )
 
-    def test_M5_non_root_empty_groups_denied_privileged(self):
+    def test_non_root_empty_groups_denied_privileged(self):
         assert _q("alice", "del_rse", groups=[]) is False
 
 
 # ---------------------------------------------------------------------------
-# Group N — Group policy bundle override (runtime)
+# Group policy bundle override (runtime)
 # ---------------------------------------------------------------------------
 
 
 class TestN_GroupPolicyBundle:
-    def test_N1_custom_group_granted_after_bundle_push(self, opa_server):
+    def test_custom_group_granted_after_bundle_push(self, opa_server):
         _put(
             opa_server,
             "vo/group_policy",
@@ -293,7 +289,7 @@ class TestN_GroupPolicyBundle:
         )
         assert _q("cmsuser", "del_rse", groups=["/cms/production"]) is True
 
-    def test_N2_removed_group_loses_privilege(self, opa_server):
+    def test_removed_group_loses_privilege(self, opa_server):
         _put(
             opa_server,
             "vo/group_policy",
@@ -303,5 +299,5 @@ class TestN_GroupPolicyBundle:
         )
         assert _q("adminuser", "del_rse", groups=["/rucio/admins"]) is False
 
-    def test_N3_remaining_group_still_privileged(self, opa_server):
+    def test_remaining_group_still_privileged(self, opa_server):
         assert _q("prod", "del_rse", groups=["/atlas/production"]) is True

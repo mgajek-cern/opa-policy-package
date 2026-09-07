@@ -151,61 +151,39 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install pytest -e phase4-opa/
-      - name: Phase 4 - Start OPA + Keycloak via Docker Compose
+      - name: Phase 4 - Start full stack
         run: |
           cd phase4-opa/docker
-          docker compose up -d opa opa-init keycloak
+          docker compose --profile full up -d
           docker wait rucio-opa-init
-          echo "Waiting for Keycloak to be healthy..."
+          echo "Waiting for Keycloak token endpoint..."
           for i in $(seq 1 30); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health/ready || echo "000")
-            [ "$STATUS" = "200" ] && echo "Keycloak ready." && break
-            echo "  attempt $i/30 — HTTP $STATUS"
-            sleep 5
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST http://localhost:8080/realms/rucio/protocol/openid-connect/token \
+              -d "grant_type=password&client_id=rucio-oidc&client_secret=rucio-oidc-secret&username=alice&password=alice123" || echo "000")
+            [ "$STATUS" = "200" ] && echo "Keycloak token endpoint ready." && break
+            echo "  attempt $i/30 — HTTP $STATUS"; sleep 5
+          done
+          for i in $(seq 1 30); do
+            RSTATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
+            [ "$RSTATUS" = "healthy" ] && echo "Rucio healthy." && break
+            echo "  attempt $i/30 — $RSTATUS"; sleep 5
           done
       - name: Phase 4 - E2E tests (live OPA)
         env:
           OPA_URL: http://localhost:8181
         run: |
           python -m pytest \
-            tests/test_phase4_e2e_scenarios.py \
+            tests/test_phase4_e2e.py \
+            -v --tb=short
+      - name: Phase 4 — Run smoke tests
+        run: |
+          python -m pytest \
+            tests/test_phase4_smoke.py \
             -v --tb=short
       - name: Phase 4 - Tear down
         if: always()
         run: cd phase4-opa/docker && docker compose down
-
-  # ---------------------------------------------------------------------------
-  # Smoke tests — full stack (OPA + PostgreSQL + Rucio) per phase
-  # Phase 2, 3 and 4 run sequentially to avoid port conflicts on :80 / :8181.
-  # ---------------------------------------------------------------------------
-  smoke-test:
-    name: Full stack smoke test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Phase 4 — Start full stack
-        run: |
-          cd phase4-opa/docker
-          docker compose --profile full up -d
-          docker wait rucio-opa-init
-          echo "Waiting for Keycloak..."
-          for i in $(seq 1 36); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health/ready || echo "000")
-            [ "$STATUS" = "200" ] && echo "Keycloak ready." && break
-            echo "  attempt $i/36 — HTTP $STATUS"; sleep 5
-          done
-          echo "Waiting for Rucio..."
-          for i in $(seq 1 30); do
-            STATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
-            [ "$STATUS" = "healthy" ] && echo "Rucio healthy." && break
-            echo "  attempt $i/30 — $STATUS"; sleep 5
-          done
-      - name: Phase 4 — Run smoke tests
-        run: cd phase4-opa/docker && bash smoke_test.sh
-      - name: Phase 4 — Tear down
-        if: always()
-        run: cd phase4-opa/docker && docker compose --profile full down -v
 
   # ---------------------------------------------------------------------------
   # Lint

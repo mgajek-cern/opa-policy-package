@@ -86,13 +86,13 @@ package = rucio_opa_v3_policy
 ```bash
 # e2e (requires live OPA)
 cd phase4-opa/docker && docker compose up -d opa opa-init && cd ../..
-OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase4_e2e_scenarios.py -v
+OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase4_e2e.py -v
 cd phase4-opa/docker && docker compose down
 ```
 
 | File | Covers |
 |------|--------|
-| `tests/test_phase4_e2e_scenarios.py` | Live OPA: groups K/L/M/N — group privilege, user self-service, root bootstrap, runtime bundle override |
+| `tests/test_phase4_e2e.py` | Live OPA: groups K/L/M/N — group privilege, user self-service, root bootstrap, runtime bundle override |
 
 ## Smoke Tests
 

@@ -18,15 +18,13 @@ REGO_PATH = Path(__file__).parent.parent / "rego" / "authz.rego"
 POLICY_ID = "authz_v3"
 
 DEFAULT_POLICY_DATA = {
-    "allowed_protocol_combos": [
-        ["webdav", "webdav"],
-        ["s3", "webdav"],
-        ["xrdhttp", "webdav"],
-        ["s3", "xrdhttp"],
-        ["xrdhttp", "xrdhttp"],
+    "known_rse_types": [
+        "DATADISK",
+        "SCRATCHDISK",
+        "LOCALGROUPDISK",
+        "TAPE",
+        "USERDISK",
     ],
-    "known_rse_types": ["DATADISK", "SCRATCHDISK", "LOCALGROUPDISK", "TAPE", "USERDISK"],
-    "allowed_schemes": ["davs", "s3", "https", "root", "xrdhttp", "gsiftp"],
 }
 
 # Maps wlcg.groups paths → privilege level.

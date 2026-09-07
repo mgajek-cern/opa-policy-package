@@ -69,6 +69,14 @@ ignore = [
     "S603",
     "S607",
 ]
+"tests/test_phase4_e2e.py" = [
+    "S603",
+    "S607",
+]
+"tests/test_phase4_smoke.py" = [
+    "S603",
+    "S607",
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["rucio_no_opa_policy", "rucio_opa_policy", "rucio_opa_v2_policy"]

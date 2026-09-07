@@ -48,7 +48,6 @@ _is_known_action(action) if { action in _all_known_actions }
 # ---------------------------------------------------------------------------
 
 _perm_add_rule if {
-    _protocol_combo_allowed
     _dst_rse_name_valid
     _src_rse_name_valid
     input.kwargs.account == input.issuer
@@ -56,7 +55,6 @@ _perm_add_rule if {
 }
 
 _perm_add_rule if {
-    _protocol_combo_allowed
     _dst_rse_name_valid
     _src_rse_name_valid
     _is_privileged
@@ -107,29 +105,6 @@ _allowed_schemes := data.vo.policy.allowed_schemes if {
 _perm_protocol_action if {
     _is_privileged
     lower(input.kwargs.scheme) in _allowed_schemes
-}
-
-# ---------------------------------------------------------------------------
-# Protocol combo rules — data-driven with hardcoded fallback
-# ---------------------------------------------------------------------------
-
-_default_allowed_combos := {
-    ["webdav", "webdav"], ["s3", "webdav"], ["xrdhttp", "webdav"],
-    ["s3", "xrdhttp"],    ["xrdhttp", "xrdhttp"],
-}
-
-_allowed_combos := data.vo.policy.allowed_protocol_combos if {
-    data.vo.policy.allowed_protocol_combos
-} else := _default_allowed_combos
-
-_protocol_combo_allowed if {
-    not input.kwargs.source_protocol
-    not input.kwargs.dst_protocol
-}
-_protocol_combo_allowed if {
-    src := lower(input.kwargs.source_protocol)
-    dst := lower(input.kwargs.dst_protocol)
-    [src, dst] in _allowed_combos
 }
 
 # ---------------------------------------------------------------------------

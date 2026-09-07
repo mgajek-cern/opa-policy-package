@@ -37,7 +37,7 @@ sequenceDiagram
 
     alt allowed
         Rucio->>Rucio: write replication rule to DB
-        Rucio->>FTS: submit transfer job\n(protocol-combo already validated by OPA)
+        Rucio->>FTS: submit transfer job\n(TPC feasibility resolved by Rucio core)
         FTS-->>Rucio: transfer status
         Rucio-->>User: 201 Created
     else denied
@@ -114,8 +114,11 @@ opa-policy-package/
 Each phase is a drop-in replacement — configure Rucio to point at the
 desired package and restart. No data migration required.
 
-**Phase 1** enforces TPC protocol combos and RSE naming in pure Python with
-no external dependencies. See [phase1-no-opa/README.md](phase1-no-opa/README.md).
+**Phase 1** enforces RSE naming in pure Python with no external
+dependencies. TPC protocol-combo checks were considered but excluded — Rucio
+core already resolves this dynamically per-RSE via the `third_party_copy_read`
+/ `third_party_copy_write` protocol capability flags, so duplicating it here
+would risk drift.
 
 **Phase 2** moves all policy logic to OPA/Rego, delegating a wider set of
 actions and enabling richer ABAC without redeploying Python code.
