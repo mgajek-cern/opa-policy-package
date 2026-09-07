@@ -11,7 +11,7 @@ Phase 3 — OPA as PDP, data-driven configuration, broader action coverage. Poli
 | `attach_dids_to_dids` delegated | Closes the `rucio-it-tools` registration gap |
 | `del_rule` / `update_rule` self-service | Rule owners can manage their own rules without privilege |
 | `add_protocol` / `del_protocol` / `update_protocol` | Delegated with scheme allowlist (`davs`, `s3`, `https`, `root`, `xrdhttp`, `gsiftp`) |
-| Data-driven bundle | Protocol combos, RSE types, allowed schemes configurable at runtime — no redeploy |
+| Data-driven bundle | RSE types and allowed schemes configurable at runtime — no redeploy |
 | Admin bundle | `data.vo.admins[issuer]` fully wired alongside `is_admin` from Python |
 
 **Rego policy path:** `vo/authz/v2/allow` (was `vo/authz/allow`)
@@ -58,14 +58,14 @@ python3 -m pytest tests/test_phase3_opa.py -v
 
 # e2e (requires live OPA)
 cd phase3-opa/docker && docker compose up -d opa opa-init && cd ../..
-OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase3_e2e_scenarios.py -v
+OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase3_e2e.py -v
 cd phase3-opa/docker && docker compose down
 ```
 
 | File | Covers |
 |------|--------|
 | `test_phase3_opa.py` | OPA client fail-closed, new passthrough keys, `has_permission` propagation |
-| `test_phase3_e2e_scenarios.py` | Live OPA |
+| `test_phase3_e2e.py` | Live OPA |
 
 ## Smoke Tests
 

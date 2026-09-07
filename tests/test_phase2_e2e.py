@@ -82,8 +82,6 @@ def opa_server():
         yield external_url
         return
 
-    # Resolve the full executable path up front (satisfies ruff S607 —
-    # "partial executable path") rather than passing the bare name "opa".
     opa_path = shutil.which("opa")
     if not opa_path:
         pytest.skip(
@@ -93,9 +91,7 @@ def opa_server():
         )
 
     port = _free_port()
-    # S603: args are a fixed, hardcoded list (no untrusted input reaches
-    # this call) and the executable path is fully resolved above (S607).
-    proc = subprocess.Popen(  # noqa: S603
+    proc = subprocess.Popen(
         [
             opa_path,
             "run",

@@ -75,8 +75,6 @@ _PASSTHROUGH_KEYS: frozenset[str] = frozenset(
         "locked",
         "rse_expression",
         "source_rse_expression",
-        "source_protocol",
-        "dst_protocol",
         "rule_id",  # del_rule / update_rule — identifies the rule owner
         # add_rse / update_rse / del_rse / rse attributes
         "rse",

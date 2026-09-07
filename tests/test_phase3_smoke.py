@@ -1,29 +1,22 @@
 """
-Phase 2 — smoke test against the full Rucio + OPA + PostgreSQL stack.
+Phase 3 — smoke test against the full Rucio + OPA + PostgreSQL stack.
 
-Unlike test_phase2_e2e.py (which queries OPA directly, bypassing Rucio
-entirely) and test_phase2_opa.py (fully mocked HTTP), this file exercises
-real Rucio REST endpoints over HTTP: authentication, request routing,
-schema validation, and — critically — that Rucio's policy-package hook
-actually calls out to OPA end-to-end.
+Same boundary as Phase 2's smoke test: exercises real Rucio REST endpoints
+over HTTP (auth, request routing, schema validation, and that Rucio's
+policy-package hook actually calls out to OPA end-to-end), and deliberately
+does NOT duplicate OPA policy-content checks — those are covered by
+test_phase3_e2e.py (RSE naming, account/DID ownership, rule owner
+self-service, protocol scheme allowlist, data-driven bundle overrides).
 
-Deliberately NOT duplicated here: direct OPA policy-content checks
-(RSE naming internals, account-ownership branches, DID scope-owner logic,
-privileged-only actions, update_rse rename logic). Those are already
-covered thoroughly, and more cheaply, by test_phase2_e2e.py.
-Duplicating them here previously caused the same protocol-combo removal
-to need fixing independently in both files — a maintenance trap this
-rewrite avoids by drawing a clear boundary:
-
-    test_phase2_opa.py    -> unit: input construction, fail-closed
-    test_phase2_e2e.py    -> policy content, via OPA directly
-    this file              -> wiring: Rucio API -> policy package -> OPA
+    test_phase3_opa.py    -> unit: input construction, fail-closed
+    test_phase3_e2e.py    -> policy content, via OPA directly
+    this file             -> wiring: Rucio API -> policy package -> OPA
 
 Requires a running stack:
-    cd phase2-opa/docker
+    cd phase3-opa/docker
     docker compose --profile full up -d
     RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
-        pytest tests/test_phase2_smoke.py -v
+        pytest tests/test_phase3_smoke.py -v
 
 Skips automatically if the stack isn't reachable.
 """
@@ -138,46 +131,8 @@ class TestRseManagement:
 
 
 # ---------------------------------------------------------------------------
-# Account + scope management — confirms the API is fully wired, not just RSEs
-# ---------------------------------------------------------------------------
-
-
-class TestAccountAndScope:
-    def test_create_account(self, stack_urls, auth_token):
-        rucio_url, _ = stack_urls
-        status, _ = _rucio_call(
-            rucio_url,
-            "/accounts/testuser",
-            auth_token,
-            "POST",
-            {"type": "USER", "email": "test@example.com"},
-        )
-        assert status in (201, 409)
-
-    def test_get_account(self, stack_urls, auth_token):
-        rucio_url, _ = stack_urls
-        status, _ = _rucio_call(rucio_url, "/accounts/testuser", auth_token)
-        assert status == 200
-
-    def test_list_accounts(self, stack_urls, auth_token):
-        rucio_url, _ = stack_urls
-        status, _ = _rucio_call(rucio_url, "/accounts", auth_token)
-        assert status == 200
-
-    def test_create_scope(self, stack_urls, auth_token):
-        rucio_url, _ = stack_urls
-        status, _ = _rucio_call(rucio_url, "/accounts/root/scopes/test", auth_token, "POST")
-        assert status in (201, 409)
-
-    def test_list_scopes_for_root(self, stack_urls, auth_token):
-        rucio_url, _ = stack_urls
-        status, _ = _rucio_call(rucio_url, "/scopes/root/scopes", auth_token)
-        assert status == 200
-
-
-# ---------------------------------------------------------------------------
 # Wiring verification — proves Rucio actually calls OPA, not just that OPA
-# answers correctly in isolation (that part is test_phase2_e2e.py)
+# answers correctly in isolation (that part is test_phase3_e2e.py)
 # ---------------------------------------------------------------------------
 
 
@@ -192,6 +147,8 @@ def _rucio_opa_container_logs():
     docker_path = shutil.which("docker")
     if not docker_path:
         return None
+    # S603: fixed, hardcoded argument list — no untrusted input reaches
+    # this call. Executable path is fully resolved via shutil.which (S607).
     result = subprocess.run(
         [docker_path, "logs", "rucio-opa"], capture_output=True, text=True, check=False
     )
@@ -205,12 +162,14 @@ class TestOpaWiring:
         logs = _rucio_opa_container_logs()
         if logs is None:
             pytest.skip("docker not available or rucio-opa container not running")
-        assert "vo/authz/allow" in logs, "Expected Rucio to have called OPA's authz/allow endpoint."
+        assert "vo/authz/v2/allow" in logs, (
+            "Expected Rucio to have called OPA's authz/v2/allow endpoint."
+        )
 
     def test_opa_policy_was_loaded_via_rest(self):
         logs = _rucio_opa_container_logs()
         if logs is None:
             pytest.skip("docker not available or rucio-opa container not running")
-        assert "v1/policies/authz" in logs, (
+        assert "v1/policies/authz_v2" in logs, (
             "Expected the Rego policy to have been PUT to OPA on startup."
         )

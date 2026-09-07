@@ -3,8 +3,8 @@
 ingest_policies.py — load Rego policy and data bundle into a running OPA server.
 
 Phase 3 additions over Phase 2:
-  - Ingests vo/policy data bundle (allowed_protocol_combos, known_rse_types,
-    allowed_schemes) so Rego rules are data-driven rather than hardcoded.
+  - Ingests vo/policy data bundle (known_rse_types) so Rego
+    rules are data-driven rather than hardcoded.
   - Ingests vo/admins as before.
 
 Usage:
@@ -26,27 +26,12 @@ POLICY_ID = "authz_v2"
 # ---------------------------------------------------------------------------
 
 DEFAULT_POLICY_DATA = {
-    "allowed_protocol_combos": [
-        ["webdav", "webdav"],
-        ["s3", "webdav"],
-        ["xrdhttp", "webdav"],
-        ["s3", "xrdhttp"],
-        ["xrdhttp", "xrdhttp"],
-    ],
     "known_rse_types": [
         "DATADISK",
         "SCRATCHDISK",
         "LOCALGROUPDISK",
         "TAPE",
         "USERDISK",
-    ],
-    "allowed_schemes": [
-        "davs",
-        "s3",
-        "https",
-        "root",
-        "xrdhttp",
-        "gsiftp",
     ],
 }
 
