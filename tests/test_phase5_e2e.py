@@ -21,8 +21,9 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 import pytest
-from rucio_opa_v4_policy.opa_client import query_opa
 from tests.conftest import build_opa_server_fixture
+
+from rucio_opa_v4_policy.opa_client import query_opa
 
 REGO_PATH = Path(__file__).parent.parent / "phase5-opa" / "rego" / "authz.rego"
 OPA_POLICY_PATH = "vo/authz/v4/allow"
