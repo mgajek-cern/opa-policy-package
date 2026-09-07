@@ -91,7 +91,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["rucio_no_opa_policy", "rucio_opa_policy", "rucio_opa_v2_policy"]
+known-first-party = ["rucio_no_opa_policy", "rucio_opa_policy", "rucio_opa_v2_policy", "rucio_opa_v3_policy", "rucio_opa_v4_policy"]
 
 [tool.ruff.format]
 quote-style = "double"
