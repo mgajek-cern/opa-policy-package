@@ -54,9 +54,9 @@ This is deliberately **not** a new registry service, and deliberately **not** de
 
 **Who ingests it**: each component (Rucio, DLM) loads this file itself at startup, exactly as it loads its current single-issuer file today — no new runtime dependency, no service to stand up, no Vault integration. Reload behavior (SIGHUP, interval, or restart) is an implementation detail, not a new architectural piece.
 
-**The RSE-to-IAM binding is established solely through a new RSE attribute**: an attribute such as `aai_binding = egi-dev` is resolved by key lookup into this file. This attribute does not exist in Rucio today as a standard, cross-component concept — this ADR is what gives it that meaning, on top of Rucio's existing generic RSE-attribute mechanism. Many RSEs sharing the same issuer point to the same entry, so rotating a `client_id`/`client_secret` is one edit to one entry, not a find-and-replace across every RSE.
+**The RSE-to-IAM binding is established solely through a new RSE attribute**: an attribute such as `issuer_binding = egi-dev` is resolved by key lookup into this file. This attribute does not exist in Rucio today as a standard, cross-component concept — this ADR is what gives it that meaning, on top of Rucio's existing generic RSE-attribute mechanism. Many RSEs sharing the same issuer point to the same entry, so rotating a `client_id`/`client_secret` is one edit to one entry, not a find-and-replace across every RSE.
 
-For Rucio specifically, this relates through RSE attributes (`rse_attribute`), flat key→string pairs — well suited to holding the reference (`aai_binding = egi-dev`), not the entry itself. Sufficient for one RSE with one binding. Not sufficient for an RSE needing more than one binding — flat attributes can't express a list. That case needs one of: multiple named attribute keys (`aai_binding_src`/`aai_binding_dst`, doesn't generalize), a JSON-valued attribute if supported, or the reference moved into RSE protocol definitions instead. Undecided — see Open Points.
+For Rucio specifically, this relates through RSE attributes (`rse_attribute`), flat key→string pairs — well suited to holding the reference (`issuer_binding = egi-dev`), not the entry itself. Sufficient for one RSE with one binding. Not sufficient for an RSE needing more than one binding — flat attributes can't express a list. That case needs one of: multiple named attribute keys (`issuer_binding_src`/`issuer_binding_dst`, doesn't generalize), a JSON-valued attribute if supported, or the reference moved into RSE protocol definitions instead. Undecided — see Open Points.
 
 ## Rejected Alternative: Dynamic Registry Service and/or External Secrets Manager
 
@@ -74,7 +74,7 @@ Both a live registry service and an external secrets manager (Vault) were consid
 * `client_secret` and SCIM credentials are at rest in the file, same as the current single-issuer config — this decision does not improve secret-at-rest posture, it only removes the single-issuer limitation. File permissions and repo-exclusion remain the only safeguards, not secrets-manager-grade isolation.
 * File-based config still needs a reload mechanism (SIGHUP, interval, or restart) for changes to take effect without redeploying the component entirely — worth confirming this already exists rather than assuming it.
 * Flat RSE attributes do not natively express an RSE with multiple AAI bindings — see Open Points.
-* The `aai_binding` attribute is a new convention this ADR introduces, not an existing Rucio feature — it needs to be documented and adopted consistently by every component reading RSE attributes, or the binding silently fails to resolve.
+* The `issuer_binding` attribute is a new convention this ADR introduces, not an existing Rucio feature — it needs to be documented and adopted consistently by every component reading RSE attributes, or the binding silently fails to resolve.
 
 ## Open Points
 
@@ -86,6 +86,6 @@ Both a live registry service and an external secrets manager (Vault) were consid
 ## Confirmation
 
 Compliance is confirmed by:
-* A defined `aai_binding` (or equivalent) RSE attribute resolves, by key lookup, into the keyed credential file — this binding is a new cross-component convention, not a pre-existing Rucio feature.
+* A defined `issuer_binding` (or equivalent) RSE attribute resolves, by key lookup, into the keyed credential file — this binding is a new cross-component convention, not a pre-existing Rucio feature.
 * DLM (or any multi-AAI component) can be configured against N issuers by adding file entries, without code changes.
 * The multi-binding RSE representation is explicitly decided (not defaulted to single-binding by omission) before this ADR is marked accepted.
