@@ -92,5 +92,5 @@ jobs:
     with:
       phase_dir: phase6-opa
       phase_label: "Phase 6"
-      needs_keycloak: true
       smoke_test_file: tests/test_phase6_smoke.py
+      test_container: rucio-client
