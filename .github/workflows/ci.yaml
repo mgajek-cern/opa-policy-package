@@ -85,3 +85,12 @@ jobs:
       needs_keycloak: true
       e2e_test_file: tests/test_phase5_e2e.py
       smoke_test_file: tests/test_phase5_smoke.py
+
+  test-phase6:
+    name: Phase 6
+    uses: ./.github/workflows/_phase-opa-tests.yml
+    with:
+      phase_dir: phase6-opa
+      phase_label: "Phase 6"
+      smoke_test_file: tests/test_phase6_smoke.py
+      test_container: rucio-client

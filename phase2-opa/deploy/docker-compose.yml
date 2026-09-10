@@ -58,8 +58,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    profiles:
-      - full
 
   # Rucio server — configured to use the OPA policy package
   rucio:
@@ -87,7 +85,7 @@ services:
       - -c
       - |
         cp -r /policy-package/phase2-opa /tmp/rucio-opa-policy &&
-        pip install -q /tmp/rucio-opa-policy &&
+        pip install -q --force-reinstall --no-deps /tmp/rucio-opa-policy &&
         python3 /tmp/bootstrap-db.py &&
         exec /docker-entrypoint.sh httpd -DFOREGROUND
     healthcheck:
@@ -96,8 +94,6 @@ services:
       timeout: 5s
       start_period: 60s
       retries: 20
-    profiles:
-      - full
 
 volumes:
   ruciodb-data:

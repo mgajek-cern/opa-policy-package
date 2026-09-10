@@ -11,33 +11,41 @@ on:
         required: true
         type: string
         description: e.g. "Phase 2"
-      e2e_test_file:
-        required: true
-        type: string
-        description: e.g. tests/test_phase2_e2e.py
-      smoke_test_file:
-        required: true
-        type: string
-        description: e.g. tests/test_phase2_smoke.py
       unit_test_file:
         required: false
         type: string
         default: ""
-        description: e.g. tests/test_phase2_opa.py — omit for phases with no mocked-OPA unit tests (Phase 4/5)
+        description: mocked-OPA unit tests; omit for phases that have none (4/5/6)
       coverage_src:
         required: false
         type: string
         default: ""
         description: e.g. phase2-opa/src — omit to skip coverage upload
+      e2e_test_file:
+        required: false
+        type: string
+        default: ""
+      smoke_test_file:
+        required: false
+        type: string
+        default: ""
       needs_keycloak:
         required: false
         type: boolean
         default: false
+      test_container:
+        required: false
+        type: string
+        default: ""
+        description: compose service to run the tests in; empty runs them on the runner
 
 jobs:
   test:
     name: ${{ inputs.phase_label }} - Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.phase_dir }}/deploy
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,10 +53,12 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install pytest pytest-cov -e ${{ inputs.phase_dir }}/
+        working-directory: .
+        run: pip install pytest pytest-cov requests urllib3 -e ${{ inputs.phase_dir }}/
 
       - name: Unit tests (OPA mocked)
         if: inputs.unit_test_file != ''
+        working-directory: .
         run: |
           python -m pytest ${{ inputs.unit_test_file }} \
             -v --tb=short \
@@ -56,11 +66,13 @@ jobs:
             --cov-report=term-missing \
             --cov-report=xml:coverage-${{ inputs.phase_dir }}-unit.xml
 
-      - name: Start full stack
+      - name: Generate certificates
         run: |
-          cd ${{ inputs.phase_dir }}/deploy
-          docker compose --profile full up -d
-          docker wait rucio-opa-init
+          [ -x scripts/generate-certs.sh ] || { echo "No certs to generate."; exit 0; }
+          cd scripts && ./generate-certs.sh
+
+      - name: Start full stack
+        run: docker compose up -d --wait --wait-timeout 900
 
       - name: Wait for Keycloak token endpoint
         if: inputs.needs_keycloak
@@ -69,29 +81,43 @@ jobs:
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               -X POST http://localhost:8080/realms/rucio/protocol/openid-connect/token \
               -d "grant_type=password&client_id=rucio-oidc&client_secret=rucio-oidc-secret&username=alice&password=alice123" || echo "000")
-            [ "$STATUS" = "200" ] && echo "Keycloak token endpoint ready." && break
+            [ "$STATUS" = "200" ] && echo "Keycloak token endpoint ready." && exit 0
             echo "  attempt $i/30 — HTTP $STATUS"; sleep 5
           done
+          echo "Keycloak token endpoint never became ready."; exit 1
 
-      - name: Wait for Rucio
+      - name: Initialise testbed
         run: |
-          for i in $(seq 1 30); do
-            RSTATUS=$(docker inspect --format='{{.State.Health.Status}}' rucio-server 2>/dev/null || echo "starting")
-            [ "$RSTATUS" = "healthy" ] && echo "Rucio healthy." && break
-            echo "  attempt $i/30 — $RSTATUS"; sleep 5
-          done
+          [ -x scripts/init-testbed.sh ] || { echo "Nothing to initialise."; exit 0; }
+          cd scripts && ./init-testbed.sh
 
       - name: E2E tests (live OPA)
+        if: inputs.e2e_test_file != ''
+        working-directory: .
         env:
           OPA_URL: http://localhost:8181
         run: python -m pytest ${{ inputs.e2e_test_file }} -v --tb=short
 
       - name: Smoke tests
+        if: inputs.smoke_test_file != '' && inputs.test_container == ''
+        working-directory: .
         run: python -m pytest ${{ inputs.smoke_test_file }} -v --tb=short
+
+      - name: Smoke tests (in container)
+        if: inputs.smoke_test_file != '' && inputs.test_container != ''
+        run: |
+          docker compose exec -T ${{ inputs.test_container }} \
+            python3 -m pytest /tests/$(basename ${{ inputs.smoke_test_file }}) -v --tb=short
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --tail=200
 
       - name: Tear down
         if: always()
-        run: cd ${{ inputs.phase_dir }}/deploy && docker compose down
+        run: docker compose down -v
 
       - if: inputs.coverage_src != ''
         uses: actions/upload-artifact@v4

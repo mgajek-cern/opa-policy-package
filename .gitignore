@@ -216,3 +216,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Cryptographic keys and certificates
+*.pem
+*.key
+*.srl
+*.csr
+*.namespaces
+*.signing_policy
+!rucio_ca.key.pem
+!rucio_ca.pem
+!tls_ca_bundle.pem
+*.0

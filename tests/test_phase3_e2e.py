@@ -13,17 +13,7 @@ TPC feasibility dynamically per-RSE via the third_party_copy_read /
 third_party_copy_write protocol capability flags, so no Rego rule
 consumes allowed_protocol_combos anymore.
 
-Tests are automatically skipped when:
-  - the `opa` binary is not on PATH, OR
-  - OPA fails to start within the timeout
-
-Run manually:
-  pytest tests/test_phase3_e2e.py -v
-
-Docker alternative:
-  cd phase3-opa/deploy && docker compose up -d
-  OPA_URL=http://localhost:8181 pytest tests/test_phase3_e2e.py -v
-  docker compose down
+Skips automatically if the stack isn't reachable.
 """
 
 import json

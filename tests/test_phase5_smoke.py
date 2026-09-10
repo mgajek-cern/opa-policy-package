@@ -11,13 +11,6 @@ stack_urls/root_token are redefined locally (below), same pattern as
 test_phase4_smoke.py, since this phase also needs the Keycloak URL that
 Phase 2/3 don't.
 
-Requires a running stack:
-    cd phase5-opa/deploy
-    docker compose --profile full up -d
-    RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
-        KEYCLOAK_URL=http://localhost:8080 \
-        pytest tests/test_phase5_smoke.py -v
-
 Skips automatically if the stack isn't reachable.
 """
 

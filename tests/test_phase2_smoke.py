@@ -14,12 +14,6 @@ actually calls out to OPA end-to-end.
 stack_urls, root_token, rucio_call, and rucio_opa_container_logs are shared
 fixtures/helpers defined in conftest.py — see there for details.
 
-Requires a running stack:
-    cd phase2-opa/deploy
-    docker compose --profile full up -d
-    RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
-        pytest tests/test_phase2_smoke.py -v
-
 Skips automatically if the stack isn't reachable.
 """
 

@@ -6,15 +6,6 @@ full rationale. Does not duplicate OPA policy-content checks (RSE naming,
 account/DID ownership, rule owner self-service, protocol scheme allowlist,
 data-driven bundle overrides) — those are covered by test_phase3_e2e.py.
 
-stack_urls, root_token, rucio_call, and rucio_opa_container_logs are shared
-fixtures/helpers defined in conftest.py — see there for details.
-
-Requires a running stack:
-    cd phase3-opa/deploy
-    docker compose --profile full up -d
-    RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
-        pytest tests/test_phase3_smoke.py -v
-
 Skips automatically if the stack isn't reachable.
 """
 
