@@ -13,12 +13,6 @@ services:
       - "8080:8080"
     volumes:
       - ./keycloak-realm.json:/opt/keycloak/data/import/rucio-realm.json:ro
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health/ready || exit 1"]
-      interval: 10s
-      timeout: 10s
-      start_period: 120s
-      retries: 30
 
   # OPA — Policy Decision Point
   opa:
