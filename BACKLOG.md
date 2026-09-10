@@ -13,7 +13,7 @@ Touches `phase4-opa/deploy/keycloak-realm.json` (claim mapper),
 lookup), and `phase4-opa/deploy/ingest_policies.py` (bundle keys).
 No changes needed in Rucio or the Python permission module.
 
-## 2. [ ] FTS + real storage-endpoint integration
+## 2. [x] FTS + real storage-endpoint integration
 
 One source and one destination RSE supporting third-party copy (e.g. Teapot
 or XrootD), OIDC-enabled. Refer to

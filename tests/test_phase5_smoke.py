@@ -13,7 +13,7 @@ Phase 2/3 don't.
 
 Requires a running stack:
     cd phase5-opa/deploy
-    docker compose --profile full up -d
+    docker compose up -d
     RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
         KEYCLOAK_URL=http://localhost:8080 \
         pytest tests/test_phase5_smoke.py -v

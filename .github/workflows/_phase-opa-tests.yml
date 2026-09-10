@@ -59,7 +59,7 @@ jobs:
       - name: Start full stack
         run: |
           cd ${{ inputs.phase_dir }}/deploy
-          docker compose --profile full up -d
+          docker compose up -d
           docker wait rucio-opa-init
 
       - name: Wait for Keycloak token endpoint

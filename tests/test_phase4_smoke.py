@@ -14,7 +14,7 @@ this module only, without forcing a Keycloak-shaped tuple onto Phase 2/3.
 
 Requires a running stack:
     cd phase4-opa/deploy
-    docker compose --profile full up -d
+    docker compose up -d
     RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
         KEYCLOAK_URL=http://localhost:8080 \
         pytest tests/test_phase4_smoke.py -v
