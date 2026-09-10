@@ -197,7 +197,7 @@ services:
       - bash
       - -c
       - |
-        update-ca-trust extract
+        update-ca-trust extract &&
         cp -r /policy-package/phase6-opa /tmp/rucio-opa-policy &&
         pip install -q --force-reinstall --no-deps /tmp/rucio-opa-policy &&
         python3 /scripts/rucio/bootstrap-db.py &&
@@ -285,18 +285,18 @@ services:
       - bash
       - -c
       - |
-        update-ca-trust extract
+        update-ca-trust extract &&
         cp -r /policy-package/phase6-opa /tmp/rucio-opa-policy &&
         pip install -q --force-reinstall --no-deps /tmp/rucio-opa-policy &&
         dnf -y install yum-utils epel-release.noarch &&
         dnf install -y gfal2-all python3-gfal2-util python3-gfal2 gfal2-plugin-http &&
-        rucio-conveyor-submitter --sleep-time 5 &
-        rucio-conveyor-poller --sleep-time 5 &
-        rucio-conveyor-finisher --sleep-time 5 &
-        rucio-judge-evaluator --sleep-time 5 &
-        rucio-judge-cleaner --sleep-time 5 &
-        rucio-reaper --greedy --sleep-time 5 &
-        wait
+        { rucio-conveyor-submitter --sleep-time 5 &
+          rucio-conveyor-poller --sleep-time 5 &
+          rucio-conveyor-finisher --sleep-time 5 &
+          rucio-judge-evaluator --sleep-time 5 &
+          rucio-judge-cleaner --sleep-time 5 &
+          rucio-reaper --greedy --sleep-time 5 &
+          wait; }
     volumes:
       - ../../:/policy-package:ro
       - ./configs/rucio/server.token-exchange.cfg:/opt/rucio/etc/rucio.cfg:ro
