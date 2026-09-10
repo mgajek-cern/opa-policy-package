@@ -12,12 +12,14 @@ on:
         type: string
         description: e.g. "Phase 2"
       e2e_test_file:
-        required: true
+        required: false
         type: string
+        default: ""
         description: e.g. tests/test_phase2_e2e.py
       smoke_test_file:
-        required: true
+        required: false
         type: string
+        default: ""
         description: e.g. tests/test_phase2_smoke.py
       unit_test_file:
         required: false
@@ -45,7 +47,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install pytest pytest-cov -e ${{ inputs.phase_dir }}/
+        run: pip install pytest pytest-cov requests urllib3 -e ${{ inputs.phase_dir }}/
 
       - name: Unit tests (OPA mocked)
         if: inputs.unit_test_file != ''
@@ -82,11 +84,13 @@ jobs:
           done
 
       - name: E2E tests (live OPA)
+        if: ${{ inputs.e2e_test_file != '' }}
         env:
           OPA_URL: http://localhost:8181
         run: python -m pytest ${{ inputs.e2e_test_file }} -v --tb=short
 
       - name: Smoke tests
+        if: ${{ inputs.smoke_test_file != '' }}
         run: python -m pytest ${{ inputs.smoke_test_file }} -v --tb=short
 
       - name: Tear down

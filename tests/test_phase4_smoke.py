@@ -6,19 +6,6 @@ verification since Phase 4's whole privilege model depends on it. Does not
 duplicate OPA policy content (group privilege, self-service, root bootstrap,
 runtime bundle overrides) — covered by tests/test_phase4_e2e.py.
 
-rucio_call and rucio_opa_container_logs are shared helpers from conftest.py.
-stack_urls/root_token are redefined locally (below) rather than reusing the
-shared conftest.py fixtures, since this phase needs a third URL (Keycloak)
-that Phase 2/3 don't — a local fixture cleanly shadows the shared one for
-this module only, without forcing a Keycloak-shaped tuple onto Phase 2/3.
-
-Requires a running stack:
-    cd phase4-opa/deploy
-    docker compose up -d
-    RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
-        KEYCLOAK_URL=http://localhost:8080 \
-        pytest tests/test_phase4_smoke.py -v
-
 Skips automatically if the stack isn't reachable.
 """
 

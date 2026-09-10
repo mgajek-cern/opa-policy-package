@@ -54,6 +54,7 @@ ignore = [
 "tests/conftest.py" = [
     "S603",  # subprocess call is a controlled test fixture spawning a known binary
     "S607",  # partial executable path (opa) is intentional — resolved via PATH
+    "S501",
 ]
 "tests/test_phase2_e2e.py" = [
     "S603",
@@ -84,10 +85,6 @@ ignore = [
     "S607",
 ]
 "tests/test_phase5_smoke.py" = [
-    "S603",
-    "S607",
-]
-"tests/test_phase6_e2e.py" = [
     "S603",
     "S607",
 ]

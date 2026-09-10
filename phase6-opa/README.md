@@ -128,7 +128,7 @@ cd phase6-opa/deploy/scripts && ./init-testbed.sh && cd ../../..
 
 # 4. Run the transfer tests
 docker compose -f phase6-opa/deploy/docker-compose.yml exec -T rucio-client \
-    python3 -m pytest /tests/test_rucio_transfers.py -v
+    python3 -m pytest /tests/test_phase6_smoke.py -v
 
 # Teardown
 cd phase6-opa/deploy && docker compose down -v && cd ../..

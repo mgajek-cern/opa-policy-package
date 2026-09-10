@@ -1,5 +1,5 @@
 """
-test_rucio_transfers.py — OIDC end-to-end transfer tests for dep-dlm-testbed.
+test_phase6_smoke.py — OIDC end-to-end transfer tests for dep-dlm-testbed.
 
 Covers:
   - XRootD SciTokens TPC:  XRD3  → XRD4    (davs/SciTokens, FTS OIDC)
@@ -9,15 +9,6 @@ Prerequisites (handled by bootstrap-testbed.sh, xrd3_write_token, xrd4_write_tok
   - RSEs XRD3, XRD4, TEAPOT1, TEAPOT2 registered with OIDC attributes
   - FTS t_token_provider seeded with keycloak-rucio issuer entries
   - Rucio accounts ddmlab / randomaccount with quota on all four RSEs
-
-Typical invocations:
-    # Compose
-    docker exec compose-rucio-client-1 \\
-        bash -c "RUNTIME=compose pytest /tests/test_rucio_transfers.py -v"
-
-    # Kubernetes
-    kubectl -n dep-dlm-sandbox exec deploy/rucio-client -- \\
-        bash -c "RUNTIME=k8s K8S_NAMESPACE=dep-dlm-sandbox pytest /tests/test_rucio_transfers.py -v"
 """
 
 import binascii
@@ -138,9 +129,7 @@ class TestTeapotOIDC:
         log.info("  ✓ Seed confirmed readable (HTTP 200)")
 
         # Compute checksum locally (Teapot PROPFIND does not expose adler32)
-        adler32 = binascii.hexlify(
-            zlib.adler32(seed_content).to_bytes(4, "big")
-        ).decode()
+        adler32 = binascii.hexlify(zlib.adler32(seed_content).to_bytes(4, "big")).decode()
         size = len(seed_content)
 
         # Register replica and create replication rule
@@ -191,9 +180,7 @@ class TestCrossProtocolOIDC:
         # Wait for rucio-daemons (always-on) to converge the rule
         validate_rule(rucio_client, rule_id, "XRD3→TEAPOT1 cross-protocol", RUCIO_SVC)
 
-    def test_teapot1_to_xrd3(
-        self, rucio_client, teapot_token, teapots_ready, xrd3_write_token
-    ):
+    def test_teapot1_to_xrd3(self, rucio_client, teapot_token, teapots_ready, xrd3_write_token):
         """TEAPOT1 (WebDAV) → XRD3 (SciTokens, xrd3_write_token): seed via WebDAV PUT, dest via xrd3."""
         name = f"teapot-to-xrd-{int(time.time())}"
         seed_content = b"rucio-teapot-to-xrd-test\n"
@@ -226,9 +213,7 @@ class TestCrossProtocolOIDC:
         prepare_xrd_dest(dst_pfn, token=xrd3_write_token)
 
         # Compute checksum locally
-        adler32 = binascii.hexlify(
-            zlib.adler32(seed_content).to_bytes(4, "big")
-        ).decode()
+        adler32 = binascii.hexlify(zlib.adler32(seed_content).to_bytes(4, "big")).decode()
         size = len(seed_content)
 
         # Register replica and create replication rule
@@ -261,25 +246,17 @@ class TestDatasetOIDC:
         registered = seed_and_register_files(
             rucio_client, "XRD3", SCOPE, names, "xrd3", token=xrd3_write_token
         )
-        prepare_xrd_dest_files(
-            rucio_client, "XRD4", SCOPE, names, token=xrd4_write_token
-        )
+        prepare_xrd_dest_files(rucio_client, "XRD4", SCOPE, names, token=xrd4_write_token)
 
-        log.info(
-            "  Creating dataset %s:%s with %d files", SCOPE, dataset, len(registered)
-        )
-        rucio_client.add_dataset(
-            scope=SCOPE, name=dataset, rse="XRD3", files=registered
-        )
+        log.info("  Creating dataset %s:%s with %d files", SCOPE, dataset, len(registered))
+        rucio_client.add_dataset(scope=SCOPE, name=dataset, rse="XRD3", files=registered)
         log.info("  ✓ Dataset registered")
 
         rule_id = add_rule(rucio_client, SCOPE, dataset, "XRD4")
         # Wait for rucio-daemons (always-on) to converge the rule
         validate_rule(rucio_client, rule_id, "add_dataset XRD3→XRD4", RUCIO_SVC)
 
-    def test_add_files_to_dataset(
-        self, rucio_client, xrd3_write_token, xrd4_write_token
-    ):
+    def test_add_files_to_dataset(self, rucio_client, xrd3_write_token, xrd4_write_token):
         """Append two files to an existing dataset on XRD3, replicate to XRD4."""
         ts = int(time.time())
         dataset = f"oidc-existing-dataset-{ts}"
@@ -292,18 +269,12 @@ class TestDatasetOIDC:
         registered = seed_and_register_files(
             rucio_client, "XRD3", SCOPE, names, "xrd3", token=xrd3_write_token
         )
-        prepare_xrd_dest_files(
-            rucio_client, "XRD4", SCOPE, names, token=xrd4_write_token
-        )
+        prepare_xrd_dest_files(rucio_client, "XRD4", SCOPE, names, token=xrd4_write_token)
 
         log.info("  Appending %d files to %s:%s", len(registered), SCOPE, dataset)
-        rucio_client.add_files_to_dataset(
-            scope=SCOPE, name=dataset, rse="XRD3", files=registered
-        )
+        rucio_client.add_files_to_dataset(scope=SCOPE, name=dataset, rse="XRD3", files=registered)
         log.info("  ✓ Files appended")
 
         rule_id = add_rule(rucio_client, SCOPE, dataset, "XRD4")
         # Wait for rucio-daemons (always-on) to converge the rule
-        validate_rule(
-            rucio_client, rule_id, "add_files_to_dataset XRD3→XRD4", RUCIO_SVC
-        )
+        validate_rule(rucio_client, rule_id, "add_files_to_dataset XRD3→XRD4", RUCIO_SVC)
