@@ -233,8 +233,6 @@ services:
     depends_on:
       rucio-server:
         condition: service_healthy
-      rucio-daemons:
-        condition: service_healthy
     networks:
       - dep-dlm-testbed
     environment:
