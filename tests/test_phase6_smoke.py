@@ -14,13 +14,23 @@ are still driven directly with per-audience tokens from Keycloak.
 Prerequisites (handled by scripts/init-testbed.sh):
   - RSEs XRD3, XRD4, TEAPOT1, TEAPOT2 registered with OIDC attributes
   - FTS t_token_provider seeded with keycloak-rucio issuer entries
-  - Rucio accounts ddmlab / randomaccount with quota on all four RSEs
+  - Quota on all four RSEs for root, ddmlab, randomaccount and adminuser
+  - configs/teapot/user-mapping.csv maps the Keycloak subject of whoever
+    seeds files (conftest.OIDC_USERNAME, default seeduser) to a local user.
+    An unmapped subject gets HTTP 500 from Teapot before any storage area
+    is consulted, including on the warm-up PROPFIND.
 
 The Rucio credential comes from the rucio_token fixture, which defaults to
-userpass-as-root. That is deliberate: this suite tests transfers, not
-authorisation, and root short-circuits the Rego. The claims path is covered
-by test_phase6_authz.py. Set RUCIO_AUTH=oidc to run this suite
-token-natively once the Rego covers its actions (BACKLOG 3a).
+userpass-as-root — this suite tests transfers, not authorisation, and root
+short-circuits the Rego. The claims path is covered by
+test_phase6_authz.py.
+
+RUCIO_AUTH=oidc runs the suite as adminuser, which exercises validate_jwt
+and the claims path but still resolves to _is_privileged via the
+rucio-admins entitlement, so the entitlement branches are not discriminated
+either way. A genuinely non-privileged run additionally needs
+skip_availability_check resolved — Rucio treats it as an admin escalation,
+and add_replicas requests it under ignore_availability=True.
 """
 
 import binascii

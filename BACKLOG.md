@@ -21,28 +21,9 @@ or XrootD), OIDC-enabled. Refer to
 
 ## 3. [x] Close the OIDC → has_permission() gap
 
-`_extract_entitlements()` read `issuer.oidc_token_info`; `issuer` is an
-`InternalAccount`, a name wrapper that never carried claims. The function
-returned `[]` for every request, so `_is_privileged` was reachable only via
-the `input.issuer == "root"` bootstrap rule and every entitlement-driven
-rule was dead in a live stack.
+`_extract_entitlements()` read `issuer.oidc_token_info`; `issuer` is an `InternalAccount`, a name wrapper that never carried claims. The function returned `[]` for every request, so `_is_privileged` was reachable only via the `input.issuer == "root"` bootstrap rule and every entitlement-driven rule was dead in a live stack.
 
-Fixed for phase 6 by decoding the JWT payload where the token is validated
-and threading it to `request.environ['token_claims']` — four patches in
-`patches/rucio/` plus the policy module. Verified with a real Keycloak
-token reaching the OPA input document as `token.entitlements`. See
-[docs/design/design-001-token-claims-to-opa.md](./docs/design/design-001-token-claims-to-opa.md).
-
-Follow-ups, in order:
-
-- **3a. [ ] Rego action coverage.** ~70 `perm_*` actions fall through to
-  privileged-only. Needed before the client switches to OIDC, or every
-  smoke test denies at once.
-- **3b. [ ] Exercise the path from the test suite.** Mount
-  `oidc-client.cfg` on `rucio-client`; non-interactive `make_client()`;
-  one positive and one negative entitlement assertion.
-- **3c. [ ] Apply to phases 4 and 5.** Same patches; phase 4 reads
-  `wlcg.groups`.
+Fixed for phase 6 by decoding the JWT payload where the token is validated and threading it to `request.environ['token_claims']` — four patches in `patches/rucio/` plus the policy module. Verified with a real Keycloak token reaching the OPA input document as `token.entitlements`. See [docs/design/design-001-token-claims-to-opa.md](./docs/design/design-001-token-claims-to-opa.md).
 
 ## 4. [ ] Stand up the Authorization Service ([docs/adrs/adr-001-authz-service.md](./docs/adrs/adr-001-authz-service.md))
 

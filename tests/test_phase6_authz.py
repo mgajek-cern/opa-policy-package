@@ -14,6 +14,7 @@ headers, so a failure says why.
 """
 
 import os
+import time
 
 import pytest
 
@@ -69,6 +70,17 @@ def user_token():
     return _token(USER_USERNAME, USER_PASSWORD)
 
 
+def _did_name(prefix):
+    return f"{prefix}-{int(time.time() * 1000)}"
+
+
+# TestEntitlementAuthorisation covers the privileged path — an entitlement
+# that maps to "admin" in the bundle. TestSelfService covers the ownership
+# clauses, which gate on kwargs matching the issuer rather than on
+# entitlements; those would pass for any authenticated account and test the
+# Rego's logic rather than the claims plumbing.
+
+
 class TestEntitlementAuthorisation:
     def test_admin_entitlement_allows_privileged_action(self, admin_token):
         """rucio-admins → admin in the bundle → _is_privileged → allow."""
@@ -88,3 +100,66 @@ class TestEntitlementAuthorisation:
             f"{exc_cls}: {exc_msg} — AccessDenied means the policy denied; "
             "CannotAuthenticate means the token never reached it"
         )
+
+
+# Self-service: the non-privileged clauses gate on kwargs matching the
+# issuer, not on entitlements. These would pass for any authenticated
+# account, so they test the Rego's ownership logic rather than the claims
+# path — the pair above is what guards the plumbing.
+
+
+class TestSelfService:
+    def test_user_can_create_did_in_own_scope(self, user_token):
+        """startswith(kwargs.scope, issuer) → allow."""
+        name = _did_name("selfservice")
+        resp = rucio_rest(f"/dids/{USER_USERNAME}/{name}", user_token, "POST", {"type": "DATASET"})
+        assert resp.status_code == 201, f"HTTP {resp.status_code} {deny_reason(resp)}"
+
+    def test_user_cannot_create_did_in_foreign_scope(self, user_token):
+        """scope ddmlab, issuer randomaccount → no ownership → deny."""
+        name = _did_name("foreign")
+        resp = rucio_rest(f"/dids/ddmlab/{name}", user_token, "POST", {"type": "DATASET"})
+        assert resp.status_code in (401, 403), f"HTTP {resp.status_code}"
+        assert deny_reason(resp)[0] == "AccessDenied", deny_reason(resp)
+
+    def test_user_can_add_rule_for_own_account(self, user_token):
+        """kwargs.account == issuer and locked == false → allow."""
+        name = _did_name("ownrule")
+        rucio_rest(f"/dids/{USER_USERNAME}/{name}", user_token, "POST", {"type": "DATASET"})
+        resp = rucio_rest(
+            "/rules/",
+            user_token,
+            "POST",
+            {
+                "dids": [{"scope": USER_USERNAME, "name": name}],
+                "copies": 1,
+                "rse_expression": "XRD4",
+                "account": USER_USERNAME,
+            },
+        )
+        assert resp.status_code == 201, f"HTTP {resp.status_code} {deny_reason(resp)}"
+
+    def test_user_cannot_add_rule_for_another_account(self, user_token):
+        """kwargs.account != issuer and not privileged → deny.
+
+        Rucio returns 500 rather than 401 here: POST /rules/ doesn't
+        translate the AccessDenied raised for a mismatched account, so
+        ErrorHandlingMethodView catches it as an untranslated RucioException.
+        The policy denies correctly — visible in the OPA input log — so the
+        assertion is "the rule was not created" rather than a status code.
+        Tighten this to (401, 403) if a future Rucio fixes the translation.
+        """
+        name = _did_name("otherrule")
+        rucio_rest(f"/dids/{USER_USERNAME}/{name}", user_token, "POST", {"type": "DATASET"})
+        resp = rucio_rest(
+            "/rules/",
+            user_token,
+            "POST",
+            {
+                "dids": [{"scope": USER_USERNAME, "name": name}],
+                "copies": 1,
+                "rse_expression": "XRD4",
+                "account": "ddmlab",
+            },
+        )
+        assert resp.status_code != 201, f"rule was created for another account: {resp.text[:200]}"
