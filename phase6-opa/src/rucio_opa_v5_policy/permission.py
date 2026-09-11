@@ -44,6 +44,7 @@ log = logging.getLogger(__name__)
 # denied" errors where it's unclear which kwarg Rego is missing. Off by
 # default since it can be noisy / verbose in production.
 _DEBUG_INPUT = os.environ.get("RUCIO_OPA_DEBUG_INPUT", "").strip() in ("1", "true", "True")
+log.warning("rucio_opa_v5_policy.permission loaded from %s", __file__)
 
 
 def has_permission(
@@ -67,23 +68,38 @@ def _build_input(
     return {
         "issuer": issuer.external,
         "action": action,
-        "token": {"entitlements": _extract_entitlements(issuer)},
+        "token": {"entitlements": _extract_entitlements()},
         "kwargs": _serialisable_kwargs(kwargs),
     }
 
 
-def _extract_entitlements(issuer: "InternalAccount") -> list[str]:
+def _extract_entitlements() -> list[str]:
     """
-    Extract URN entitlements from the account's OIDC token if present.
+    Read the entitlements claim from the current request.
 
-    Rucio attaches decoded JWT claims to InternalAccount via oidc_token_info
-    after the /auth/oidc flow. Falls back to [] for non-OIDC accounts.
+    Populated by the patched REST layer (see patches/rucio/). Returns []
+    outside a request context, which unit tests rely on.
     """
     try:
-        token_info: dict = getattr(issuer, "oidc_token_info", None) or {}
-        return list(token_info.get("entitlements", []))
-    except Exception:  # noqa: BLE001
+        from flask import has_request_context, request
+    except ImportError:
+        if _DEBUG_INPUT:
+            log.warning("OPA entitlements: flask not importable")
         return []
+    if not has_request_context():
+        if _DEBUG_INPUT:
+            log.warning("OPA entitlements: no flask request context")
+        return []
+    claims = request.environ.get("token_claims") or {}
+    value = claims.get("entitlements", [])
+    entitlements = [value] if isinstance(value, str) else list(value)
+    if _DEBUG_INPUT:
+        log.warning(
+            "OPA entitlements: claim_keys=%s entitlements=%s",
+            sorted(claims),
+            entitlements,
+        )
+    return entitlements
 
 
 _PASSTHROUGH_KEYS: frozenset[str] = frozenset(

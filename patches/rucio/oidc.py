@@ -1724,6 +1724,7 @@ def __get_rucio_jwt_dict(jwt: str, account=None, *, session: "Session"):
             "lifetime": expiry_date,
             "audience": audience,
             "authz_scope": scope,
+            "claims": token_payload,
         }
         return value
     except Exception:
