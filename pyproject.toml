@@ -23,7 +23,7 @@ pythonpath = ["phase1-no-opa/src", "phase2-opa/src", "phase3-opa/src", "phase4-o
 target-version = "py39"
 line-length = 100
 src = ["phase1-no-opa/src", "phase2-opa/src", "phase3-opa/src", "phase4-opa/src" , "phase5-opa/src", "phase6-opa/src", "tests"]
-exclude = [".git", ".venv", "__pycache__", "build", "dist", "phase6-opa"]
+exclude = [".git", ".venv", "__pycache__", "build", "dist", "patches"]
 
 [tool.ruff.lint]
 select = [

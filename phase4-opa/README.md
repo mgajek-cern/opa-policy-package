@@ -89,7 +89,7 @@ package = rucio_opa_v3_policy
 
 ```bash
 # Start the full stack (Rucio + OPA + Keycloak + PostgreSQL) once for e2e + smoke
-cd phase4-opa/deploy && docker compose up -d && cd ../..
+cd deploy/compose && docker compose -f docker-compose.phase4.yml up -d && cd ../..
 
 # E2E — against OPA directly
 OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase4_e2e.py -v
@@ -100,7 +100,7 @@ RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
     python3 -m pytest tests/test_phase4_smoke.py -v
 
 # Teardown
-cd phase4-opa/deploy && docker compose down -v && cd ../..
+cd deploy/compose && docker compose -f docker-compose.phase4.yml down -v && cd ../..
 ```
 
 ## Verify Keycloak issues wlcg.groups

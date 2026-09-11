@@ -45,13 +45,13 @@ IDPSECRETS_PATH_IN_CONTAINER="${IDPSECRETS_PATH_IN_CONTAINER:-/opt/rucio/etc/idp
 
 _exec() {
     local svc=$1; shift
-    docker exec "deploy-${svc}-1" "$@"
+    docker exec "compose-${svc}-1" "$@"
 }
 
 _restart() {
     local svc
     for svc in "$@"; do
-        docker restart "deploy-${svc}-1"
+        docker restart "compose-${svc}-1"
     done
 }
 
