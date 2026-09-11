@@ -3,10 +3,14 @@ name: Phase OPA Tests
 on:
   workflow_call:
     inputs:
-      phase_dir:
+      phase:
         required: true
         type: string
-        description: e.g. phase2-opa
+        description: phase key, e.g. phase2
+      package_dir:
+        required: true
+        type: string
+        description: installable policy package, e.g. phase2-opa
       phase_label:
         required: true
         type: string
@@ -39,13 +43,13 @@ on:
         default: ""
         description: compose service to run the tests in; empty runs them on the runner
 
+env:
+  COMPOSE_FILE: deploy/compose/docker-compose.${{ inputs.phase }}.yml
+
 jobs:
   test:
     name: ${{ inputs.phase_label }} - Tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ inputs.phase_dir }}/deploy
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -53,18 +57,16 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        working-directory: .
-        run: pip install pytest pytest-cov requests urllib3 -e ${{ inputs.phase_dir }}/
+        run: pip install pytest pytest-cov requests urllib3 -e ${{ inputs.package_dir }}/
 
       - name: Unit tests (OPA mocked)
         if: inputs.unit_test_file != ''
-        working-directory: .
         run: |
           python -m pytest ${{ inputs.unit_test_file }} \
             -v --tb=short \
             --cov=${{ inputs.coverage_src }} \
             --cov-report=term-missing \
-            --cov-report=xml:coverage-${{ inputs.phase_dir }}-unit.xml
+            --cov-report=xml:coverage-${{ inputs.package_dir }}-unit.xml
 
       - name: Generate certificates
         run: |
@@ -87,20 +89,17 @@ jobs:
           echo "Keycloak token endpoint never became ready."; exit 1
 
       - name: Initialise testbed
-        run: |
-          [ -x scripts/init-testbed.sh ] || { echo "Nothing to initialise."; exit 0; }
-          cd scripts && ./init-testbed.sh
+        if: inputs.phase == 'phase6'
+        run: cd scripts && ./init-testbed.sh
 
       - name: E2E tests (live OPA)
         if: inputs.e2e_test_file != ''
-        working-directory: .
         env:
           OPA_URL: http://localhost:8181
         run: python -m pytest ${{ inputs.e2e_test_file }} -v --tb=short
 
       - name: Smoke tests
         if: inputs.smoke_test_file != '' && inputs.test_container == ''
-        working-directory: .
         run: python -m pytest ${{ inputs.smoke_test_file }} -v --tb=short
 
       - name: Smoke tests (in container)
@@ -122,5 +121,5 @@ jobs:
       - if: inputs.coverage_src != ''
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ inputs.phase_dir }}-unit
-          path: coverage-${{ inputs.phase_dir }}-unit.xml
+          name: coverage-${{ inputs.package_dir }}-unit
+          path: coverage-${{ inputs.package_dir }}-unit.xml
