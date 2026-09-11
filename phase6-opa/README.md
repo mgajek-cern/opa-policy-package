@@ -65,7 +65,7 @@ name still requires it. Update at runtime without restarting Rucio or OPA.
 
 Same realm model as Phase 5 (`entitlements` claim, per-user attribute), plus
 token-exchange audience clients for the transfer path itself (`xrd3`, `xrd4`,
-`teapot1`, `teapot2`, `fts`) — see `deploy/configs/keycloak/realm.json`.
+`teapot1`, `teapot2`, `fts`) — see `deploy/configs/keycloak/phase6/realm.json`.
 
 Two Keycloak-specific details the LS AAI profile in
 [dep-dlm-bbmri](https://github.com/RI-SCALE/dep-dlm-bbmri) doesn't need, both
@@ -117,21 +117,21 @@ first, then start the stack, then initialize RSEs/accounts:
 
 ```bash
 # 1. Generate CA + host certs (xrd3, xrd4, teapot1, teapot2, rucio-server, fts, keycloak)
-cd phase6-opa/deploy/scripts && ./generate-certs.sh && cd ../../..
+cd scripts && ./generate-certs.sh && cd ..
 
 # 2. Start the full stack
-cd phase6-opa/deploy && docker compose up -d && cd ../..
+cd deploy/compose && docker compose -f docker-compose.phase6.yml up -d && cd ../..
 
 # 3. Grant token exchange, register RSEs/accounts/scopes, seed OIDC subject
 #    tokens, register the FTS token provider
-cd phase6-opa/deploy/scripts && ./init-testbed.sh && cd ../../..
+cd scripts && ./init-testbed.sh && cd ..
 
 # 4. Run the transfer tests
-docker compose -f phase6-opa/deploy/docker-compose.yml exec -T rucio-client \
+docker exec -it compose-rucio-client-1 \
     python3 -m pytest /tests/test_phase6_smoke.py -v
 
 # Teardown
-cd phase6-opa/deploy && docker compose down -v && cd ../..
+cd deploy/compose && docker compose -f docker-compose.phase6.yml down -v && cd ../..
 ```
 
 `init-testbed.sh` resolves `docker-compose.yml` relative to its own location,
@@ -153,7 +153,7 @@ Expected: `REPLICATING` → `OK` rules targeting `XRD4` (sourced from `XRD3`),
 Seeded subject tokens, if the transfers stall at `STUCK`:
 
 ```bash
-docker exec deploy-ruciodb-1 env PGPASSWORD=rucio psql -U rucio -tAc \
+docker exec compose-ruciodb-1 env PGPASSWORD=rucio psql -U rucio -tAc \
   "SELECT account, oidc_scope, audience FROM tokens WHERE identity LIKE 'SUB=%';"
 ```
 

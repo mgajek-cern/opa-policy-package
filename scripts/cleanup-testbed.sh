@@ -3,7 +3,7 @@ set -euo pipefail
 
 _exec() {
     local svc=$1; shift
-    docker exec "deploy-${svc}-1" "$@"
+    docker exec "compose-${svc}-1" "$@"
 }
 
 ra() { _exec rucio-server rucio-admin -S userpass -u ddmlab --password secret "$@"; }

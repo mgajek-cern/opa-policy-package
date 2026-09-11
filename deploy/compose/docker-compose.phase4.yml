@@ -12,7 +12,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./keycloak-realm.json:/opt/keycloak/data/import/rucio-realm.json:ro
+      - ../../configs/keycloak/phase4/realm.json:/opt/keycloak/data/import/realm.json:ro
 
   # OPA — Policy Decision Point
   opa:
@@ -29,18 +29,16 @@ services:
     depends_on:
       - opa
     volumes:
-      - .:/app
-      - ../rego:/rego
+      - ../../scripts/ingest_policies.py:/app/ingest_policies.py:ro
+      - ../../rego/phase4:/app/rego/phase4:ro
     working_dir: /app
     command:
       - sh
       - -c
       - |
-        echo 'Waiting for OPA...'
-        until python -c "import urllib.request; urllib.request.urlopen('http://opa:8181/health')" 2>/dev/null; do
-          sleep 1
-        done
-        python ingest_policies.py --opa-url http://opa:8181
+        until python -c "import urllib.request; urllib.request.urlopen('http://opa:8181/health')" 2>/dev/null; do sleep 1; done
+        python ingest_policies.py --phase phase4 --opa-url http://opa:8181 \
+          --rego-path /app/rego/phase4/authz.rego
     restart: "no"
 
   # PostgreSQL
@@ -77,10 +75,10 @@ services:
       OPA_POLICY_PATH: vo/authz/v3/allow
       OPA_TIMEOUT: 2
     volumes:
-      - ./rucio.cfg:/opt/rucio/etc/rucio.cfg:ro
-      - ./idpsecrets.json:/opt/rucio/etc/idpsecrets.json:ro
-      - ../../common/bootstrap-db.py:/tmp/bootstrap-db.py:ro
-      - ../../common/alembic.ini:/opt/rucio/etc/alembic.ini:ro
+      - ../../configs/rucio/phase4/rucio.cfg:/opt/rucio/etc/rucio.cfg:ro
+      - ../../configs/rucio/phase4/idpsecrets.json:/opt/rucio/etc/idpsecrets.json:ro
+      - ../../scripts/rucio/bootstrap-db.py:/tmp/bootstrap-db.py:ro
+      - ../../configs/rucio/alembic.ini:/opt/rucio/etc/alembic.ini:ro
       - ../../:/policy-package:ro
     entrypoint:
       - bash

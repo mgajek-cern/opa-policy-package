@@ -21,25 +21,16 @@ services:
     depends_on:
       - opa
     volumes:
-      - .:/app        # ingest_policies.py
-      - ../rego:/rego # authz.rego
+      - ../../scripts/ingest_policies.py:/app/ingest_policies.py:ro
+      - ../../rego/phase3:/app/rego/phase3:ro
     working_dir: /app
-    environment:
-      - VO_ADMINS=${VO_ADMINS:-}
     command:
       - sh
       - -c
       - |
-        echo 'Waiting for OPA...'
-        until python -c "import urllib.request; urllib.request.urlopen('http://opa:8181/health')" 2>/dev/null; do
-          sleep 1
-        done
-        echo 'OPA ready.'
-        if [ -n "$$VO_ADMINS" ]; then
-          python ingest_policies.py --opa-url http://opa:8181 --admins "$$VO_ADMINS"
-        else
-          python ingest_policies.py --opa-url http://opa:8181
-        fi
+        until python -c "import urllib.request; urllib.request.urlopen('http://opa:8181/health')" 2>/dev/null; do sleep 1; done
+        python ingest_policies.py --phase phase3 --opa-url http://opa:8181 \
+          --rego-path /app/rego/phase3/authz.rego
     restart: "no"
 
   # PostgreSQL — Rucio metadata store
@@ -76,9 +67,9 @@ services:
       - OPA_POLICY_PATH=vo/authz/v2/allow
       - OPA_TIMEOUT=2
     volumes:
-      - ./rucio.cfg:/opt/rucio/etc/rucio.cfg:ro
-      - ../../common/bootstrap-db.py:/tmp/bootstrap-db.py:ro
-      - ../../common/alembic.ini:/opt/rucio/etc/alembic.ini:ro
+      - ../../configs/rucio/phase3/rucio.cfg:/opt/rucio/etc/rucio.cfg:ro
+      - ../../scripts/rucio/bootstrap-db.py:/tmp/bootstrap-db.py:ro
+      - ../../configs/rucio/alembic.ini:/opt/rucio/etc/alembic.ini:ro
       - ../../:/policy-package:ro
     entrypoint:
       - bash
