@@ -92,7 +92,7 @@ def _extract_entitlements() -> list[str]:
         return []
     claims = request.environ.get("token_claims") or {}
     value = claims.get("entitlements", [])
-    entitlements = [value] if isinstance(value, str) else list(value)
+    entitlements = value.split() if isinstance(value, str) else list(value)
     if _DEBUG_INPUT:
         log.warning(
             "OPA entitlements: claim_keys=%s entitlements=%s",

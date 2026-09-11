@@ -98,4 +98,5 @@ jobs:
       package_dir: phase6-opa
       phase_label: "Phase 6"
       smoke_test_file: tests/test_phase6_smoke.py
+      authz_test_file: tests/test_phase6_authz.py
       test_container: rucio-client

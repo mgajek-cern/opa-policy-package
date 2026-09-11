@@ -24,8 +24,15 @@ OIDC_EXPECTED_AUDIENCE="${OIDC_EXPECTED_AUDIENCE:-rucio}"
 # Grant used to mint the subject token.
 
 OIDC_SEED_GRANT="${OIDC_SEED_GRANT:-}"
-OIDC_USERNAME="${OIDC_USERNAME:-randomaccount}"
+OIDC_USERNAME="${OIDC_USERNAME:-seeduser}"
 OIDC_PASSWORD="${OIDC_PASSWORD:-secret}"
+
+AUTHZ_TEST_USERS=(
+    "adminuser:admin123:adminuser"
+    "randomaccount:secret:randomaccount"
+)
+
+OIDC_AUTHZ_SCOPE="${OIDC_AUTHZ_SCOPE:-$OIDC_SEED_SCOPE}"
 
 # Name registered in FTS's t_token_provider. Cosmetic, but keeping it
 # aligned with the issuer makes `SELECT * FROM t_token_provider` readable.
@@ -150,11 +157,20 @@ setup_accounts_and_identities() {
         --account ddmlab --password secret || true
     ra account add-attribute ddmlab --key admin --value True || true
     ra account update --account ddmlab --key type --value SERVICE || true
-    ra account add --type USER --email randomaccount@rucio randomaccount || true
-    ra account add-attribute randomaccount --key admin --value True || true
 
-    echo "  OIDC identities are mapped during subject-token seeding below"
-    echo "  (client_credentials service account on ${OIDC_CLIENT_ID})."
+    # randomaccount is the negative case for the authz tests, so it must NOT
+    # be admin. The phase 6 Rego is token-native and ignores account
+    # attributes, but leaving admin=True here would mislead anyone reading
+    # the setup and would matter under the generic policy module.
+    ra account add --type USER --email randomaccount@rucio randomaccount || true
+    ra account delete-attribute randomaccount --key admin || true
+
+    # Positive case for the authz tests: holds the rucio-admins entitlement
+    # in Keycloak. Privilege comes from the token, not from this account.
+    ra account add --type USER --email adminuser@rucio adminuser || true
+
+    echo "  OIDC identities: seeding subject mapped in seed_subject_tokens,"
+    echo "  authz test users in setup_authz_test_identities."
 }
 
 # ── Subject-token seeding (managed-mode token exchange) ──────────
@@ -337,6 +353,113 @@ cleanup_session_tokens() {
     done
 }
 
+# ── Authz test identities (BACKLOG 3b) ───────────────────────────
+
+setup_authz_test_identities() {
+    if [[ "$OIDC_ISSUER" != *"/realms/"* ]]; then
+        echo "  Skipping authz test identities (not a local Keycloak issuer)"
+        return 0
+    fi
+    echo "=== Mapping OIDC identities for authz tests ==="
+    echo "  scope: $OIDC_AUTHZ_SCOPE"
+
+    local entry username password account
+    for entry in "${AUTHZ_TEST_USERS[@]}"; do
+        IFS=: read -r username password account <<< "$entry"
+
+        _exec rucio-server env \
+            AUTHZ_USERNAME="$username" \
+            AUTHZ_PASSWORD="$password" \
+            AUTHZ_ACCOUNT="$account" \
+            AUTHZ_SCOPE="$OIDC_AUTHZ_SCOPE" \
+            OIDC_TOKEN_URL="$OIDC_TOKEN_URL" \
+            OIDC_CLIENT_ID="$OIDC_CLIENT_ID" \
+            OIDC_CLIENT_SECRET="$OIDC_CLIENT_SECRET" \
+            OIDC_EXPECTED_AUDIENCE="$OIDC_EXPECTED_AUDIENCE" \
+            python3 -c "
+import urllib.request, urllib.parse, json, base64, ssl, os, sys
+from rucio.core.identity import add_account_identity
+from rucio.core import oidc
+from rucio.common.types import InternalAccount
+from rucio.common import exception
+
+_SSL = ssl.create_default_context()
+_SSL.check_hostname = False
+_SSL.verify_mode = ssl.CERT_NONE
+
+username = os.environ['AUTHZ_USERNAME']
+account  = os.environ['AUTHZ_ACCOUNT']
+
+data = urllib.parse.urlencode({
+    'grant_type': 'password',
+    'username': username,
+    'password': os.environ['AUTHZ_PASSWORD'],
+    'scope':    os.environ['AUTHZ_SCOPE'],
+}).encode()
+_auth = base64.b64encode(
+    f\"{os.environ['OIDC_CLIENT_ID']}:{os.environ['OIDC_CLIENT_SECRET']}\".encode()
+).decode()
+req = urllib.request.Request(os.environ['OIDC_TOKEN_URL'], data=data,
+                             headers={'Authorization': f'Basic {_auth}'})
+
+try:
+    token = json.loads(urllib.request.urlopen(req, context=_SSL).read())['access_token']
+except urllib.error.HTTPError as e:
+    print(f'  ✗ Token request failed for {username}: '
+          f'HTTP {e.code} {e.read().decode()[:200]}')
+    sys.exit(1)
+
+claims = json.loads(base64.urlsafe_b64decode(token.split('.')[1] + '=='))
+identity = oidc.oidc_identity_string(claims['sub'], claims['iss'])
+
+# Fail loudly at init rather than as an opaque 401 during the test run.
+granted = set(claims.get('scope', '').split())
+required = set(os.environ['AUTHZ_SCOPE'].split()) - {'aud:rucio'}
+missing = required - granted
+if missing:
+    print(f'  ⚠ {username}: scopes not granted: {sorted(missing)} — '
+          'validate_jwt will reject this token')
+
+aud = claims.get('aud', '')
+aud = aud if isinstance(aud, list) else [aud]
+if os.environ['OIDC_EXPECTED_AUDIENCE'] not in aud:
+    print(f'  ⚠ {username}: aud={aud} lacks '
+          f\"{os.environ['OIDC_EXPECTED_AUDIENCE']!r} — request the aud:rucio scope\")
+
+if 'entitlements' not in claims:
+    print(f'  ⚠ {username}: no entitlements claim — check the '
+          \"'entitlements' client scope on the rucio client\")
+
+try:
+    add_account_identity(identity, 'OIDC', InternalAccount(account), f'{account}@rucio')
+    print(f'  ✓ {username} → {account}: {identity}')
+except exception.Duplicate:
+    print(f'  ✓ {username} → {account} already mapped')
+print(f'      entitlements = {claims.get(\"entitlements\")}')
+"
+    done
+}
+
+assert_identities_unambiguous() {
+    echo "=== Checking OIDC identity → account mapping ==="
+    local dupes
+    dupes=$(_exec ruciodb env PGPASSWORD=rucio psql -U rucio -tAc \
+      "SELECT identity || ' → ' || count(*) || ' accounts'
+         FROM account_map
+        WHERE identity_type='OIDC'
+        GROUP BY identity HAVING count(*) > 1;")
+
+    if [[ -n "$dupes" ]]; then
+        echo "  ⚠ subjects mapped to multiple accounts:"
+        echo "$dupes" | sed 's/^/      /'
+        echo "    Expected for the seeding subject (root + ddmlab share it)."
+        echo "    If an authz test subject appears here, its token resolves"
+        echo "    ambiguously in validate_jwt() and the test is meaningless."
+    else
+        echo "  ✓ every OIDC subject maps to exactly one account"
+    fi
+}
+
 # ── RSE Configuration ─────────────────────────────────────────────
 
 configure_rses() {
@@ -447,6 +570,7 @@ setup_scopes_and_quotas() {
         ra account set-limits root "$rse" -1 || true
         ra account set-limits randomaccount "$rse" -1 || true
         ra account set-limits ddmlab "$rse" -1 || true
+        ra account set-limits adminuser "$rse" -1 || true
     done
 }
 
@@ -544,10 +668,12 @@ main() {
     setup_accounts_and_identities
     grant_token_exchange
     seed_subject_tokens
+    setup_authz_test_identities
     configure_rses
     cleanup_session_tokens
     setup_scopes_and_quotas
     setup_fts_oidc_provider
+    assert_identities_unambiguous
 
     echo -e "\n=== Initialization Complete ==="
 }

@@ -34,13 +34,15 @@ RUCIO_USERNAME = "ddmlab"
 RUCIO_PASSWORD = "secret"
 
 OPA_STARTUP_TIMEOUT = 10  # seconds
+RUCIO_REST_URL = os.environ.get("RUCIO_URL", "http://rucio-server").rstrip("/")
 
 
 # ── Phase 2/3 Rucio stubs ─────────────────────────────────────────────────
 #
-# Keep these lightweight stubs only when the real Rucio package is not
-# available. Phase 6 needs the actual Rucio Python client, so unconditionally
-# replacing the rucio package here would break the Phase 6 fixtures.
+# Lightweight stubs for the phase 1/2/3 unit tests, which import
+# InternalAccount and has_account_attribute but never reach a live server.
+# Installed only when the real Rucio package is absent, so they don't shadow
+# it where it is present.
 
 
 def _make_stub_modules() -> None:
@@ -298,8 +300,6 @@ TEAPOT2_URL = os.environ.get("TEAPOT2_URL") or (
     f"https://{VALSTORAGE_HOST}:8082" if VALSTORAGE_HOST else "https://teapot2:8081"
 )
 
-CFG_RUCIO = "/opt/rucio/etc/rucio.cfg"
-
 
 # ── Phase 6 OIDC provider config ─────────────────────────────────────────
 #
@@ -317,7 +317,7 @@ OIDC_TOKEN_URL = (
 
 OIDC_CLIENT_ID = os.environ.get("OIDC_CLIENT_ID") or "rucio"
 OIDC_CLIENT_SECRET = os.environ.get("OIDC_CLIENT_SECRET") or "rucio-secret"
-OIDC_USERNAME = os.environ.get("OIDC_USERNAME") or "randomaccount"
+OIDC_USERNAME = os.environ.get("OIDC_USERNAME") or "seeduser"
 OIDC_PASSWORD = os.environ.get("OIDC_PASSWORD") or "secret"
 
 OIDC_GRANT_TYPE = os.environ.get("OIDC_GRANT_TYPE") or "password"  # password | client_credentials
@@ -350,59 +350,107 @@ def _auth_headers(token: str = None) -> dict:
     return {"Authorization": f"Bearer {token}"} if token else {}
 
 
-# ── Phase 6 Rucio client ──────────────────────────────────────────────────
+# ── Phase 6 Rucio REST ────────────────────────────────────────────────────
+#
+# REST rather than the Rucio Python client: the client needs a rucio.cfg
+# mounted in the container, and auth_type=oidc there drives an interactive
+# browser flow. Going over REST keeps the suite runnable anywhere that can
+# reach the server, and surfaces ExceptionClass/ExceptionMessage on failures
+# — which is what distinguishes a policy deny from a rejected token, since
+# both come back as 401.
+
+RUCIO_VO = os.environ.get("RUCIO_VO", "def")
+
+# Which credential the transfer suite uses. 'userpass' authenticates as root,
+# which the Rego short-circuits before any entitlement lookup — fine for
+# testing transfers, but it does not exercise the claims path. Set
+# RUCIO_AUTH=oidc once BACKLOG 3a lands to run the suite token-natively.
+RUCIO_AUTH = os.environ.get("RUCIO_AUTH", "userpass")
 
 
-def make_client():
-    """Build a Rucio Python client from the mounted config."""
-    from rucio.client import Client
-    from rucio.common.config import get_config
-
-    conf = get_config()
-    conf.read(CFG_RUCIO)
-    auth_type = conf.get("client", "auth_type")
-
-    creds = None
-
-    if auth_type == "userpass":
-        creds = {
-            "username": conf.get("client", "username"),
-            "password": conf.get("client", "password"),
-        }
-
-    return Client(
-        rucio_host=conf.get("client", "rucio_host"),
-        auth_host=conf.get("client", "auth_host"),
-        account=conf.get("client", "account"),
-        auth_type=auth_type,
-        creds=creds,
-        vo=conf.get("client", "vo", fallback="def"),
+def rucio_rest(path, token, method="GET", body=None, timeout=30):
+    """Authenticated Rucio REST call with a raw bearer token."""
+    headers = {"X-Rucio-Auth-Token": token}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    return requests.request(
+        method,
+        f"{RUCIO_REST_URL}{path}",
+        headers=headers,
+        json=body,
+        verify=False,
+        timeout=timeout,
     )
+
+
+def deny_reason(resp):
+    """(ExceptionClass, ExceptionMessage) from a Rucio error response."""
+    return resp.headers.get("ExceptionClass"), resp.headers.get("ExceptionMessage")
+
+
+def _expect(resp, ok, what):
+    """Assert a REST call succeeded, reporting Rucio's exception headers."""
+    assert resp.status_code in ok, (
+        f"{what}: HTTP {resp.status_code} {deny_reason(resp)} {resp.text[:200]}"
+    )
+    return resp
+
+
+def _userpass_token() -> str:
+    resp = requests.get(
+        f"{RUCIO_REST_URL}/auth/userpass",
+        headers={
+            "X-Rucio-Account": RUCIO_ACCOUNT,
+            "X-Rucio-Username": RUCIO_USERNAME,
+            "X-Rucio-Password": RUCIO_PASSWORD,
+        },
+        verify=False,
+        timeout=30,
+    )
+    resp.raise_for_status()
+    token = resp.headers.get("X-Rucio-Auth-Token")
+    assert token, "No X-Rucio-Auth-Token in /auth/userpass response"
+    return token
 
 
 # ── Phase 6 PFN computation ───────────────────────────────────────────────
 
 
-def compute_pfn(client, rse: str, scope: str, name: str) -> str:
-    """Compute the write PFN for a DID on a given RSE."""
-    from rucio.rse import rsemanager as rsemgr
-
-    rse_info = rsemgr.get_rse_info(rse=rse, vo=client.vo)
-
-    return list(
-        rsemgr.lfns2pfns(
-            rse_info,
-            [{"scope": scope, "name": name}],
-            operation="write",
-        ).values()
-    )[0]
+def compute_pfn(
+    token: str,
+    rse: str,
+    scope: str,
+    name: str,
+    scheme: str = "davs",
+    operation: str = "write",
+) -> str:
+    """Resolve the PFN for a DID on an RSE via the server's own lfn2pfn."""
+    resp = rucio_rest(
+        f"/rses/{rse}/lfns2pfns?lfn={scope}:{name}&scheme={scheme}&operation={operation}",
+        token,
+    )
+    _expect(resp, (200,), f"lfns2pfns {rse} {scope}:{name}")
+    data = resp.json()
+    # Server returns {"scope:name": "pfn"}; tolerate a bare list.
+    return next(iter(data.values())) if isinstance(data, dict) else data[0]
 
 
 # ── Phase 6 Rucio rule helpers ────────────────────────────────────────────
 
 
+def register_replicas(token: str, rse: str, files: list) -> None:
+    """Register one or more replicas. 409 means a prior run already did."""
+    resp = rucio_rest("/replicas", token, "POST", {"rse": rse, "files": files})
+
+    if resp.status_code == 409:
+        log.warning("  Replica(s) already registered at %s", rse)
+        return
+
+    _expect(resp, (200, 201), f"add_replicas {rse}")
+
+
 def register_replica(
-    client,
+    token: str,
     rse: str,
     scope: str,
     name: str,
@@ -410,8 +458,6 @@ def register_replica(
     size: int,
     adler32: str,
 ) -> None:
-    from rucio.common.exception import Duplicate, RucioException
-
     log.info(
         "  Registering %s:%s @ %s (bytes=%d adler32=%s)",
         scope,
@@ -421,37 +467,56 @@ def register_replica(
         adler32,
     )
 
-    try:
-        client.add_replicas(
-            rse=rse,
-            files=[
-                {
-                    "scope": scope,
-                    "name": name,
-                    "bytes": size,
-                    "adler32": adler32,
-                    "pfn": pfn,
-                }
-            ],
-        )
-    except Duplicate:
-        log.warning(
-            "  Replica %s:%s already exists at %s",
-            scope,
-            name,
-            rse,
-        )
-    except RucioException as e:
-        log.error("  Registration failed: %s", e)
-        raise
+    register_replicas(
+        token,
+        rse,
+        [
+            {
+                "scope": scope,
+                "name": name,
+                "bytes": size,
+                "adler32": adler32,
+                "pfn": pfn,
+            }
+        ],
+    )
 
 
-def add_rule(client, scope: str, name: str, dst_rse: str) -> str:
-    rule_id = client.add_replication_rule(
-        dids=[{"scope": scope, "name": name}],
-        copies=1,
-        rse_expression=dst_rse,
-    )[0]
+def whoami(token: str) -> dict:
+    """The account this token authenticates as."""
+    resp = rucio_rest("/accounts/whoami", token)
+    _expect(resp, (200,), "whoami")
+    return resp.json()
+
+
+def rule_account(token: str) -> str:
+    """Account to own new rules. Defaults to the token's own account."""
+    return os.environ.get("RUCIO_RULE_ACCOUNT") or whoami(token)["account"]
+
+
+def add_rule(token: str, scope: str, name: str, dst_rse: str, copies: int = 1) -> str:
+    """Create a replication rule.
+
+    `account` is required by the REST endpoint — the Python client used to
+    supply it from rucio.cfg. It is also load-bearing for the Rego:
+    _perm_add_rule's self-service clause requires
+    input.kwargs.account == input.issuer.
+    """
+    account = rule_account(token)
+    resp = rucio_rest(
+        "/rules/",
+        token,
+        "POST",
+        {
+            "dids": [{"scope": scope, "name": name}],
+            "copies": copies,
+            "rse_expression": dst_rse,
+            "account": account,
+        },
+    )
+    _expect(resp, (201,), f"add_rule {scope}:{name} → {dst_rse}")
+
+    rule_id = resp.json()[0]
 
     log.info(
         "  ✓ Rule created: %s:%s → %s (%s)",
@@ -464,11 +529,24 @@ def add_rule(client, scope: str, name: str, dst_rse: str) -> str:
     return rule_id
 
 
+def add_dataset(token: str, scope: str, name: str) -> None:
+    resp = rucio_rest(f"/dids/{scope}/{name}", token, "POST", {"type": "DATASET"})
+    _expect(resp, (201, 409), f"add_dataset {scope}:{name}")
+
+
+def attach_dids(token: str, scope: str, name: str, files: list, rse: str = None) -> None:
+    body = {"dids": [{"scope": f["scope"], "name": f["name"]} for f in files]}
+    if rse:
+        body["rse"] = rse
+
+    resp = rucio_rest(f"/dids/{scope}/{name}/dids", token, "POST", body)
+    _expect(resp, (200, 201), f"attach_dids → {scope}:{name}")
+
+
 def validate_rule(
-    client,
+    token: str,
     rule_id: str,
     label: str,
-    rucio_svc: str = "rucio-server",
     timeout: int = 300,
 ) -> None:
     """Poll until locks_ok >= 1 and locks_replicating == 0.
@@ -476,19 +554,20 @@ def validate_rule(
     rucio-daemons runs unconditionally in this stack and drives the conveyor
     itself — this just waits for it, it doesn't advance anything.
     """
-    from rucio.common.exception import RuleNotFound
-
     log.info("=== Validating rule %s (%s) ===", rule_id, label)
 
     deadline = time.time() + timeout
     ok = repl = stk = 0
 
     while time.time() < deadline:
-        try:
-            rule = client.get_replication_rule(rule_id)
-        except RuleNotFound:
+        resp = rucio_rest(f"/rules/{rule_id}", token)
+
+        if resp.status_code == 404:
             time.sleep(2)
             continue
+
+        _expect(resp, (200,), f"get_rule {rule_id}")
+        rule = resp.json()
 
         ok = rule["locks_ok_cnt"]
         repl = rule["locks_replicating_cnt"]
@@ -862,19 +941,23 @@ def prepare_xrd_dest(
 
 
 def seed_and_register_files(
-    client,
+    token: str,
     rse: str,
     scope: str,
     names: list[str],
     seed_svc: str,
-    token: str = None,
+    write_token: str = None,
 ) -> list[dict]:
-    """Seed files into an XRootD RSE and return Rucio replica dicts."""
+    """Seed files into an XRootD RSE and return Rucio replica dicts.
+
+    `token` authenticates to Rucio; `write_token` is the storage-scoped
+    token for the RSE endpoint. They are different credentials.
+    """
     registered = []
 
     for name in names:
         pfn = compute_pfn(
-            client,
+            token,
             rse,
             scope,
             name,
@@ -883,7 +966,7 @@ def seed_and_register_files(
         size, adler32 = seed_xrd(
             seed_svc,
             pfn,
-            token=token,
+            token=write_token,
         )
 
         registered.append(
@@ -907,16 +990,16 @@ def seed_and_register_files(
 
 
 def prepare_xrd_dest_files(
-    client,
+    token: str,
     rse: str,
     scope: str,
     names: list[str],
-    token: str = None,
+    write_token: str = None,
 ) -> None:
     """Pre-create destination directories on an XRootD RSE."""
     for name in names:
         pfn = compute_pfn(
-            client,
+            token,
             rse,
             scope,
             name,
@@ -924,7 +1007,7 @@ def prepare_xrd_dest_files(
 
         prepare_xrd_dest(
             pfn,
-            token=token,
+            token=write_token,
         )
 
 
@@ -932,9 +1015,28 @@ def prepare_xrd_dest_files(
 
 
 @pytest.fixture(scope="session")
-def rucio_client():
-    """Rucio Python client (userpass, single OIDC instance)."""
-    return make_client()
+def rucio_token() -> str:
+    """Bearer token for Rucio REST calls.
+
+    Defaults to userpass-as-root, which the Rego short-circuits — right for
+    the transfer suite, which tests transfers rather than authorisation. The
+    claims path is covered by test_phase6_authz.py. Set RUCIO_AUTH=oidc to
+    run token-natively once the Rego covers the transfer actions.
+    """
+    if RUCIO_AUTH == "oidc":
+        return fetch_token_password(
+            OIDC_TOKEN_URL,
+            OIDC_CLIENT_ID,
+            OIDC_CLIENT_SECRET,
+            os.environ.get("OIDC_ADMIN_USERNAME", "adminuser"),
+            os.environ.get("OIDC_ADMIN_PASSWORD", "admin123"),
+            scope=os.environ.get(
+                "OIDC_AUTHZ_SCOPE",
+                "openid offline_access storage.read:/ storage.modify:/ aud:rucio",
+            ),
+        )
+
+    return _userpass_token()
 
 
 def _mint(

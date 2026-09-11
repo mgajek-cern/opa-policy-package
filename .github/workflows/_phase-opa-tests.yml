@@ -33,6 +33,11 @@ on:
         required: false
         type: string
         default: ""
+      authz_test_file:
+        required: false
+        type: string
+        default: ""
+        description: OIDC → has_permission() tests; needs an initialised testbed
       needs_keycloak:
         required: false
         type: boolean
@@ -97,6 +102,16 @@ jobs:
         env:
           OPA_URL: http://localhost:8181
         run: python -m pytest ${{ inputs.e2e_test_file }} -v --tb=short
+
+      - name: Authz tests (OIDC → has_permission)
+        if: inputs.authz_test_file != ''
+        run: |
+          if [ -n "${{ inputs.test_container }}" ]; then
+            docker compose exec -T ${{ inputs.test_container }} \
+              python3 -m pytest /tests/$(basename ${{ inputs.authz_test_file }}) -v --tb=short
+          else
+            python -m pytest ${{ inputs.authz_test_file }} -v --tb=short
+          fi
 
       - name: Smoke tests
         if: inputs.smoke_test_file != '' && inputs.test_container == ''
