@@ -1,7 +1,9 @@
 # Design 001 — Getting token claims into the OPA input document
 
-**Status:** implemented for phase 6 (2026-09-11). Option B. Phases 4 and 5
-pending — same patches, `wlcg.groups` instead of `entitlements` for phase 4.
+**Status:** implemented for phase 6 (2026-09-11). Option B, with option D
+documented as the fallback if patch maintenance becomes a burden. Phases 4
+and 5 pending — same patches, `wlcg.groups` instead of `entitlements` for
+phase 4.
 
 ## Problem
 
@@ -52,35 +54,69 @@ account's newest unexpired row, decode the JWT, read the claim.
 
 - No Rucio patch; works with the stock server.
 - Costs a DB round-trip per authorisation decision, contradicting the
-  phase 4/5 READMEs' "zero DB calls per decision".
-- Ambiguous when an account has several valid tokens — this testbed already
-  maps one OIDC identity to `root`, `ddmlab` and `randomaccount`, so
-  "the account's token" is not well defined.
+  phase 4/5 READMEs' "no DB lookup in the decision path".
+- Ambiguous when an account has several valid tokens, or when one identity
+  maps to several accounts.
 
 ### B. Patch Rucio to carry the claims through
 
-Attach the decoded token to the account object (or thread it through as a
-kwarg) at the point where the request is authenticated, so
-`has_permission()` receives it without a lookup.
+Decode the payload where the token is validated and thread it to request
+scope, so `has_permission()` reads it without a lookup.
 
 - Matches what the Rego already expects; no per-decision DB cost.
-- Another entry in `patches/rucio/`, which the repo already maintains for
-  `oidc.py`, `rse.py`, `fts3.py` and `constants.py`.
-- Needs a concrete insertion point — to be identified.
+- Puts the claims on the path that already carries `issuer` and
+  `identity` — the shape upstream would plausibly adopt.
+- Four more entries in `patches/rucio/`, each a full file copy pinned to a
+  Rucio version.
 
 ### C. Rethink the input contract
 
-Have Rucio hand OPA the raw token and let the Rego (or an OPA
-`http.send`/JWKS verifier) decode it. Largest change; parks the privilege
-question in OPA entirely. Out of scope here, noted so it isn't lost.
+Hand OPA the raw token and let the Rego (or an OPA `http.send`/JWKS
+verifier) decode it. Largest change; parks the privilege question in OPA
+entirely. Out of scope here, noted so it isn't lost.
 
-**Recommendation:** B, falling back to A if no clean insertion point
-exists. Decide after the verification step below.
+### D. Decode the header in permission.py
 
-**Decision: B.** A clean insertion point exists — see below. Option A's
-DB round-trip and its ambiguity when one OIDC identity maps to several
-accounts (this testbed maps one to `root`, `ddmlab` and `randomaccount`)
-both argued against it. C remains open as a longer-term direction.
+`has_permission()` runs inside a Flask request, after `request_auth_env`
+has already validated the token. Read `X-Rucio-Auth-Token` off the request
+and decode the payload in the policy module:
+
+    def _extract_entitlements() -> list[str]:
+        from flask import has_request_context, request
+        if not has_request_context():
+            return []
+        token = request.headers.get("X-Rucio-Auth-Token", "")
+        if len(token.split(".")) != 3:
+            return []            # userpass/x509 — no claims
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+        value = claims.get("entitlements", [])
+        return [value] if isinstance(value, str) else list(value)
+
+- Zero Rucio patches; survives every Rucio upgrade untouched.
+- No DB call. Phases 4 and 5 need only their own `permission.py` changed.
+- The safety argument is the same one option B relies on: the token in
+  that header has already been validated by the `before_request` hook, so
+  decoding without signature verification adds no trust the request does
+  not already have.
+- A policy package reaching into an HTTP header is a layering violation,
+  and it breaks if Rucio ever accepts tokens somewhere other than that
+  header.
+
+**Decision: B**, with D as the documented fallback.
+
+B is the more correct architecture and the one that could eventually be
+upstreamed; D is the more robust one against Rucio churn. The deciding
+factor was that the claims belong on the same path as `issuer` and
+`identity`, not in a header read from a plugin. If patch maintenance
+becomes a burden before an upstream equivalent exists, D is a
+self-contained ~10-line change in a file this repo owns, with no other
+moving parts.
+
+A was ruled out on the DB round-trip and on identity ambiguity (this
+testbed maps one OIDC identity to `root`, `ddmlab` and `randomaccount` —
+see "Identity mapping" below). C remains open as a longer-term direction.
 
 ## Implementation
 
@@ -103,7 +139,8 @@ Two paths reach `validate_auth_token`, and both needed covering:
 `query_token()` for tokens already in the `tokens` table (anything
 `init-testbed.sh` seeds, or that came through `/auth/oidc`), and
 `validate_jwt()` → `__get_rucio_jwt_dict()` for a token presented to Rucio
-for the first time. The testbed uses the former.
+for the first time. The transfer tests use the former; the authz tests mint
+a fresh token and exercise the latter.
 
 Carrying the whole payload rather than just `entitlements` means phase 4
 (`wlcg.groups`) and phase 5 work from the same patch, and future claim
@@ -121,6 +158,56 @@ Daemons call core functions directly, so `has_permission()` is only ever
 reached through a REST request and `request.environ` is always available.
 The policy module still imports Flask defensively because unit tests
 construct input documents outside a request context.
+
+## Maintaining the patches
+
+Each patch is a full file copy, not a diff. On a Rucio upgrade they do not
+conflict — they silently keep serving the old code, which is the failure
+mode to design against.
+
+The mitigation is to treat the Rucio version as pinned infrastructure
+rather than a moving target:
+
+- The compose files pin an image tag, and the patches are valid for exactly
+  that tag. Upgrading Rucio is a deliberate step that includes re-deriving
+  all of `patches/rucio/` from the new upstream files.
+- For reproducibility beyond the upstream registry's retention, mirror the
+  pinned image into an org-controlled registry namespace and reference that
+  tag. This makes "which Rucio are these patches valid for" answerable from
+  the compose file alone.
+- Record the upstream Rucio version each patch was derived from in a header
+  comment at the top of every file in `patches/rucio/`.
+
+If this becomes untenable — or if an upstream change lands that makes the
+claims available without patching — switch to option D, which removes all
+four files.
+
+Upstreaming `TokenValidationDict.claims` and the two lines that populate it
+is worth attempting (the policy-package contract is exactly the case it
+serves), but is not a dependency of this design: on realistic timescales
+the pinned-image approach carries the testbed regardless.
+
+## Identity mapping
+
+`validate_jwt()` resolves the Rucio account from the token's
+`SUB=…,ISS=…` identity. If one subject maps to several accounts, the
+resolution is ambiguous — and because `root` is unconditionally privileged
+under the bootstrap Rego rule, an ambiguous resolution can silently grant
+privilege a test intended to deny.
+
+`init-testbed.sh` therefore separates three roles:
+
+| Keycloak user | Rucio account(s) | Purpose |
+|---|---|---|
+| `seeduser` | `root`, `ddmlab` | subject tokens for FTS exchange |
+| `adminuser` | `adminuser` | authz test, `rucio-admins` entitlement |
+| `randomaccount` | `randomaccount` | authz test, `rucio-users` only |
+
+The seeding subject maps to two accounts by necessity — both need a
+subject token and neither is used in the authz tests.
+`assert_identities_unambiguous()` reports any subject mapped to more than
+one account at the end of init, so a new one is visible rather than
+mysterious.
 
 ## Verification
 
@@ -142,24 +229,28 @@ Same request as `root` over userpass gives `claim_keys=[]`, which is
 correct: a userpass token is not a JWT and has no claims to decode.
 
 The 401 that follows is `AccessDenied: Account ddmlab can not add RSE` —
-the OPA decision, not an auth failure. `add_rse` has no Rego rule, so it
-falls through to `_is_privileged`.
+the OPA decision, not an auth failure.
+
+`tests/test_phase6_authz.py` makes this a regression test: `adminuser`
+(`rucio-admins`) is allowed a privileged action, `randomaccount`
+(`rucio-users`) is denied it with `ExceptionClass: AccessDenied`. The
+positive case is the guard for the claims plumbing — the negative case
+would pass with the patches reverted, since empty claims also deny.
 
 ## Remaining work
 
 Tracked in BACKLOG.md, not blockers for this change:
 
-1. **Action coverage.** `generic.py` has ~70 `perm_*` functions against the
-   Rego's handful; everything unmatched falls through to `_is_privileged`.
-   While the client authenticates as `root` this is invisible. It stops
-   being invisible the moment the client switches to OIDC.
-2. **Exercise it from the test suite.** `configs/rucio/phase6/
-   oidc-client.cfg` mounted on `rucio-client` in place of
-   `userpass-client.cfg`; `tests/conftest.py` needs a non-interactive
-   `make_client()` (pre-writing the client token file is the likely route);
-   `rego/phase6/authz.rego` needs `add_replicas` in `_all_known_actions`
-   and a `_perm_did_action` scope check that tolerates `SCOPE = "ddmlab"`.
-   Do (1) before this, or every smoke test fails at once for reasons
-   unrelated to claims.
-3. **Phases 4 and 5.** Same patches, mounted in the respective compose
+1. **Rego action coverage (3a).** `add_replicas` and `add_dids` are
+   addressed; `skip_availability_check` is deliberately left
+   privileged-only, since Rucio treats it as an admin escalation and the
+   client only requests it under `ignore_availability=True`. The remaining
+   long tail of `perm_*` actions still falls through to `_is_privileged`,
+   which stays invisible while the transfer suite runs as `root`.
+2. **Move the transfer suite to OIDC (3b, later half).** The authz tests
+   cover the claims path directly; switching `rucio-client` to
+   `auth_type = oidc` additionally requires (1) to be complete, and a
+   non-interactive `make_client()` — Rucio's OIDC client flow scrapes the
+   IdP's HTML login form, so REST is used for the authz tests instead.
+3. **Phases 4 and 5 (3c).** Same patches, mounted in the respective compose
    files. Phase 4 reads `wlcg.groups`, already present in the token.
