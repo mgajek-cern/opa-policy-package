@@ -3,10 +3,6 @@ Phase 4 — e2e scenario tests against a live OPA server.
 
 Privilege is derived from token.groups (wlcg.groups) — no is_root/is_admin.
 
-Run against live OPA (recommended):
-    cd phase4-opa/deploy && docker compose up -d opa opa-init && cd ../..
-    OPA_URL=http://localhost:8181 python3 -m pytest tests4/test_phase4_e2e.py -v
-
 Scenario groups:
   — Group-based privilege (admin group → privileged)
   — User group actions (non-privileged but self-service still works)
@@ -23,7 +19,7 @@ from tests.conftest import build_opa_server_fixture
 
 from rucio_opa_v3_policy.opa_client import query_opa
 
-REGO_PATH = Path(__file__).parent.parent / "phase4-opa" / "rego" / "authz.rego"
+REGO_PATH = Path(__file__).parent.parent / "rego" / "phase4" / "authz.rego"
 OPA_POLICY_PATH = "vo/authz/v3/allow"
 
 opa_server = build_opa_server_fixture(REGO_PATH, "vo/authz/allow")
@@ -65,7 +61,7 @@ def _root(action: str, **kw) -> bool:
 # Group-based privilege
 
 
-class TestK_GroupPrivilege:
+class TestGroupPrivilege:
     def test_admin_group_grants_del_rse(self):
         assert _q("adminuser", "del_rse", groups=["/rucio/admins"]) is True
 
@@ -106,7 +102,7 @@ class TestK_GroupPrivilege:
 # User group self-service actions
 
 
-class TestL_UserGroupActions:
+class TestUserGroupActions:
     def test_user_can_add_own_unlocked_rule(self):
         assert (
             _q(
@@ -165,11 +161,43 @@ class TestL_UserGroupActions:
     def test_user_denied_del_other_rule(self):
         assert _q("alice", "del_rule", groups=["/rucio/users"], account="bob") is False
 
+    def test_add_replicas_requires_privilege_by_default(self):
+        """No allow_replica_writes_to_allowlisted_rses in the bundle → admin only."""
+        assert _q("alice", "add_replicas", groups=["/rucio/users"], rse="CERN_DATADISK") is False
+        assert (
+            _q("adminuser", "add_replicas", groups=["/rucio/admins"], rse="CERN_DATADISK") is True
+        )
+
+    def test_add_dids_requires_every_scope_owned(self):
+        assert (
+            _q(
+                "alice",
+                "add_dids",
+                groups=["/rucio/users"],
+                dids=[{"scope": "alice.a", "name": "f1"}, {"scope": "alice.b", "name": "f2"}],
+            )
+            is True
+        )
+        assert (
+            _q(
+                "alice",
+                "add_dids",
+                groups=["/rucio/users"],
+                dids=[{"scope": "alice.a", "name": "f1"}, {"scope": "bob.data", "name": "f2"}],
+            )
+            is False
+        )
+
+    def test_del_protocol_without_scheme_allowed_for_admin(self):
+        """del_protocol carries no scheme; the no-scheme clause covers it."""
+        assert _q("adminuser", "del_protocol", groups=["/rucio/admins"]) is True
+        assert _q("alice", "del_protocol", groups=["/rucio/users"]) is False
+
 
 # Root bootstrap (no OIDC token)
 
 
-class TestM_RootBootstrap:
+class TestRootBootstrap:
     def test_root_allowed_del_rse(self):
         assert _root("del_rse") is True
 
@@ -197,7 +225,7 @@ class TestM_RootBootstrap:
 # Group policy bundle override (runtime)
 
 
-class TestN_GroupPolicyBundle:
+class TestGroupPolicyBundle:
     def test_custom_group_granted_after_bundle_push(self, opa_server):
         _put(
             opa_server,

@@ -218,11 +218,9 @@ services:
       - ../../patches/rucio/fts3.py:/usr/local/lib/python3.9/site-packages/rucio/transfertool/fts3.py:ro
       - ../../patches/rucio/oidc.py:/usr/local/lib/python3.9/site-packages/rucio/core/oidc.py:ro
       - ../../patches/rucio/constants.py:/usr/local/lib/python3.9/site-packages/rucio/common/constants.py:ro
-
       - ../../patches/rucio/types.py:/usr/local/lib/python3.9/site-packages/rucio/common/types.py:ro
       - ../../patches/rucio/authentication.py:/usr/local/lib/python3.9/site-packages/rucio/core/authentication.py:ro
       - ../../patches/rucio/common.py:/usr/local/lib/python3.9/site-packages/rucio/web/rest/flaskapi/v1/common.py:ro
-
       - ../../patches/rucio/rse.py:/usr/local/lib/python3.9/site-packages/rucio/core/rse.py:ro
       - ../../scripts/rucio/bootstrap-db.py:/scripts/rucio/bootstrap-db.py:ro
     healthcheck:
@@ -317,7 +315,6 @@ services:
       - ../../patches/rucio/oidc.py:/usr/local/lib/python3.9/site-packages/rucio/core/oidc.py:ro
       - ../../patches/rucio/constants.py:/usr/local/lib/python3.9/site-packages/rucio/common/constants.py:ro
       - ../../patches/rucio/rse.py:/usr/local/lib/python3.9/site-packages/rucio/core/rse.py:ro
-
       - ../../patches/rucio/types.py:/usr/local/lib/python3.9/site-packages/rucio/common/types.py:ro
       - ../../patches/rucio/authentication.py:/usr/local/lib/python3.9/site-packages/rucio/core/authentication.py:ro
       - ../../patches/rucio/common.py:/usr/local/lib/python3.9/site-packages/rucio/web/rest/flaskapi/v1/common.py:ro

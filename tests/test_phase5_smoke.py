@@ -90,7 +90,8 @@ def _keycloak_password_token(keycloak_url: str, username: str, password: str) ->
             "client_secret": KEYCLOAK_CLIENT_SECRET,
             "username": username,
             "password": password,
-            "scope": "openid entitlements",
+            # entitlements is a default client scope on rucio-oidc
+            "scope": "openid",
         }
     ).encode()
     req = Request(

@@ -85,7 +85,8 @@ def _keycloak_password_token(keycloak_url: str, username: str, password: str) ->
             "client_secret": KEYCLOAK_CLIENT_SECRET,
             "username": username,
             "password": password,
-            "scope": "openid wlcg",
+            # wlcg is a default client scope on rucio-oidc
+            "scope": "openid",
         }
     ).encode()
     req = Request(
@@ -116,14 +117,14 @@ class TestKeycloakGroupsClaim:
         _, _, keycloak_url = stack_urls
         token = _keycloak_password_token(keycloak_url, "alice", "alice123")
         claims = _decode_jwt_claims(token)
-        groups = claims.get("wlcg", {}).get("groups", [])
+        groups = claims.get("wlcg.groups", [])
         assert "/rucio/users" in groups, f"Expected /rucio/users in {groups}"
 
     def test_adminuser_jwt_has_rucio_admins_group(self, stack_urls):
         _, _, keycloak_url = stack_urls
         token = _keycloak_password_token(keycloak_url, "adminuser", "admin123")
         claims = _decode_jwt_claims(token)
-        groups = claims.get("wlcg", {}).get("groups", [])
+        groups = claims.get("wlcg.groups", [])
         assert "/rucio/admins" in groups, f"Expected /rucio/admins in {groups}"
 
 

@@ -74,11 +74,20 @@ services:
       OPA_URL: http://opa:8181
       OPA_POLICY_PATH: vo/authz/v3/allow
       OPA_TIMEOUT: 2
+      RUCIO_OPA_DEBUG_INPUT: 1
     volumes:
       - ../../configs/rucio/phase4/rucio.cfg:/opt/rucio/etc/rucio.cfg:ro
       - ../../configs/rucio/phase4/idpsecrets.json:/opt/rucio/etc/idpsecrets.json:ro
       - ../../scripts/rucio/bootstrap-db.py:/tmp/bootstrap-db.py:ro
       - ../../configs/rucio/alembic.ini:/opt/rucio/etc/alembic.ini:ro
+
+      - ../../patches/rucio/fts3.py:/usr/local/lib/python3.9/site-packages/rucio/transfertool/fts3.py:ro
+      - ../../patches/rucio/oidc.py:/usr/local/lib/python3.9/site-packages/rucio/core/oidc.py:ro
+      - ../../patches/rucio/constants.py:/usr/local/lib/python3.9/site-packages/rucio/common/constants.py:ro
+      - ../../patches/rucio/types.py:/usr/local/lib/python3.9/site-packages/rucio/common/types.py:ro
+      - ../../patches/rucio/authentication.py:/usr/local/lib/python3.9/site-packages/rucio/core/authentication.py:ro
+      - ../../patches/rucio/common.py:/usr/local/lib/python3.9/site-packages/rucio/web/rest/flaskapi/v1/common.py:ro
+
       - ../../:/policy-package:ro
     entrypoint:
       - bash
