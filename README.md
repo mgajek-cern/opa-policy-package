@@ -16,6 +16,7 @@ package and restart; no data migration required.
 > See [Policy package mechanism](docs/policy-package-mechanism.md) for how Rucio loads policy packages.
 > See [Action → Policy Mapping](docs/action-policy-mapping.md) for the full `has_permission()` coverage map — **required reading for writing meaningful Rego or ODRL policies** (action strings, available input fields and domain checks that apply independently of privilege).
 > See [Policy Lifecycle](docs/policy-lifecycle.md) for the ODRL → OPA → Rucio relationship and input document options.
+> See [Authorisation flows](docs/authz-flow-diagrams.md) for how privilege is resolved and what each action requires.
 
 See [BACKLOG.md](BACKLOG.md) for planned work not yet scheduled into a phase.
 
@@ -47,61 +48,34 @@ sequenceDiagram
     end
 ```
 
-The diagram is the target. Each piece is verified, but not yet as one
-chain: Keycloak issues JWTs with URN `entitlements` claims, Rucio decodes them at
-token validation and forwards them to OPA, and OPA evaluates entitlement
-membership against `data.vo.entitlement_policy` in the bundle — no Rucio DB
-round-trip per authorisation decision. Phase 6 also drives the transfer leg
-token-natively: FTS obtains storage tokens by RFC 8693 exchange and each
-endpoint validates them on the wire.
+Phases 4–6 implement this end to end: Keycloak issues the claim, Rucio
+decodes it at token validation and forwards it to OPA, and OPA evaluates it
+against the bundle — no Rucio DB round-trip per decision. Phase 6 also
+drives the transfer leg token-natively, with FTS obtaining storage tokens by
+RFC 8693 exchange.
 
-Carrying the claims from the validated token into `has_permission()`
-requires four small patches to Rucio, mounted from `patches/rucio/` — see
-[docs/design/design-001-token-claims-to-opa.md](docs/design/design-001-token-claims-to-opa.md).
-Phases 4 and 5 do not yet have them applied.
+Carrying claims from the validated token into `has_permission()` needs four
+small patches to Rucio, mounted from `patches/rucio/` — see
+[design-001](docs/design/design-001-token-claims-to-opa.md). Rego action
+coverage is still partial; actions without a rule fall through to
+privileged-only.
 
-The Rego's action coverage is still partial: actions without a rule fall
-through to privileged-only. See [BACKLOG.md](BACKLOG.md).
 ## Group membership and URN entitlements
 
-Phase 4 used WLCG group paths (`/rucio/admins`, `/atlas/production`) as the
-privilege signal. Phases 5 and 6 replace this with URN-based entitlement
-claims, preserving the same group information in a federated-AAI-friendly
-shape. The two are **conceptually equivalent**:
+Phase 4 used WLCG group paths as the privilege signal. Phases 5 and 6
+replace this with URN-based entitlement claims, preserving the same group
+information in a federated-AAI-friendly shape:
 
 | Phase 4 (wlcg.groups) | Phases 5–6 (URN entitlement) |
 |----------------------|---------------------------|
 | `/rucio/admins` | `urn:example:aai.example.org:group:rucio-admins:role=member` |
 | `/atlas/production` | `urn:example:aai.example.org:group:atlas-production:role=member` |
 
-OPA evaluates whichever claim format the IdP emits — the
-`data.vo.entitlement_policy` bundle (Phase 4: `data.vo.group_policy`) is the
-mapping layer, kept externalised and updatable at runtime without
-redeployment. Rucio's `has_permission()` contract and the Python permission
-module's shape were unchanged by the switch — only the claim key
-(`token.groups` → `token.entitlements`) and the Rego lookup moved.
+The bundle (`data.vo.group_policy` in phase 4, `data.vo.entitlement_policy`
+in 5–6) is the mapping layer, updatable at runtime without redeployment.
+Only the claim key and the Rego lookup differ between the two.
 
-An example OPA request body with a URN entitlement claim:
-
-```json
-{
-    "input": {
-        "action": "add_rule",
-        "resource": { "rse_expression": "CERN_DATADISK" },
-        "token": {
-            "entitlements": [
-                "urn:example:aai.example.org:group:rucio-admins:role=member"
-            ]
-        }
-    }
-}
-```
-
-`_extract_entitlements()` reads `request.environ['token_claims']`,
-populated by the patched REST layer from the validated token. Outside a
-request context — unit tests, daemons — it returns `[]`.
-
-Fine-grained, resource-level permissions (beyond group/role membership) are
+Fine-grained, resource-level permissions beyond group/role membership are
 deferred — see [BACKLOG.md](BACKLOG.md).
 
 ## References
