@@ -34,7 +34,7 @@ on:
         required: false
         type: string
         description: tests against Rucio's REST API; needs an initialised testbed
-      transfer_test_file::
+      transfer_test_file:
         required: false
         type: string
         default: ""
