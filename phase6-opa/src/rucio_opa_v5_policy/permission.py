@@ -44,7 +44,6 @@ log = logging.getLogger(__name__)
 # denied" errors where it's unclear which kwarg Rego is missing. Off by
 # default since it can be noisy / verbose in production.
 _DEBUG_INPUT = os.environ.get("RUCIO_OPA_DEBUG_INPUT", "").strip() in ("1", "true", "True")
-log.warning("rucio_opa_v5_policy.permission loaded from %s", __file__)
 
 
 def has_permission(
