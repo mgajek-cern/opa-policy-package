@@ -44,3 +44,9 @@ Current model is role/ownership-based. Per-RSE/per-scope ABAC and
 time/context constraints (rule expiry, maintenance windows) need a use-case/
 persona overview first, so policies are modeled against real access patterns
 rather than guessed ABAC shape.
+
+##  6. [ ] Consolidate knowledge in the [dep-dlm-testbed repository](https://github.com/RI-SCALE/dep-dlm-testbed.git)
+
+Capture the relevant implementation details, configuration, integration steps
+and lessons learned in dep-dlm-testbed to make the setup reproducible and
+reusable.
