@@ -46,25 +46,16 @@ package = rucio_opa_policy
 
 ## Tests
 
-| File | Covers |
-|------|--------|
-| `test_phase2_opa.py` | Unit — OPA client fail-closed, input construction (mocked, no live services) |
-| `test_phase2_e2e.py` | Live OPA — RSE naming, account/DID ownership, privileged actions, update_rse |
-| `test_phase2_smoke.py` | Live full stack — real Rucio REST API, auth, schema validation, and that Rucio actually calls OPA end-to-end |
-
 ```bash
-# Unit tests — no services required
-python3 -m pytest tests/test_phase2_opa.py -v
-
 # Start the full stack (Rucio + OPA + PostgreSQL) once for e2e + smoke
 cd deploy/compose && docker compose -f docker-compose.phase2.yml up -d && cd ../..
 
-# E2E — against OPA directly
-OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase2_e2e.py -v
+# OPA — against OPA directly
+OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase2_opa.py -v
 
 # Smoke — against Rucio's REST API
 RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
-    python3 -m pytest tests/test_phase2_smoke.py -v
+    python3 -m pytest tests/test_phase2_rucio.py -v
 
 # Teardown (add -v to also wipe the DB volume)
 cd deploy/compose && docker compose -f docker-compose.phase2.yml down -v && cd ../..

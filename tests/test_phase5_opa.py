@@ -5,10 +5,6 @@ Privilege is derived from token.entitlements (URN entitlement strings) — no
 is_root/is_admin, no wlcg.groups. Same dispatch/naming/self-service logic as
 Phase 4; only the privilege-derivation claim shape changed.
 
-Run against live OPA (recommended):
-    cd phase5-opa/deploy && docker compose up -d opa opa-init && cd ../..
-    OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase5_e2e.py -v
-
 Scenario groups:
   — Entitlement-based privilege (admin entitlement → privileged)
   — User entitlement actions (non-privileged but self-service still works)
@@ -25,7 +21,7 @@ from tests.conftest import build_opa_server_fixture
 
 from rucio_opa_v4_policy.opa_client import query_opa
 
-REGO_PATH = Path(__file__).parent.parent / "phase5-opa" / "rego" / "authz.rego"
+REGO_PATH = Path(__file__).parent.parent / "rego" / "phase5" / "authz.rego"
 OPA_POLICY_PATH = "vo/authz/v4/allow"
 
 opa_server = build_opa_server_fixture(REGO_PATH, "vo/authz/allow")
@@ -74,7 +70,7 @@ def _root(action: str, **kw) -> bool:
 # Entitlement-based privilege
 
 
-class TestK_EntitlementPrivilege:
+class TestEntitlementPrivilege:
     def test_admin_entitlement_grants_del_rse(self):
         assert _q("adminuser", "del_rse", entitlements=[ADMIN]) is True
 
@@ -114,8 +110,14 @@ class TestK_EntitlementPrivilege:
 
 # User entitlement self-service actions
 
+# Entitlement policy bundle override (runtime)
+#
+# These mutate data.vo.entitlement_policy and do not restore it, so they run
+# last by declaration order. Anything added after them sees a bundle where
+# ADMIN is no longer privileged.
 
-class TestL_UserEntitlementActions:
+
+class TestUserEntitlementActions:
     def test_user_can_add_own_unlocked_rule(self):
         assert (
             _q(
@@ -167,11 +169,41 @@ class TestL_UserEntitlementActions:
     def test_user_denied_del_other_rule(self):
         assert _q("alice", "del_rule", entitlements=[USER], account="bob") is False
 
+    def test_add_replicas_requires_privilege_by_default(self):
+        """No allow_replica_writes_to_allowlisted_rses in the bundle → admin only."""
+        assert _q("alice", "add_replicas", entitlements=[USER], rse="CERN_DATADISK") is False
+        assert _q("adminuser", "add_replicas", entitlements=[ADMIN], rse="CERN_DATADISK") is True
+
+    def test_add_dids_requires_every_scope_owned(self):
+        assert (
+            _q(
+                "alice",
+                "add_dids",
+                entitlements=[USER],
+                dids=[{"scope": "alice.a", "name": "f1"}, {"scope": "alice.b", "name": "f2"}],
+            )
+            is True
+        )
+        assert (
+            _q(
+                "alice",
+                "add_dids",
+                entitlements=[USER],
+                dids=[{"scope": "alice.a", "name": "f1"}, {"scope": "bob.data", "name": "f2"}],
+            )
+            is False
+        )
+
+    def test_del_protocol_without_scheme_allowed_for_admin(self):
+        """del_protocol carries no scheme; the no-scheme clause covers it."""
+        assert _q("adminuser", "del_protocol", entitlements=[ADMIN]) is True
+        assert _q("alice", "del_protocol", entitlements=[USER]) is False
+
 
 # Root bootstrap (no OIDC token)
 
 
-class TestM_RootBootstrap:
+class TestRootBootstrap:
     def test_root_allowed_del_rse(self):
         assert _root("del_rse") is True
 
@@ -199,7 +231,7 @@ class TestM_RootBootstrap:
 # Entitlement policy bundle override (runtime)
 
 
-class TestN_EntitlementPolicyBundle:
+class TestEntitlementPolicyBundle:
     def test_custom_entitlement_granted_after_bundle_push(self, opa_server):
         cms_prod = "urn:example:aai.example.org:group:cms-production:role=member"
         _put(

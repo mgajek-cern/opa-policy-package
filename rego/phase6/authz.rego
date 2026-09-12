@@ -8,7 +8,7 @@ default allow := false
 
 allow if { _action_allowed }
 
-# Action sets — identical to Phase 4
+# Action sets — Phase 4 sets plus _replica_actions (see below)
 
 _rse_actions      := {"add_rse", "update_rse", "del_rse",
                        "add_rse_attribute", "del_rse_attribute"}
@@ -17,18 +17,34 @@ _did_actions      := {"add_did", "add_dids", "attach_dids", "detach_dids",
                        "attach_dids_to_dids"}
 _protocol_actions := {"add_protocol", "del_protocol", "update_protocol"}
 
-_all_known_actions := _rule_actions | _rse_actions | _did_actions | _protocol_actions
+# Replica actions were previously unlisted, so they fell through to
+# privileged-only via the _is_known_action catch-all. Rucio's replica
+# registration path (add_replicas) is needed by any account that seeds
+# files, so it gets its own rule; state changes and deletions stay
+# privileged.
+#
+# NOT included here: skip_availability_check. Rucio treats it as an
+# admin-only escalation and so do we — an account that needs it should
+# hold an admin entitlement rather than have the policy relaxed. The
+# Rucio client only requests it when ignore_availability=True is passed
+# to add_replicas.
+_replica_actions  := {"add_replicas", "update_replicas_states", "delete_replicas"}
 
-# Dispatch — identical to Phase 4
+_all_known_actions := _rule_actions | _rse_actions | _did_actions |
+                      _protocol_actions | _replica_actions
 
-_action_allowed if { input.action == "add_rule";                                _perm_add_rule }
-_action_allowed if { input.action in {"del_rule", "update_rule"};               _perm_rule_owner_or_privileged }
-_action_allowed if { input.action == "approve_rule";                            _is_privileged }
-_action_allowed if { input.action == "add_rse";                                 _perm_add_rse }
-_action_allowed if { input.action == "update_rse";                              _perm_update_rse }
-_action_allowed if { input.action in (_rse_actions - {"add_rse","update_rse"}); _is_privileged }
-_action_allowed if { input.action in _did_actions;                              _perm_did_action }
-_action_allowed if { input.action in _protocol_actions;                         _perm_protocol_action }
+# Dispatch
+
+_action_allowed if { input.action == "add_rule";                                      _perm_add_rule }
+_action_allowed if { input.action in {"del_rule", "update_rule"};                     _perm_rule_owner_or_privileged }
+_action_allowed if { input.action == "approve_rule";                                  _is_privileged }
+_action_allowed if { input.action == "add_rse";                                       _perm_add_rse }
+_action_allowed if { input.action == "update_rse";                                    _perm_update_rse }
+_action_allowed if { input.action in (_rse_actions - {"add_rse","update_rse"});       _is_privileged }
+_action_allowed if { input.action in _did_actions;                                    _perm_did_action }
+_action_allowed if { input.action in _protocol_actions;                               _perm_protocol_action }
+_action_allowed if { input.action == "add_replicas";                                  _perm_add_replicas }
+_action_allowed if { input.action in (_replica_actions - {"add_replicas"});           _is_privileged }
 
 _action_allowed if {
     not _is_known_action(input.action)
@@ -67,15 +83,49 @@ _perm_update_rse if {
     _rse_name_valid(input.kwargs.parameters.rse)
 }
 
+# add_replicas
+#
+# kwargs carry only {rse, rse_id} — no scope — so there is no ownership
+# signal to gate on. The non-privileged path is therefore opt-in via the
+# bundle: set data.vo.policy.allow_replica_writes_to_allowlisted_rses to
+# true to let any authenticated account register replicas on an
+# allowlisted RSE. Default is privileged-only.
+
+_perm_add_replicas if { _is_privileged }
+
+_perm_add_replicas if {
+    data.vo.policy.allow_replica_writes_to_allowlisted_rses == true
+    _rse_name_valid(input.kwargs.rse)
+}
+
 # DID actions
 
 _perm_did_action if { _is_privileged }
 _perm_did_action if { input.kwargs.scope == "mock" }
+
+# NOTE: startswith, not equality — an issuer "d" matches scope "ddmlab".
+# Left as-is because the phase 4/5 Rego and the e2e input documents share
+# this shape; tightening it to == (or to a scope_owner lookup) is a
+# deliberate policy change, not a bug fix, and should be done across all
+# three phases at once.
 _perm_did_action if { startswith(input.kwargs.scope, input.issuer) }
+
 _perm_did_action if {
     input.action == "attach_dids_to_dids"
     attachment := input.kwargs.attachments[_]
     startswith(attachment.scope, input.issuer)
+}
+
+# add_dids passes a list of DIDs and no top-level scope, so the clause
+# above can never match it — it was silently falling through to
+# privileged-only despite being listed in _did_actions. Every DID in the
+# batch must be in a scope the issuer owns.
+_perm_did_action if {
+    input.action == "add_dids"
+    count(input.kwargs.dids) > 0
+    every did in input.kwargs.dids {
+        startswith(did.scope, input.issuer)
+    }
 }
 
 # Protocol actions
@@ -148,13 +198,15 @@ default _is_privileged := false
 # Bootstrap: root account has no OIDC token — allow unconditionally.
 _is_privileged if { input.issuer == "root" }
 
-# OIDC path: any group in token.groups that maps to "admin" grants privilege.
+# OIDC path: any entitlement that maps to "admin" grants privilege.
 _is_privileged if {
     entitlement := input.token.entitlements[_]
     _entitlement_privilege(entitlement) == "admin"
 }
 
-# Bundle-driven entitlement policy.
+# Bundle-driven entitlement policy. When a bundle IS loaded this is the
+# only source of privilege — the fallback below does not apply, so the
+# bundle must contain the rucio-admins URN or admin tokens will be denied.
 _entitlement_privilege(entitlement) := level if {
     level := data.vo.entitlement_policy[entitlement]
 }

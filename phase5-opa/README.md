@@ -2,8 +2,6 @@
 
 Phase 5 — OPA as PDP, OIDC token-native authorisation via URN entitlements. Keycloak issues JWTs with an `entitlements` claim; OPA evaluates entitlement strings against `data.vo.entitlement_policy` in the bundle — no Rucio DB round-trip per authorisation decision.
 
----
-
 ## What's new in Phase 5
 
 | Addition | Detail |
@@ -16,8 +14,6 @@ Phase 5 — OPA as PDP, OIDC token-native authorisation via URN entitlements. Ke
 **Rego policy path:** `vo/authz/v4/allow` (was `vo/authz/v3/allow`)
 
 **OPA input shape change:** `token.groups` (Phase 4) replaced by `token.entitlements`
-
----
 
 ## OPA input document
 
@@ -50,8 +46,6 @@ PUT /v1/data/vo/entitlement_policy
 
 Update at runtime without restarting Rucio or OPA.
 
----
-
 ## Keycloak setup
 
 Single realm (`rucio`), no federation. Two test users:
@@ -62,8 +56,6 @@ Single realm (`rucio`), no federation. Two test users:
 | `adminuser` | `admin123` | `...group:rucio-admins:role=member`, `...group:atlas-production:role=member` | admin |
 
 The realm's group tree (`/rucio/admins`, `/atlas/production`, etc.) is kept for realm-admin bookkeeping only. The token claim itself is sourced from each user's `entitlements` attribute via the `entitlements` client scope, not derived from group membership at token time.
-
----
 
 ## Install & configure
 
@@ -85,22 +77,20 @@ package = rucio_opa_v4_policy
 
 ## Tests
 
-| File | Covers |
-|------|--------|
-| `tests/test_phase5_e2e.py` | Live OPA — entitlement privilege, user self-service, root bootstrap, runtime bundle override |
-| `tests/test_phase5_smoke.py` | Live full stack — real Rucio REST API, auth, Keycloak `entitlements` claim verification, and that Rucio actually calls OPA end-to-end |
-
 ```bash
 # Start the full stack (Rucio + OPA + Keycloak + PostgreSQL) once for e2e + smoke
 cd deploy/compose && docker compose -f docker-compose.phase5.yml up -d && cd ../..
 
-# E2E — against OPA directly
-OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase5_e2e.py -v
+# OPA — against OPA directly
+OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase5_opa.py -v
+
+# Create test accounts and map their Keycloak subjects to them
+cd scripts && ./init-phase5.sh && cd ..
 
 # Smoke — against Rucio's REST API + Keycloak
 RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
     KEYCLOAK_URL=http://localhost:8080 \
-    python3 -m pytest tests/test_phase5_smoke.py -v
+    python3 -m pytest tests/test_phase5_rucio.py -v
 
 # Teardown
 cd deploy/compose && docker compose -f docker-compose.phase5.yml down -v && cd ../..

@@ -22,6 +22,8 @@ token.groups will be an empty list. The Rego rule
 handles this unconditionally so the server can start.
 """
 
+import logging
+import os
 from typing import TYPE_CHECKING, Any
 
 from rucio_opa_v3_policy.opa_client import query_opa
@@ -32,6 +34,10 @@ if TYPE_CHECKING:
     from rucio.common.types import InternalAccount
     from sqlalchemy.orm import Session
 
+log = logging.getLogger(__name__)
+
+_DEBUG_INPUT = os.environ.get("RUCIO_OPA_DEBUG_INPUT", "").strip() in ("1", "true", "True")
+
 
 def has_permission(
     issuer: "InternalAccount",
@@ -41,6 +47,8 @@ def has_permission(
     session: "Optional[Session]" = None,
 ) -> bool:
     input_doc = _build_input(issuer, action, kwargs)
+    if _DEBUG_INPUT:
+        log.warning("OPA input for action=%s: %s", action, input_doc)
     return query_opa(input_doc)
 
 
@@ -52,12 +60,12 @@ def _build_input(
     return {
         "issuer": issuer.external,
         "action": action,
-        "token": {"groups": _extract_groups(issuer)},
+        "token": {"groups": _extract_groups()},
         "kwargs": _serialisable_kwargs(kwargs),
     }
 
 
-def _extract_groups(issuer: "InternalAccount") -> list[str]:
+def _extract_groups() -> list[str]:
     """
     Extract wlcg.groups from the account's OIDC token if present.
 
@@ -65,10 +73,25 @@ def _extract_groups(issuer: "InternalAccount") -> list[str]:
     after the /auth/oidc flow. Falls back to [] for non-OIDC accounts.
     """
     try:
-        token_info: dict = getattr(issuer, "oidc_token_info", None) or {}
-        return list(token_info.get("wlcg.groups", []))
-    except Exception:  # noqa: BLE001
+        from flask import has_request_context, request
+    except ImportError:
+        if _DEBUG_INPUT:
+            log.warning("OPA entitlements: flask not importable")
         return []
+    if not has_request_context():
+        if _DEBUG_INPUT:
+            log.warning("OPA entitlements: no flask request context")
+        return []
+    claims = request.environ.get("token_claims") or {}
+    value = claims.get("wlcg.groups", [])
+    wlcg_groups = value.split() if isinstance(value, str) else list(value)
+    if _DEBUG_INPUT:
+        log.warning(
+            "OPA entitlements: claim_keys=%s wlcg.groups=%s",
+            sorted(claims),
+            wlcg_groups,
+        )
+    return wlcg_groups
 
 
 _PASSTHROUGH_KEYS: frozenset[str] = frozenset(

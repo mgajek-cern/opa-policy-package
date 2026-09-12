@@ -1,200 +1,245 @@
 """
-Tests for phase2-opa
+Phase 2 — end-to-end scenario tests against a live OPA server.
 
-opa_client.py  — HTTP is mocked; tests verify input construction and
-                 fail-closed behaviour on connection errors.
+These tests start OPA as a subprocess, load the real Rego policy, and drive
+has_permission() through the full stack — Python client → HTTP → OPA → Rego.
+No mock is used; the tests validate that the Rego policy enforces the same
+rules as Phase 1.
 
-permission.py  — verifies the input document forwarded to OPA is correct,
-                 including the is_admin field.
+Protocol-combo scenarios were removed: Rucio core already resolves TPC
+feasibility dynamically per-RSE via the third_party_copy_read /
+third_party_copy_write protocol capability flags, so the Rego policy no
+longer duplicates that check.
+
+Skips automatically if the stack isn't reachable.
 """
 
-import json
-from unittest.mock import MagicMock, patch
-from urllib.error import URLError
+from pathlib import Path
 
-import rucio.core.account as ra
+import pytest
+from tests.conftest import build_opa_server_fixture
 
 from rucio_opa_policy.opa_client import query_opa
-from rucio_opa_policy.permission import _build_input, has_permission
 
-# Helpers
+# OPA server fixture
 
-
-def _mock_opa_response(result: bool):
-    """Return a context-manager mock that simulates a successful OPA response."""
-    body = json.dumps({"result": result}).encode()
-    mock_resp = MagicMock()
-    mock_resp.__enter__ = lambda s: s
-    mock_resp.__exit__ = MagicMock(return_value=False)
-    mock_resp.read = MagicMock(return_value=body)
-    return mock_resp
+REGO_PATH = Path(__file__).parent.parent / "rego" / "phase2" / "authz.rego"
+opa_server = build_opa_server_fixture(REGO_PATH, "vo/authz/allow")
 
 
-# opa_client tests
+@pytest.fixture(autouse=True)
+def _point_client_at_opa(opa_server, monkeypatch):
+    """Redirect the OPA client to the test server for every test in this module."""
+    monkeypatch.setenv("OPA_URL", opa_server)
+    monkeypatch.setenv("OPA_POLICY_PATH", "vo/authz/allow")
 
 
-class TestOpaClient:
-    def test_returns_true_when_opa_allows(self):
-        with patch("rucio_opa_policy.opa_client.urlopen") as mock_open:
-            mock_open.return_value = _mock_opa_response(True)
-            assert query_opa({"action": "add_rule"}) is True
-
-    def test_returns_false_when_opa_denies(self):
-        with patch("rucio_opa_policy.opa_client.urlopen") as mock_open:
-            mock_open.return_value = _mock_opa_response(False)
-            assert query_opa({"action": "add_rule"}) is False
-
-    def test_fail_closed_on_connection_error(self):
-        with patch("rucio_opa_policy.opa_client.urlopen", side_effect=URLError("refused")):
-            assert query_opa({"action": "add_rule"}) is False
-
-    def test_fail_closed_on_timeout(self):
-        with patch("rucio_opa_policy.opa_client.urlopen", side_effect=TimeoutError()):
-            assert query_opa({"action": "add_rule"}) is False
-
-    def test_fail_closed_on_unexpected_exception(self):
-        with patch("rucio_opa_policy.opa_client.urlopen", side_effect=RuntimeError("boom")):
-            assert query_opa({"anything": True}) is False
-
-    def test_correct_json_sent_to_opa(self):
-        """Verify that the payload posted to OPA wraps input correctly."""
-        captured = {}
-
-        def fake_urlopen(req, timeout=None):
-            captured["data"] = json.loads(req.data)
-            return _mock_opa_response(True)
-
-        with patch("rucio_opa_policy.opa_client.urlopen", side_effect=fake_urlopen):
-            query_opa({"action": "add_rse", "issuer": "root"})
-
-        assert "input" in captured["data"]
-        assert captured["data"]["input"]["action"] == "add_rse"
-
-    def test_opa_url_from_env(self, monkeypatch):
-        monkeypatch.setenv("OPA_URL", "http://opa-server:8181")
-        monkeypatch.setenv("OPA_POLICY_PATH", "custom/allow")
-        with patch("rucio_opa_policy.opa_client.urlopen") as mock_open:
-            mock_open.return_value = _mock_opa_response(True)
-            query_opa({})
-            called_url = mock_open.call_args[0][0].full_url
-        assert called_url == "http://opa-server:8181/v1/data/custom/allow"
+# Helper: build an input doc and query OPA directly
 
 
-# _build_input tests
-
-
-class TestBuildInput:
-    def test_root_flag_set_for_root(self, root):
-        doc = _build_input(root, "add_rule", {})
-        assert doc["is_root"] is True
-        assert doc["issuer"] == "root"
-
-    def test_root_flag_false_for_regular(self, regular_account):
-        doc = _build_input(regular_account, "add_rule", {})
-        assert doc["is_root"] is False
-
-    def test_is_admin_false_by_default(self, regular_account):
-        """When has_account_attribute returns False, is_admin must be False."""
-        doc = _build_input(regular_account, "add_rule", {})
-        assert doc["is_admin"] is False
-
-    def test_is_admin_true_when_account_has_attribute(self, regular_account, monkeypatch):
-        """When the account has the admin attribute, is_admin must be True."""
-        import rucio_opa_policy.permission as p2_perm
-
-        monkeypatch.setattr(p2_perm, "has_account_attribute", lambda **kw: True)
-        doc = _build_input(regular_account, "add_rule", {})
-        assert doc["is_admin"] is True
-
-    def test_is_admin_not_looked_up_for_root(self, root, monkeypatch):
-        """Root is privileged by is_root; no DB call needed for is_admin."""
-        called = []
-        monkeypatch.setattr(ra, "has_account_attribute", lambda **kw: called.append(1) or False)
-        _build_input(root, "add_rule", {})
-        assert called == [], "has_account_attribute should not be called for root"
-
-    def test_action_forwarded(self, root):
-        doc = _build_input(root, "add_rse", {})
-        assert doc["action"] == "add_rse"
-
-    def test_known_kwargs_forwarded(self, root):
-        kw = {
-            "rse_expression": "CERN_DATADISK",
-            "locked": False,
+def _query(
+    issuer: str,
+    action: str,
+    *,
+    is_root: bool = False,
+    is_admin: bool = False,
+    **kwargs_fields,
+) -> bool:
+    return query_opa(
+        {
+            "issuer": issuer,
+            "action": action,
+            "is_root": is_root,
+            "is_admin": is_admin,
+            "kwargs": kwargs_fields,
         }
-        doc = _build_input(root, "add_rule", kw)
-        assert doc["kwargs"]["rse_expression"] == "CERN_DATADISK"
-        assert doc["kwargs"]["locked"] is False
-
-    def test_unlisted_kwargs_not_forwarded(self, root):
-        """Keys outside _PASSTHROUGH_KEYS (e.g. retired protocol hints) are dropped."""
-        kw = {
-            "rse_expression": "CERN_DATADISK",
-            "source_protocol": "webdav",
-            "dst_protocol": "s3",
-        }
-        doc = _build_input(root, "add_rule", kw)
-        assert "source_protocol" not in doc["kwargs"]
-        assert "dst_protocol" not in doc["kwargs"]
-
-    def test_session_not_forwarded(self, root):
-        """SQLAlchemy sessions must never be included in the OPA input."""
-        kw = {"session": object(), "rse_expression": "CERN_DATADISK"}
-        doc = _build_input(root, "add_rule", kw)
-        assert "session" not in doc["kwargs"]
-
-    def test_internal_account_in_account_field_is_stringified(self, root, regular_account):
-        """If kwargs['account'] is an InternalAccount, its .external is used."""
-        kw = {"account": regular_account}
-        doc = _build_input(root, "add_rule", kw)
-        assert doc["kwargs"]["account"] == "alice"
-
-    def test_did_kwargs_forwarded(self, root):
-        """DID-related kwargs like scope and name are included."""
-        kw = {"scope": "atlas", "name": "dataset1"}
-        doc = _build_input(root, "add_did", kw)
-        assert doc["kwargs"]["scope"] == "atlas"
-        assert doc["kwargs"]["name"] == "dataset1"
+    )
 
 
-# has_permission (Phase 2) integration — OPA response drives the result
+# RSE naming (add_rule, add_rse)
 
 
-class TestPhase2HasPermission:
-    def test_opa_allow_propagated(self, root):
-        with patch("rucio_opa_policy.permission.query_opa", return_value=True):
-            assert has_permission(root, "add_rule", {}) is True
+class TestOPA_RseNaming:
+    def test_valid_rse_name_allows_rule(self):
+        assert (
+            _query(
+                "alice", "add_rule", account="alice", locked=False, rse_expression="BNL_DATADISK"
+            )
+            is True
+        )
 
-    def test_opa_deny_propagated(self, root):
-        with patch("rucio_opa_policy.permission.query_opa", return_value=False):
-            assert has_permission(root, "add_rule", {}) is False
+    def test_lowercase_rse_name_denies_rule(self):
+        assert (
+            _query(
+                "alice", "add_rule", account="alice", locked=False, rse_expression="bnl_datadisk"
+            )
+            is False
+        )
 
-    def test_correct_input_forwarded_to_opa(self, root):
-        captured = {}
+    def test_unknown_type_denies_rule(self):
+        assert (
+            _query(
+                "alice", "add_rule", account="alice", locked=False, rse_expression="CERN_UNKNOWN"
+            )
+            is False
+        )
 
-        def fake_query(input_doc):
-            captured["input"] = input_doc
-            return True
+    def test_expression_with_operators_allowed(self):
+        assert (
+            _query(
+                "alice",
+                "add_rule",
+                account="alice",
+                locked=False,
+                rse_expression="site=CERN&type=DATADISK",
+            )
+            is True
+        )
 
-        with patch("rucio_opa_policy.permission.query_opa", side_effect=fake_query):
-            has_permission(root, "add_rse", {"rse": "CERN_DATADISK"})
+    def test_root_add_rse_valid_name(self):
+        assert _query("root", "add_rse", is_root=True, rse="INFN_TAPE") is True
 
-        assert captured["input"]["action"] == "add_rse"
-        assert captured["input"]["is_root"] is True
-        assert captured["input"]["kwargs"]["rse"] == "CERN_DATADISK"
+    def test_root_add_rse_invalid_name_denied(self):
+        assert _query("root", "add_rse", is_root=True, rse="infn_tape") is False
 
-    def test_is_admin_included_in_opa_input(self, regular_account, monkeypatch):
-        """is_admin from has_account_attribute reaches the OPA input doc."""
-        import rucio_opa_policy.permission as p2_perm
+    def test_all_known_types_accepted(self):
+        for rse_type in ("DATADISK", "SCRATCHDISK", "LOCALGROUPDISK", "TAPE", "USERDISK"):
+            result = _query("root", "add_rse", is_root=True, rse=f"CERN_{rse_type}")
+            assert result is True, f"Expected CERN_{rse_type} to be accepted"
 
-        monkeypatch.setattr(p2_perm, "has_account_attribute", lambda **kw: True)
-        captured = {}
 
-        def fake_query(input_doc):
-            captured["input"] = input_doc
-            return True
+# Account privilege checks
 
-        with patch("rucio_opa_policy.permission.query_opa", side_effect=fake_query):
-            has_permission(regular_account, "del_rse", {})
 
-        assert captured["input"]["is_admin"] is True
+class TestOPA_AccountChecks:
+    def test_user_own_unlocked_rule_allowed(self):
+        assert (
+            _query(
+                "alice", "add_rule", account="alice", locked=False, rse_expression="CERN_DATADISK"
+            )
+            is True
+        )
+
+    def test_user_own_locked_rule_denied(self):
+        assert (
+            _query(
+                "alice", "add_rule", account="alice", locked=True, rse_expression="CERN_DATADISK"
+            )
+            is False
+        )
+
+    def test_user_rule_for_other_denied(self):
+        assert (
+            _query("alice", "add_rule", account="bob", locked=False, rse_expression="CERN_DATADISK")
+            is False
+        )
+
+    def test_root_rule_for_any_account(self):
+        assert (
+            _query(
+                "root",
+                "add_rule",
+                is_root=True,
+                account="bob",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+            )
+            is True
+        )
+
+    def test_admin_rule_for_other_account(self):
+        assert (
+            _query(
+                "adminuser",
+                "add_rule",
+                is_admin=True,
+                account="carol",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+            )
+            is True
+        )
+
+    def test_regular_user_denied_add_rse(self):
+        assert _query("alice", "add_rse", rse="CERN_DATADISK") is False
+
+    def test_regular_user_denied_del_rse(self):
+        assert _query("alice", "del_rse") is False
+
+    def test_root_allowed_del_rse(self):
+        assert _query("root", "del_rse", is_root=True) is True
+
+    def test_regular_user_denied_del_rule(self):
+        assert _query("alice", "del_rule") is False
+
+    def test_root_allowed_del_rule(self):
+        assert _query("root", "del_rule", is_root=True) is True
+
+
+# RSE attribute management
+
+
+class TestOPA_RseAttributes:
+    def test_root_add_rse_attribute_allowed(self):
+        assert _query("root", "add_rse_attribute", is_root=True) is True
+
+    def test_regular_user_denied_add_rse_attribute(self):
+        assert _query("alice", "add_rse_attribute") is False
+
+    def test_root_del_rse_attribute_allowed(self):
+        assert _query("root", "del_rse_attribute", is_root=True) is True
+
+    def test_admin_add_rse_attribute_allowed(self):
+        assert _query("adminuser", "add_rse_attribute", is_admin=True) is True
+
+
+# DID management
+
+
+class TestOPA_DidManagement:
+    def test_root_add_did_allowed(self):
+        assert _query("root", "add_did", is_root=True, scope="atlas", name="dataset1") is True
+
+    def test_scope_owner_add_did_allowed(self):
+        """User can add a DID to a scope they own (scope starts with issuer name)."""
+        assert _query("alice", "add_did", scope="alice.physics", name="myfile") is True
+
+    def test_mock_scope_always_allowed(self):
+        """Mock scope is open to all users for testing."""
+        assert _query("alice", "add_did", scope="mock", name="testfile") is True
+
+    def test_other_user_scope_denied(self):
+        """Alice cannot add a DID to bob's scope."""
+        assert _query("alice", "add_did", scope="bob.private", name="file") is False
+
+    def test_attach_dids_scope_owner_allowed(self):
+        assert _query("alice", "attach_dids", scope="alice.data", name="container") is True
+
+    def test_detach_dids_other_scope_denied(self):
+        assert _query("alice", "detach_dids", scope="carol.data", name="container") is False
+
+
+# Update RSE (rename)
+
+
+class TestOPA_UpdateRse:
+    def test_root_rename_valid_allowed(self):
+        assert (
+            _query("root", "update_rse", is_root=True, parameters={"rse": "NIKHEF_DATADISK"})
+            is True
+        )
+
+    def test_root_rename_invalid_denied(self):
+        assert (
+            _query("root", "update_rse", is_root=True, parameters={"rse": "nikhef_datadisk"})
+            is False
+        )
+
+    def test_root_update_no_rename_allowed(self):
+        assert (
+            _query("root", "update_rse", is_root=True, parameters={"availability_read": True})
+            is True
+        )
+
+    def test_regular_user_update_rse_denied(self):
+        assert _query("alice", "update_rse", parameters={"rse": "CERN_DATADISK"}) is False

@@ -82,22 +82,20 @@ package = rucio_opa_v3_policy
 
 ## Tests
 
-| File | Covers |
-|------|--------|
-| `tests/test_phase4_e2e.py` | Live OPA — group privilege, user self-service, root bootstrap, runtime bundle override |
-| `tests/test_phase4_smoke.py` | Live full stack — real Rucio REST API, auth, Keycloak `wlcg.groups` claim verification, and that Rucio actually calls OPA end-to-end |
-
 ```bash
 # Start the full stack (Rucio + OPA + Keycloak + PostgreSQL) once for e2e + smoke
 cd deploy/compose && docker compose -f docker-compose.phase4.yml up -d && cd ../..
 
-# E2E — against OPA directly
-OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase4_e2e.py -v
+# OPA — against OPA directly
+OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase4_opa.py -v
+
+# Create test accounts and map their Keycloak subjects to them
+cd scripts && ./init-phase4.sh && cd ..
 
 # Smoke — against Rucio's REST API + Keycloak
 RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
     KEYCLOAK_URL=http://localhost:8080 \
-    python3 -m pytest tests/test_phase4_smoke.py -v
+    python3 -m pytest tests/test_phase4_rucio.py -v
 
 # Teardown
 cd deploy/compose && docker compose -f docker-compose.phase4.yml down -v && cd ../..

@@ -193,6 +193,7 @@
     },
     {
       "username": "adminuser",
+      "id": "7f3d9c21-8b64-4e5a-9f02-1d6c4a8e37b5",
       "enabled": true,
       "firstName": "Admin",
       "lastName": "User",
@@ -208,6 +209,26 @@
         "entitlements": [
           "urn:example:aai.example.org:group:rucio-admins:role=member",
           "urn:example:aai.example.org:group:atlas-production:role=member"
+        ]
+      }
+    },
+    {
+      "username": "seeduser",
+      "id": "c4a71e08-52bd-4f9a-b3e7-6081f5d2ac94",
+      "enabled": true,
+      "firstName": "Seed",
+      "lastName": "User",
+      "email": "seeduser@rucio",
+      "emailVerified": true,
+      "requiredActions": [],
+      "realmRoles": [ "offline_access" ],
+      "credentials": [
+        { "type": "password", "value": "secret", "temporary": false }
+      ],
+      "groups": [ "/rucio/users" ],
+      "attributes": {
+        "entitlements": [
+          "urn:example:aai.example.org:group:rucio-users:role=member"
         ]
       }
     },
@@ -401,7 +422,7 @@
     },
     {
      "name": "aud:rucio",
-      "description": "Adds rucio to the token's aud claim. Required so a subject token satisfies the Rucio server's expected_audience gate in get_token_for_account_operation.",
+      "description": "Adds rucio to the token's aud claim. Required so a subject token satisfies the Rucio server's expected_audience gate in get_token_for_account_operation, and so a directly-presented test token passes validate_jwt.",
       "protocol": "openid-connect",
       "attributes": {
         "display.on.consent.screen": "false",

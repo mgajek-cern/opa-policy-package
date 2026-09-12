@@ -4,6 +4,12 @@
   "accessTokenLifespan": 3600,
   "sslRequired": "none",
 
+  "roles": {
+    "realm": [
+      { "name": "offline_access", "description": "Role for creating offline tokens" }
+    ]
+  },
+
   "groups": [
     {
       "name": "rucio",
@@ -26,9 +32,11 @@
   "users": [
     {
       "username": "alice",
+      "id": "2f61b40c-93d7-4e18-8a52-7c09e4d6ab31",
       "email": "alice@example.org",
       "emailVerified": true,
       "enabled": true,
+      "realmRoles": [ "offline_access" ],
       "credentials": [{ "type": "password", "value": "alice123", "temporary": false }],
       "groups": ["/rucio/users", "/atlas/users"],
       "attributes": {
@@ -40,9 +48,11 @@
     },
     {
       "username": "adminuser",
+      "id": "5d82c1f7-4a36-49be-b0e3-8f21d7c95a64",
       "email": "admin@example.org",
       "emailVerified": true,
       "enabled": true,
+      "realmRoles": [ "offline_access" ],
       "credentials": [{ "type": "password", "value": "admin123", "temporary": false }],
       "groups": ["/rucio/admins", "/atlas/production"],
       "attributes": {
@@ -65,7 +75,9 @@
       "standardFlowEnabled": true,
       "serviceAccountsEnabled": true,
       "directAccessGrantsEnabled": true,
-      "defaultClientScopes": ["openid", "profile", "email", "entitlements"]
+      "fullScopeAllowed": true,
+      "defaultClientScopes": ["profile", "email", "entitlements"],
+      "optionalClientScopes": ["offline_access", "aud:rucio"]
     }
   ],
 
@@ -86,6 +98,27 @@
             "aggregate.attrs": "true",
             "access.token.claim": "true",
             "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "aud:rucio",
+      "description": "Adds rucio to the token's aud claim, so a directly-presented test token passes validate_jwt's expected_audience gate.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "display.on.consent.screen": "false",
+        "include.in.token.scope": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "aud-rucio",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "rucio",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
           }
         }
       ]

@@ -19,7 +19,13 @@ One source and one destination RSE supporting third-party copy (e.g. Teapot
 or XrootD), OIDC-enabled. Refer to
 [dep-dlm-testbed](https://github.com/RI-SCALE/dep-dlm-testbed).
 
-## 3. [ ] Stand up the Authorization Service ([docs/adrs/adr-001-authz-service.md](./docs/adrs/adr-001-authz-service.md))
+## 3. [x] Close the OIDC → has_permission() gap
+
+`_extract_entitlements()` read `issuer.oidc_token_info`; `issuer` is an `InternalAccount`, a name wrapper that never carried claims. The function returned `[]` for every request, so `_is_privileged` was reachable only via the `input.issuer == "root"` bootstrap rule and every entitlement-driven rule was dead in a live stack.
+
+Fixed for phase 6 by decoding the JWT payload where the token is validated and threading it to `request.environ['token_claims']` — four patches in `patches/rucio/` plus the policy module. Verified with a real Keycloak token reaching the OPA input document as `token.entitlements`. See [docs/design/design-001-token-claims-to-opa.md](./docs/design/design-001-token-claims-to-opa.md).
+
+## 4. [ ] Stand up the Authorization Service ([docs/adrs/adr-001-authz-service.md](./docs/adrs/adr-001-authz-service.md))
 
 1. Thin passthrough to the existing `authz_v3` Rego — validates the
    `/v1/authorize` contract and operation-name mapping, no behavior change.
@@ -32,7 +38,7 @@ or XrootD), OIDC-enabled. Refer to
 Claims "Phase 5" — sequencing after storage integration resolves the earlier
 open question of which item gets that label.
 
-## 4. [ ] Fine-grained, resource-level permissions
+## 5. [ ] Fine-grained, resource-level permissions
 
 Current model is role/ownership-based. Per-RSE/per-scope ABAC and
 time/context constraints (rule expiry, maintenance windows) need a use-case/
