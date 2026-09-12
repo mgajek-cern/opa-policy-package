@@ -9,6 +9,15 @@ services:
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
+      # Pin the issuer. Without KC_HOSTNAME, start-dev derives iss from the
+      # request Host, so a token minted via localhost:8080 carries a
+      # different iss than one minted in-network and validate_jwt rejects
+      # it. Do not add KC_HOSTNAME_PORT — it makes Keycloak enforce
+      # absolute URLs and realm discovery stops answering.
+      KC_HOSTNAME: keycloak
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED: "true"
     ports:
       - "8080:8080"
     volumes:

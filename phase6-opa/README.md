@@ -7,8 +7,6 @@ transfers through FTS — XRootD (XRD3 → XRD4), Teapot WebDAV
 exchange validated on the wire by each storage endpoint's own token
 enforcement.
 
----
-
 ## What's new in Phase 6
 
 | Addition | Detail |
@@ -19,8 +17,6 @@ enforcement.
 | Storage-side enforcement | XRootD validates the exchanged SciToken's issuer/audience natively via `scitokens.conf`, Teapot via its Storm-WebDAV storage-area config — separate enforcement points from Rucio's `has_permission()`/OPA, not routed through this package |
 
 **Rego policy path:** `vo/authz/v5/allow` (same package version as Phase 5 — no entitlement-model changes, only the RSE allowlist addition)
-
----
 
 ## What this does *not* yet prove
 
@@ -36,8 +32,6 @@ OIDC/token-exchange-driven end to end; only the Rucio-API leg still uses
 userpass in the current tests. Closing that gap (an OIDC-authenticated
 privileged action, e.g. `adminuser` calling `add_rse`) and the ADR's
 `transfer.authorize` operation are tracked in [BACKLOG.md](../BACKLOG.md).
-
----
 
 ## OPA input document
 
@@ -59,8 +53,6 @@ PUT /v1/data/vo/policy
 These names bypass the `NAME_TYPE` regex check entirely; every other RSE
 name still requires it. Update at runtime without restarting Rucio or OPA.
 
----
-
 ## Keycloak setup
 
 Same realm model as Phase 5 (`entitlements` claim, per-user attribute), plus
@@ -69,7 +61,7 @@ token-exchange audience clients for the transfer path itself (`xrd3`, `xrd4`,
 
 Two Keycloak-specific details the LS AAI profile in
 [dep-dlm-bbmri](https://github.com/RI-SCALE/dep-dlm-bbmri) doesn't need, both
-handled by `init-testbed.sh`:
+handled by `init-phase6.sh`:
 
 - **Token-exchange permissions are per target client.** Keycloak refuses an
   exchange with `403 access_denied "Client not allowed to exchange"` unless
@@ -83,8 +75,6 @@ handled by `init-testbed.sh`:
   `expected_scope` gate in `get_token_for_account_operation()`. Seeding runs as
   `randomaccount`. Audience comes from the `aud:<name>` client scopes rather
   than RFC 8707's `resource` parameter, which Keycloak 23 doesn't implement.
-
----
 
 ## Install & configure
 
@@ -104,10 +94,7 @@ export OPA_TIMEOUT=2
 package = rucio_opa_v5_policy
 ```
 
-`Unable to load schema module rucio_opa_v5_policy.schema from policy package,
-falling back to generic` on startup is expected: Rucio's policy-package loader
-looks for an optional `schema` submodule, and Phase 6 deliberately doesn't
-override the DID/RSE schema.
+`Unable to load schema module rucio_opa_v5_policy.schema from policy package, falling back to generic` on startup is expected: Rucio's policy-package loader looks for an optional `schema` submodule, and Phase 6 deliberately doesn't override the DID/RSE schema.
 
 ## Running the testbed
 
@@ -116,25 +103,29 @@ must exist on the host **before** `docker compose up` — generate them
 first, then start the stack, then initialize RSEs/accounts:
 
 ```bash
-# 1. Generate CA + host certs (xrd3, xrd4, teapot1, teapot2, rucio-server, fts, keycloak)
+# Generate CA + host certs (xrd3, xrd4, teapot1, teapot2, rucio-server, fts, keycloak)
 cd scripts && ./generate-certs.sh && cd ..
 
-# 2. Start the full stack
+# Start the full stack
 cd deploy/compose && docker compose -f docker-compose.phase6.yml up -d && cd ../..
 
-# 3. Grant token exchange, register RSEs/accounts/scopes, seed OIDC subject
+# Grant token exchange, register RSEs/accounts/scopes, seed OIDC subject
 #    tokens, register the FTS token provider
-cd scripts && ./init-testbed.sh && cd ..
+cd scripts && ./init-phase6.sh && cd ..
 
-# 4. Run the transfer tests
+# Smoke — against Rucio's REST API + Keycloak. Exercises the OIDC → has_permission() → OPA path with real tokens
 docker exec -it compose-rucio-client-1 \
-    python3 -m pytest /tests/test_phase6_smoke.py -v
+    python3 -m pytest /tests/test_phase6_rucio.py -v
+
+# Smoke — Full transfer tests against Rucio's REST API + Keycloak
+docker exec -it compose-rucio-client-1 \
+    python3 -m pytest /tests/test_phase6_full_transfer.py -v
 
 # Teardown
 cd deploy/compose && docker compose -f docker-compose.phase6.yml down -v && cd ../..
 ```
 
-`init-testbed.sh` resolves `docker-compose.yml` relative to its own location,
+`init-phase6.sh` resolves `docker-compose.yml` relative to its own location,
 so it can be run from either `deploy/` or `deploy/scripts/`. Its OIDC settings
 default to the local Keycloak realm and are env-overridable — pointing the same
 script at LS AAI is a matter of setting `OIDC_ISSUER`, `OIDC_CLIENT_ID`,

@@ -44,59 +44,52 @@ jobs:
           name: coverage-phase1
           path: coverage-phase1.xml
 
-  test-phase2:
-    name: Phase 2
-    uses: ./.github/workflows/_phase-opa-tests.yml
+    test-phase2:
     with:
       phase: phase2
       package_dir: phase2-opa
       phase_label: "Phase 2"
-      unit_test_file: tests/test_phase2_opa.py
+      unit_test_file: tests/test_phase2_unit.py
       coverage_src: phase2-opa/src
-      e2e_test_file: tests/test_phase2_e2e.py
-      smoke_test_file: tests/test_phase2_smoke.py
+      opa_test_file: tests/test_phase2_opa.py
+      rucio_test_file: tests/test_phase2_rucio.py
 
   test-phase3:
-    name: Phase 3
-    uses: ./.github/workflows/_phase-opa-tests.yml
     with:
       phase: phase3
       package_dir: phase3-opa
       phase_label: "Phase 3"
-      unit_test_file: tests/test_phase3_opa.py
+      unit_test_file: tests/test_phase3_unit.py
       coverage_src: phase3-opa/src
-      e2e_test_file: tests/test_phase3_e2e.py
-      smoke_test_file: tests/test_phase3_smoke.py
+      opa_test_file: tests/test_phase3_opa.py
+      rucio_test_file: tests/test_phase3_rucio.py
 
   test-phase4:
-    name: Phase 4
-    uses: ./.github/workflows/_phase-opa-tests.yml
     with:
       phase: phase4
       package_dir: phase4-opa
       phase_label: "Phase 4"
       needs_keycloak: true
-      e2e_test_file: tests/test_phase4_e2e.py
-      smoke_test_file: tests/test_phase4_smoke.py
+      setup_script: init-phase4.sh
+      opa_test_file: tests/test_phase4_opa.py
+      rucio_test_file: tests/test_phase4_rucio.py
 
   test-phase5:
-    name: Phase 5
-    uses: ./.github/workflows/_phase-opa-tests.yml
     with:
       phase: phase5
       package_dir: phase5-opa
       phase_label: "Phase 5"
       needs_keycloak: true
-      e2e_test_file: tests/test_phase5_e2e.py
-      smoke_test_file: tests/test_phase5_smoke.py
+      setup_script: init-phase5.sh
+      opa_test_file: tests/test_phase5_opa.py
+      rucio_test_file: tests/test_phase5_rucio.py
 
   test-phase6:
-    name: Phase 6
-    uses: ./.github/workflows/_phase-opa-tests.yml
     with:
       phase: phase6
       package_dir: phase6-opa
       phase_label: "Phase 6"
-      smoke_test_file: tests/test_phase6_smoke.py
-      authz_test_file: tests/test_phase6_authz.py
+      setup_script: init-phase6.sh
+      rucio_test_file: tests/test_phase6_rucio.py
+      transfer_test_file: tests/test_phase6_full_transfer.py
       test_container: rucio-client

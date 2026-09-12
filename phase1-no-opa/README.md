@@ -35,9 +35,3 @@ package = rucio_no_opa_policy
 ```bash
 python3 -m pytest tests/test_phase1_rules.py tests/test_phase1_permission.py -v
 ```
-
-| File | Covers |
-|------|--------|
-| `test_phase1_rules.py` | RSE naming, kwargs validation |
-| `test_phase1_permission.py` | `has_permission()` dispatch |
-| `test_phase1_e2e_scenarios.py` | Allow/deny scenario paths |
