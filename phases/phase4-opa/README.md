@@ -22,7 +22,13 @@ Phase 4 — OPA as PDP, OIDC token-native authorisation via `wlcg.groups`. Keycl
   "input": {
     "issuer": "alice",
     "action": "add_rule",
-    "token": { "groups": ["/rucio/users", "/atlas/users"] },
+    "token": {
+      "groups": ["/rucio/users", "/atlas/users"],
+      "acr": "https://refeds.org/profile/mfa",
+      "aud": "rucio",
+      "iss": "http://keycloak:8080/realms/rucio",
+      "sub": "8b14e07a-3f52-4d6c-91ab-2e70d5c48f93"
+    },
     "kwargs": { "account": "alice", "locked": false,
                 "rse_expression": "CERN_DATADISK" }
   }

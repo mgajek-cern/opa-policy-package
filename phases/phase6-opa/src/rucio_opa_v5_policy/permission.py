@@ -3,26 +3,29 @@
 Phase 6 permission module — OIDC token-native OPA authorisation via URN entitlements.
 
 Key difference from Phase 5:
-  - No is_root / is_admin pre-resolution from the Rucio DB.
-  - URN entitlements from the validated JWT are extracted and forwarded to
-    OPA as token.entitlements.
-  - OPA evaluates entitlement membership against data.vo.entitlement_policy
-    in the bundle.
+  - Same entitlement model; the Rego adds an RSE-name allowlist for the
+    testbed RSEs and the transfer path is exercised end to end.
 
- Input document shape:
-     {
-         "issuer":  "<account external name>",
-         "action":  "<rucio action string>",
-        "token":   { "entitlements": [
-                        "urn:example:aai.example.org:group:rucio-admins:role=member"
-                     ] },
-         "kwargs":  { ... }
-     }
+Input document shape:
+    {
+        "issuer":  "<account external name>",
+        "action":  "<rucio action string>",
+        "token":   {
+            "entitlements": ["urn:example:aai.example.org:group:rucio-admins:role=member"],
+            "acr":          "https://refeds.org/profile/mfa",
+            "aud":          "rucio",
+            "iss":          "http://keycloak:8080/realms/rucio",
+            "sub":          "..."
+        },
+        "kwargs":  { ... }
+    }
 
-For accounts that authenticated via userpass (e.g. the bootstrap root account),
-token.entitlements will be an empty list. The Rego rule
-   _is_privileged if { input.issuer == "root" }
- handles this unconditionally so the server can start.
+Scalar claims appear only when the token carries them; the list claims are
+always present so a Rego clause iterating them is safe. For accounts that
+authenticated via userpass (e.g. the bootstrap root account) every list is
+empty and no scalar is set. The Rego rule
+  _is_privileged if { input.issuer == "root" }
+handles this unconditionally so the server can start.
 """
 
 import logging
@@ -40,10 +43,15 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 # Set RUCIO_OPA_DEBUG_INPUT=1 in the rucio-server environment to log every
-# OPA input document at WARNING level — useful for diagnosing "Access
-# denied" errors where it's unclear which kwarg Rego is missing. Off by
-# default since it can be noisy / verbose in production.
+# OPA input document at WARNING level
 _DEBUG_INPUT = os.environ.get("RUCIO_OPA_DEBUG_INPUT", "").strip() in ("1", "true", "True")
+
+# Claims forwarded to OPA, as <input.token key>: <claim name>.
+_LIST_CLAIMS: dict[str, str] = {
+    "entitlements": "entitlements",
+}
+
+_SCALAR_CLAIMS: tuple[str, ...] = ("acr", "aud", "iss", "sub")
 
 
 def has_permission(
@@ -67,38 +75,59 @@ def _build_input(
     return {
         "issuer": issuer.external,
         "action": action,
-        "token": {"entitlements": _extract_entitlements()},
+        "token": _token_claims(),
         "kwargs": _serialisable_kwargs(kwargs),
     }
 
 
-def _extract_entitlements() -> list[str]:
+def _request_claims() -> dict[str, Any]:
     """
-    Read the entitlements claim from the current request.
+    The decoded JWT payload for the current request.
 
-    Populated by the patched REST layer (see patches/rucio/). Returns []
+    Populated by the patched REST layer (see patches/rucio/). Returns {}
     outside a request context, which unit tests rely on.
     """
     try:
         from flask import has_request_context, request
     except ImportError:
         if _DEBUG_INPUT:
-            log.warning("OPA entitlements: flask not importable")
-        return []
+            log.warning("OPA token claims: flask not importable")
+        return {}
     if not has_request_context():
         if _DEBUG_INPUT:
-            log.warning("OPA entitlements: no flask request context")
+            log.warning("OPA token claims: no flask request context")
+        return {}
+    return request.environ.get("token_claims") or {}
+
+
+def _as_list(value: Any) -> list[str]:
+    """
+    Normalise a claim that may be a list or a space-separated string.
+
+    IdPs emit single- and multi-valued claims either way; list("urn:...")
+    would silently produce a list of characters.
+    """
+    if value is None:
         return []
-    claims = request.environ.get("token_claims") or {}
-    value = claims.get("entitlements", [])
-    entitlements = value.split() if isinstance(value, str) else list(value)
+    if isinstance(value, str):
+        return value.split()
+    return list(value)
+
+
+def _token_claims() -> dict[str, Any]:
+    claims = _request_claims()
+
+    token: dict[str, Any] = {
+        key: _as_list(claims.get(claim)) for key, claim in _LIST_CLAIMS.items()
+    }
+    for key in _SCALAR_CLAIMS:
+        if key in claims:
+            token[key] = claims[key]
+
     if _DEBUG_INPUT:
-        log.warning(
-            "OPA entitlements: claim_keys=%s entitlements=%s",
-            sorted(claims),
-            entitlements,
-        )
-    return entitlements
+        log.warning("OPA token claims: claim_keys=%s forwarded=%s", sorted(claims), token)
+
+    return token
 
 
 _PASSTHROUGH_KEYS: frozenset[str] = frozenset(

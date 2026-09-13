@@ -4,6 +4,7 @@ Phase 5 — e2e scenario tests against a live OPA server.
 
 import json
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import pytest
@@ -21,6 +22,8 @@ ATLAS_PROD = "urn:example:aai.example.org:group:atlas-production:role=member"
 USER = "urn:example:aai.example.org:group:rucio-users:role=member"
 ATLAS_USER = "urn:example:aai.example.org:group:atlas-users:role=member"
 
+MFA = "https://refeds.org/profile/mfa"
+
 
 @pytest.fixture(autouse=True)
 def _point_client(opa_server, monkeypatch):
@@ -28,7 +31,7 @@ def _point_client(opa_server, monkeypatch):
     monkeypatch.setenv("OPA_POLICY_PATH", OPA_POLICY_PATH)
 
 
-def _put(opa_url: str, path: str, data: dict) -> None:
+def _put(opa_url: str, path: str, data) -> None:
     url = f"{opa_url.rstrip('/')}/v1/data/{path}"
     req = Request(
         url,
@@ -40,12 +43,41 @@ def _put(opa_url: str, path: str, data: dict) -> None:
         pass
 
 
-def _q(issuer: str, action: str, *, entitlements=None, **kw) -> bool:
+def _delete(opa_url: str, path: str) -> None:
+    url = f"{opa_url.rstrip('/')}/v1/data/{path}"
+    try:
+        with urlopen(Request(url, method="DELETE"), timeout=5):
+            pass
+    except HTTPError as exc:
+        if exc.code != 404:
+            raise
+
+
+@pytest.fixture
+def required_acr(opa_server):
+    """Set data.vo.policy.required_acr for one test, then remove it.
+
+    Unlike the bundle-override tests below, this restores the bundle — an
+    acr requirement left in place would deny every privileged action in
+    every test declared after it.
+    """
+
+    def _set(value: str) -> None:
+        _put(opa_server, "vo/policy/required_acr", value)
+
+    yield _set
+    _delete(opa_server, "vo/policy/required_acr")
+
+
+def _q(issuer: str, action: str, *, entitlements=None, acr=None, **kw) -> bool:
+    token = {"entitlements": entitlements or [], "groups": []}
+    if acr is not None:
+        token["acr"] = acr
     return query_opa(
         {
             "issuer": issuer,
             "action": action,
-            "token": {"entitlements": entitlements or []},
+            "token": token,
             "kwargs": kw,
         }
     )
@@ -53,7 +85,12 @@ def _q(issuer: str, action: str, *, entitlements=None, **kw) -> bool:
 
 def _root(action: str, **kw) -> bool:
     return query_opa(
-        {"issuer": "root", "action": action, "token": {"entitlements": []}, "kwargs": kw}
+        {
+            "issuer": "root",
+            "action": action,
+            "token": {"entitlements": [], "groups": []},
+            "kwargs": kw,
+        }
     )
 
 
@@ -98,13 +135,47 @@ class TestEntitlementPrivilege:
         assert _q("adminuser", "approve_rule", entitlements=[ADMIN]) is True
 
 
-# User entitlement self-service actions
-
-# Entitlement policy bundle override (runtime)
+# Authentication context (acr)
 #
-# These mutate data.vo.entitlement_policy and do not restore it, so they run
-# last by declaration order. Anything added after them sees a bundle where
-# ADMIN is no longer privileged.
+# data.vo.policy.required_acr gates the OIDC privilege path only. Absent by
+# default, so every other test in this module sees the pre-existing
+# behaviour; the fixture restores that state afterwards.
+
+
+class TestAcrConstraint:
+    def test_admin_allowed_when_no_acr_required(self):
+        """Default bundle carries no required_acr — the claim is ignored."""
+        assert _q("adminuser", "del_rse", entitlements=[ADMIN]) is True
+        assert _q("adminuser", "del_rse", entitlements=[ADMIN], acr=MFA) is True
+
+    def test_admin_allowed_when_acr_matches(self, required_acr):
+        required_acr(MFA)
+        assert _q("adminuser", "del_rse", entitlements=[ADMIN], acr=MFA) is True
+
+    def test_admin_denied_when_acr_missing(self, required_acr):
+        """An admin entitlement is no longer sufficient on its own."""
+        required_acr(MFA)
+        assert _q("adminuser", "del_rse", entitlements=[ADMIN]) is False
+
+    def test_admin_denied_when_acr_differs(self, required_acr):
+        required_acr(MFA)
+        assert (
+            _q("adminuser", "del_rse", entitlements=[ADMIN], acr="urn:mace:incommon:iap:silver")
+            is False
+        )
+
+    def test_root_bootstrap_unaffected_by_acr(self, required_acr):
+        """root has no token and therefore no acr — gating it would strand the stack."""
+        required_acr(MFA)
+        assert _root("del_rse") is True
+
+    def test_self_service_unaffected_by_acr(self, required_acr):
+        """Ownership clauses don't route through _is_privileged."""
+        required_acr(MFA)
+        assert _q("alice", "del_rule", entitlements=[USER], account="alice") is True
+
+
+# User entitlement self-service actions
 
 
 class TestUserEntitlementActions:
@@ -159,11 +230,6 @@ class TestUserEntitlementActions:
     def test_user_denied_del_other_rule(self):
         assert _q("alice", "del_rule", entitlements=[USER], account="bob") is False
 
-    def test_add_replicas_requires_privilege_by_default(self):
-        """No allow_replica_writes_to_allowlisted_rses in the bundle → admin only."""
-        assert _q("alice", "add_replicas", entitlements=[USER], rse="CERN_DATADISK") is False
-        assert _q("adminuser", "add_replicas", entitlements=[ADMIN], rse="CERN_DATADISK") is True
-
     def test_add_dids_requires_every_scope_owned(self):
         assert (
             _q(
@@ -188,6 +254,33 @@ class TestUserEntitlementActions:
         """del_protocol carries no scheme; the no-scheme clause covers it."""
         assert _q("adminuser", "del_protocol", entitlements=[ADMIN]) is True
         assert _q("alice", "del_protocol", entitlements=[USER]) is False
+
+
+# add_replicas — the one rule that distinguishes a "user" entitlement from
+# no entitlement
+#
+# kwargs carry no scope, so there is no ownership signal. An entitlement
+# mapped to "user" is enough on an RSE whose name passes the convention; an
+# account with no mapped entitlement is not.
+
+
+class TestAddReplicasPrivilegeLevels:
+    def test_admin_allowed(self):
+        assert _q("adminuser", "add_replicas", entitlements=[ADMIN], rse="CERN_DATADISK") is True
+
+    def test_user_level_allowed_on_valid_rse_name(self):
+        assert _q("alice", "add_replicas", entitlements=[USER], rse="CERN_DATADISK") is True
+
+    def test_user_level_denied_on_invalid_rse_name(self):
+        """The naming convention still applies — "user" is not a bypass."""
+        assert _q("alice", "add_replicas", entitlements=[USER], rse="cern_bad") is False
+
+    def test_unmapped_entitlement_denied(self):
+        unknown = "urn:example:aai.example.org:group:unknown:role=member"
+        assert _q("carol", "add_replicas", entitlements=[unknown], rse="CERN_DATADISK") is False
+
+    def test_no_entitlements_denied(self):
+        assert _q("carol", "add_replicas", entitlements=[], rse="CERN_DATADISK") is False
 
 
 # Root bootstrap (no OIDC token)
@@ -219,6 +312,10 @@ class TestRootBootstrap:
 
 
 # Entitlement policy bundle override (runtime)
+#
+# These mutate data.vo.entitlement_policy and do not restore it, so they run
+# last by declaration order. Anything added after them sees a bundle where
+# ADMIN is no longer privileged.
 
 
 class TestEntitlementPolicyBundle:
@@ -234,6 +331,11 @@ class TestEntitlementPolicyBundle:
         )
         assert _q("cmsuser", "del_rse", entitlements=[cms_prod]) is True
 
+    def test_bundle_user_level_reaches_add_replicas(self):
+        """The bundle's second tier is policy, not documentation."""
+        assert _q("alice", "add_replicas", entitlements=[USER], rse="CERN_DATADISK") is True
+        assert _q("alice", "add_replicas", entitlements=[ATLAS_USER], rse="CERN_DATADISK") is False
+
     def test_removed_entitlement_loses_privilege(self, opa_server):
         _put(
             opa_server,
@@ -244,5 +346,5 @@ class TestEntitlementPolicyBundle:
         )
         assert _q("adminuser", "del_rse", entitlements=[ADMIN]) is False
 
-    def test_remaining_entitlement_still_privileged(self, opa_server):
+    def test_remaining_entitlement_still_privileged(self):
         assert _q("prod", "del_rse", entitlements=[ATLAS_PROD]) is True

@@ -188,7 +188,8 @@
         "entitlements": [
           "urn:example:aai.example.org:group:rucio-users:role=member",
           "urn:example:aai.example.org:group:atlas-users:role=member"
-        ]
+        ],
+        "acr": ["https://refeds.org/profile/mfa"]
       }
     },
     {
@@ -209,7 +210,8 @@
         "entitlements": [
           "urn:example:aai.example.org:group:rucio-admins:role=member",
           "urn:example:aai.example.org:group:atlas-production:role=member"
-        ]
+        ],
+        "acr": ["https://refeds.org/profile/mfa"]
       }
     },
     {
@@ -229,7 +231,8 @@
       "attributes": {
         "entitlements": [
           "urn:example:aai.example.org:group:rucio-users:role=member"
-        ]
+        ],
+        "acr": ["https://refeds.org/profile/mfa"]
       }
     },
     {
@@ -257,6 +260,21 @@
             "aggregate.attrs": "true",
             "access.token.claim": "true",
             "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "acr-from-attribute",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "acr",
+            "claim.name": "acr",
+            "jsonType.label": "String",
+            "multivalued": "false",
+            "aggregate.attrs": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
           }
         }
       ]
@@ -300,6 +318,21 @@
           "config": {
             "claim.name": "wlcg\\.groups",
             "full.path": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        },
+        {
+          "name": "acr-from-attribute",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "acr",
+            "claim.name": "acr",
+            "jsonType.label": "String",
+            "multivalued": "false",
+            "aggregate.attrs": "false",
             "access.token.claim": "true",
             "id.token.claim": "false",
             "userinfo.token.claim": "false"

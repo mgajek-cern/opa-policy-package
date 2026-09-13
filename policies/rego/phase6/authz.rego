@@ -86,12 +86,21 @@ _perm_update_rse if {
 # add_replicas
 #
 # kwargs carry only {rse, rse_id} — no scope — so there is no ownership
-# signal to gate on. The non-privileged path is therefore opt-in via the
-# bundle: set data.vo.policy.allow_replica_writes_to_allowlisted_rses to
-# true to let any authenticated account register replicas on an
-# allowlisted RSE. Default is privileged-only.
+# signal to gate on. Two non-privileged paths:
+#
+#   - an entitlement mapped to "user" in the bundle, on an RSE whose name
+#     passes _rse_name_valid (which in this phase includes the testbed
+#     allowlist). This is the only rule that distinguishes a mapped
+#     non-admin entitlement from an account with no entitlements.
+#   - data.vo.policy.allow_replica_writes_to_allowlisted_rses, which drops
+#     the entitlement requirement entirely. Broader; default is off.
 
 _perm_add_replicas if { _is_privileged }
+
+_perm_add_replicas if {
+    _has_privilege_level("user")
+    _rse_name_valid(input.kwargs.rse)
+}
 
 _perm_add_replicas if {
     data.vo.policy.allow_replica_writes_to_allowlisted_rses == true
@@ -192,30 +201,63 @@ _is_expression(expr) if { contains(expr, "=") }
 _is_expression(expr) if { contains(expr, "&") }
 _is_expression(expr) if { contains(expr, "|") }
 
+# Authentication context
+#
+# data.vo.policy.required_acr, when set, is compared against the token's acr
+# claim before any entitlement can grant privilege. Absent by default, so
+# the testbed behaves as before; set it at runtime to require e.g.
+# "https://refeds.org/profile/mfa" for privileged actions.
+#
+# This gates the OIDC privilege path only. The root bootstrap below has no
+# token and therefore no acr — requiring one there would leave no way to
+# bring a stack up, and the transfer suite authenticates as root.
+
+_acr_satisfied if { not data.vo.policy.required_acr }
+
+_acr_satisfied if { input.token.acr == data.vo.policy.required_acr }
+
+# Privilege — derived from the entitlements claim
 
 default _is_privileged := false
 
 # Bootstrap: root account has no OIDC token — allow unconditionally.
 _is_privileged if { input.issuer == "root" }
 
-# OIDC path: any entitlement that maps to "admin" grants privilege.
+# OIDC path: any entitlement mapping to "admin", subject to the acr
+# constraint.
 _is_privileged if {
+    _acr_satisfied
+    _has_privilege_level("admin")
+}
+
+# True when any entitlement in the token maps to the given level. "admin"
+# grants privilege; "user" is consulted by _perm_add_replicas, so a mapped
+# entitlement is no longer equivalent to no entitlement at all.
+_has_privilege_level(level) if {
     entitlement := input.token.entitlements[_]
-    _entitlement_privilege(entitlement) == "admin"
+    _entitlement_privilege(entitlement) == level
 }
 
 # Bundle-driven entitlement policy. When a bundle IS loaded this is the
-# only source of privilege — the fallback below does not apply, so the
+# only source of privilege — the fallbacks below do not apply, so the
 # bundle must contain the rucio-admins URN or admin tokens will be denied.
 _entitlement_privilege(entitlement) := level if {
     level := data.vo.entitlement_policy[entitlement]
 }
 
-# Hardcoded fallback — used when no bundle is loaded (CI / testing).
+# Hardcoded fallbacks — used when no bundle is loaded (CI / testing).
 _entitlement_privilege(entitlement) := "admin" if {
     not data.vo.entitlement_policy
     entitlement in {
         "urn:example:aai.example.org:group:rucio-admins:role=member",
         "urn:example:aai.example.org:group:atlas-production:role=member",
+    }
+}
+
+_entitlement_privilege(entitlement) := "user" if {
+    not data.vo.entitlement_policy
+    entitlement in {
+        "urn:example:aai.example.org:group:rucio-users:role=member",
+        "urn:example:aai.example.org:group:atlas-users:role=member",
     }
 }
