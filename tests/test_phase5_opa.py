@@ -21,7 +21,7 @@ from tests.conftest import build_opa_server_fixture
 
 from rucio_opa_v4_policy.opa_client import query_opa
 
-REGO_PATH = Path(__file__).parent.parent / "rego" / "phase5" / "authz.rego"
+REGO_PATH = Path(__file__).parent.parent / "policies" / "rego" / "phase5" / "authz.rego"
 OPA_POLICY_PATH = "vo/authz/v4/allow"
 
 opa_server = build_opa_server_fixture(REGO_PATH, "vo/authz/allow")

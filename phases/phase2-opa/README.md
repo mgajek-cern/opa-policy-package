@@ -29,7 +29,7 @@ Phase 2 — OPA as PDP, all authorisation logic in Rego.
 ## Install & configure
 
 ```bash
-python3 -m pip install -e phase2-opa/
+python3 -m pip install -e phases/phase2-opa/
 ```
 
 ```bash

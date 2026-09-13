@@ -79,7 +79,7 @@ handled by `init-phase6.sh`:
 ## Install & configure
 
 ```bash
-python3 -m pip install -e phase6-opa/
+python3 -m pip install -e phases/phase6-opa/
 ```
 
 ```bash

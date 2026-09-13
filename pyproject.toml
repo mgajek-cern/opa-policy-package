@@ -17,12 +17,12 @@ build-backend = "setuptools.build_meta"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
-pythonpath = ["phase1-no-opa/src", "phase2-opa/src", "phase3-opa/src", "phase4-opa/src" , "phase5-opa/src", "phase6-opa/src"]
+pythonpath = ["phases/phase1-no-opa/src", "phases/phase2-opa/src", "phases/phase3-opa/src", "phases/phase4-opa/src" , "phases/phase5-opa/src", "phases/phase6-opa/src"]
 
 [tool.ruff]
 target-version = "py39"
 line-length = 100
-src = ["phase1-no-opa/src", "phase2-opa/src", "phase3-opa/src", "phase4-opa/src" , "phase5-opa/src", "phase6-opa/src", "tests"]
+src = ["phases/phase1-no-opa/src", "phases/phase2-opa/src", "phases/phase3-opa/src", "phases/phase4-opa/src" , "phases/phase5-opa/src", "phases/phase6-opa/src", "tests"]
 exclude = [".git", ".venv", "__pycache__", "build", "dist", "patches"]
 
 [tool.ruff.lint]

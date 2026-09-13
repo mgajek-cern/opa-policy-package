@@ -29,14 +29,14 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: pip install pytest pytest-cov -e phase1-no-opa/
+        run: pip install pytest pytest-cov -e phases/phase1-no-opa/
       - name: Phase 1 - Unit tests
         run: |
           python -m pytest \
             tests/test_phase1_rules.py \
             tests/test_phase1_permission.py \
             -v --tb=short \
-            --cov=phase1-no-opa/src \
+            --cov=phases/phase1-no-opa/src \
             --cov-report=term-missing \
             --cov-report=xml:coverage-phase1.xml
       - uses: actions/upload-artifact@v4
