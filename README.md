@@ -85,3 +85,9 @@ PHASE=6  package=phases/phase6-opa
   test             Run every suite the phase has, except transfers
   lint             Run the pre-commit hooks over the whole tree
 ```
+
+## Links
+
+- [Rucio Policy Packages tutorial](https://indico.cern.ch/event/1545309/contributions/6742067/attachments/3167370/5629550/Policy%20Package%20Tutorial.pdf)
+- [policy-package-template](https://github.com/rucio/policy-package-template)
+- [opa-ri-scale reference implementation](https://github.com/federicaagostini/opa-ri-scale/tree/main)
