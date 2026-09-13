@@ -2,8 +2,6 @@
 
 Phase 4 — OPA as PDP, OIDC token-native authorisation via `wlcg.groups`. Keycloak issues JWTs with a `wlcg.groups` claim; OPA evaluates group paths against `data.vo.group_policy` in the bundle — no Rucio DB round-trip per authorisation decision.
 
----
-
 ## What's new in Phase 4
 
 | Addition | Detail |
@@ -16,8 +14,6 @@ Phase 4 — OPA as PDP, OIDC token-native authorisation via `wlcg.groups`. Keycl
 **Rego policy path:** `vo/authz/v3/allow` (was `vo/authz/v2/allow`)
 
 **OPA input shape change:** `is_root`/`is_admin` replaced by `token.groups`
-
----
 
 ## OPA input document
 
@@ -47,8 +43,6 @@ PUT /v1/data/vo/group_policy
 
 Update at runtime without restarting Rucio or OPA.
 
----
-
 ## Keycloak setup
 
 Single realm (`rucio`), no federation. Two test users:
@@ -60,46 +54,32 @@ Single realm (`rucio`), no federation. Two test users:
 
 The `wlcg` client scope maps Keycloak group membership to `wlcg.groups` in the JWT.
 
----
-
-## Install & configure
-
-```bash
-python3 -m pip install -e phases/phase4-opa/
-```
-
-```bash
-export RUCIO_POLICY_PACKAGE=rucio_opa_v3_policy
-export OPA_URL=http://localhost:8181
-export OPA_POLICY_PATH=vo/authz/v3/allow
-export OPA_TIMEOUT=2
-```
+## Configuration
 
 ```ini
-# rucio.cfg  [policy]
+# rucio.cfg
+[policy]
 package = rucio_opa_v3_policy
 ```
 
-## Tests
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPA_URL` | `http://localhost:8181` | OPA server the policy module queries |
+| `OPA_POLICY_PATH` | `vo/authz/v3/allow` | Rego rule path for this phase |
+| `OPA_TIMEOUT` | `2` | Seconds before `query_opa()` fails closed |
 
-```bash
-# Start the full stack (Rucio + OPA + Keycloak + PostgreSQL) once for e2e + smoke
-cd deploy/compose && docker compose -f docker-compose.phase4.yml up -d && cd ../..
+Privilege comes from the token, so `[oidc]` in `configs/rucio/phase4/rucio.cfg`
+matters as much as the above: `expected_scope` and `expected_audience` are
+checked by `validate_jwt()` *before* the policy runs, and a token missing
+either is rejected with a 401 that looks like a policy deny.
 
-# OPA — against OPA directly
-OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase4_opa.py -v
+## Running it
 
-# Create test accounts and map their Keycloak subjects to them
-cd scripts && ./init-phase4.sh && cd ..
+`make e2e PHASE=4` — see [Quick start](../../README.md#quick-start).
 
-# Smoke — against Rucio's REST API + Keycloak
-RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
-    KEYCLOAK_URL=http://localhost:8080 \
-    python3 -m pytest tests/test_phase4_rucio.py -v
-
-# Teardown
-cd deploy/compose && docker compose -f docker-compose.phase4.yml down -v && cd ../..
-```
+`make init PHASE=4` maps each Keycloak subject to exactly one Rucio account;
+without it `validate_jwt()` cannot resolve a token to an account and every
+test fails with `CannotAuthenticate`.
 
 ## Verify Keycloak issues wlcg.groups
 

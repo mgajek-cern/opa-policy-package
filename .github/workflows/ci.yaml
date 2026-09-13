@@ -18,27 +18,26 @@ jobs:
       - name: Install pre-commit
         run: pip install pre-commit
       - name: Run pre-commit hooks
-        run: pre-commit run --all-files
+        run: make lint
 
   test-phase1:
     name: Phase 1 - Tests
     runs-on: ubuntu-latest
+    env:
+      PHASE: 1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: pip install pytest pytest-cov -e phases/phase1-no-opa/
+        run: make install-dev
       - name: Phase 1 - Unit tests
         run: |
-          python -m pytest \
-            tests/test_phase1_rules.py \
-            tests/test_phase1_permission.py \
-            -v --tb=short \
+          make test PYTEST_ARGS="-v --tb=short \
             --cov=phases/phase1-no-opa/src \
             --cov-report=term-missing \
-            --cov-report=xml:coverage-phase1.xml
+            --cov-report=xml:coverage-phase1.xml"
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-phase1
@@ -48,54 +47,36 @@ jobs:
     name: Phase 2
     uses: ./.github/workflows/_phase-opa-tests.yml
     with:
-      phase: phase2
-      package_dir: phase2-opa
+      phase: "2"
       phase_label: "Phase 2"
-      opa_test_file: tests/test_phase2_opa.py
-      rucio_test_file: tests/test_phase2_rucio.py
 
   test-phase3:
     name: Phase 3
     uses: ./.github/workflows/_phase-opa-tests.yml
     with:
-      phase: phase3
-      package_dir: phase3-opa
+      phase: "3"
       phase_label: "Phase 3"
-      opa_test_file: tests/test_phase3_opa.py
-      rucio_test_file: tests/test_phase3_rucio.py
 
   test-phase4:
     name: Phase 4
     uses: ./.github/workflows/_phase-opa-tests.yml
     with:
-      phase: phase4
-      package_dir: phase4-opa
+      phase: "4"
       phase_label: "Phase 4"
       needs_keycloak: true
-      setup_script: init-phase4.sh
-      opa_test_file: tests/test_phase4_opa.py
-      rucio_test_file: tests/test_phase4_rucio.py
 
   test-phase5:
     name: Phase 5
     uses: ./.github/workflows/_phase-opa-tests.yml
     with:
-      phase: phase5
-      package_dir: phase5-opa
+      phase: "5"
       phase_label: "Phase 5"
       needs_keycloak: true
-      setup_script: init-phase5.sh
-      opa_test_file: tests/test_phase5_opa.py
-      rucio_test_file: tests/test_phase5_rucio.py
 
   test-phase6:
     name: Phase 6
     uses: ./.github/workflows/_phase-opa-tests.yml
     with:
-      phase: phase6
-      package_dir: phase6-opa
+      phase: "6"
       phase_label: "Phase 6"
-      setup_script: init-phase6.sh
-      rucio_test_file: tests/test_phase6_rucio.py
-      transfer_test_file: tests/test_phase6_full_transfer.py
-      test_container: rucio-client
+      run_transfer_tests: true

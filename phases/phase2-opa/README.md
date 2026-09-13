@@ -2,8 +2,6 @@
 
 Phase 2 — OPA as PDP, all authorisation logic in Rego.
 
----
-
 ## Actions delegated to OPA
 
 | Category | Actions |
@@ -24,39 +22,22 @@ Phase 2 — OPA as PDP, all authorisation logic in Rego.
 }
 ```
 
----
-
-## Install & configure
-
-```bash
-python3 -m pip install -e phases/phase2-opa/
-```
-
-```bash
-export RUCIO_POLICY_PACKAGE=rucio_opa_policy
-export OPA_URL=http://localhost:8181       # default
-export OPA_POLICY_PATH=vo/authz/allow     # default
-export OPA_TIMEOUT=2
-```
+## Configuration
 
 ```ini
-# rucio.cfg  [policy]
+# rucio.cfg
+[policy]
 package = rucio_opa_policy
 ```
 
-## Tests
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPA_URL` | `http://localhost:8181` | OPA server the policy module queries |
+| `OPA_POLICY_PATH` | `vo/authz/allow` | Rego rule path for this phase |
+| `OPA_TIMEOUT` | `2` | Seconds before `query_opa()` fails closed |
 
-```bash
-# Start the full stack (Rucio + OPA + PostgreSQL) once for e2e + smoke
-cd deploy/compose && docker compose -f docker-compose.phase2.yml up -d && cd ../..
+Read by `opa_client.py` at request time — the compose file sets them per phase.
 
-# OPA — against OPA directly
-OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase2_opa.py -v
+## Running it
 
-# Smoke — against Rucio's REST API
-RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
-    python3 -m pytest tests/test_phase2_rucio.py -v
-
-# Teardown (add -v to also wipe the DB volume)
-cd deploy/compose && docker compose -f docker-compose.phase2.yml down -v && cd ../..
-```
+`make e2e PHASE=2` — see [Quick start](../../README.md#quick-start).

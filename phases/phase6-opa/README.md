@@ -76,79 +76,34 @@ handled by `init-phase6.sh`:
   `randomaccount`. Audience comes from the `aud:<name>` client scopes rather
   than RFC 8707's `resource` parameter, which Keycloak 23 doesn't implement.
 
-## Install & configure
-
-```bash
-python3 -m pip install -e phases/phase6-opa/
-```
-
-```bash
-export RUCIO_POLICY_PACKAGE=rucio_opa_v5_policy
-export OPA_URL=http://localhost:8181
-export OPA_POLICY_PATH=vo/authz/v5/allow
-export OPA_TIMEOUT=2
-```
+## Configuration
 
 ```ini
-# rucio.cfg  [policy]
+# rucio.cfg
+[policy]
 package = rucio_opa_v5_policy
 ```
 
-`Unable to load schema module rucio_opa_v5_policy.schema from policy package, falling back to generic` on startup is expected: Rucio's policy-package loader looks for an optional `schema` submodule, and Phase 6 deliberately doesn't override the DID/RSE schema.
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPA_URL` | `http://localhost:8181` | OPA server the policy module queries |
+| `OPA_POLICY_PATH` | `vo/authz/v5/allow` | Rego rule path for this phase |
+| `OPA_TIMEOUT` | `2` | Seconds before `query_opa()` fails closed |
 
-## Running the testbed
+`Unable to load schema module rucio_opa_v5_policy.schema from policy package,
+falling back to generic` on startup is expected: Rucio's loader looks for an
+optional `schema` submodule, and this phase deliberately doesn't override the
+DID/RSE schema.
 
-Certs are bind-mounted read-only into every container at startup, so they
-must exist on the host **before** `docker compose up` — generate them
-first, then start the stack, then initialize RSEs/accounts:
+## Running it
 
-```bash
-# Generate CA + host certs (xrd3, xrd4, teapot1, teapot2, rucio-server, fts, keycloak)
-cd scripts && ./generate-certs.sh && cd ..
+`make e2e PHASE=6` then `make test-transfer PHASE=6` — see
+[Quick start](../../README.md#quick-start).
 
-# Start the full stack
-cd deploy/compose && docker compose -f docker-compose.phase6.yml up -d && cd ../..
-
-# Grant token exchange, register RSEs/accounts/scopes, seed OIDC subject
-#    tokens, register the FTS token provider
-cd scripts && ./init-phase6.sh && cd ..
-
-# Smoke — against Rucio's REST API + Keycloak. Exercises the OIDC → has_permission() → OPA path with real tokens
-docker exec -it compose-rucio-client-1 \
-    python3 -m pytest /tests/test_phase6_rucio.py -v
-
-# Smoke — Full transfer tests against Rucio's REST API + Keycloak
-docker exec -it compose-rucio-client-1 \
-    python3 -m pytest /tests/test_phase6_full_transfer.py -v
-
-# Teardown
-cd deploy/compose && docker compose -f docker-compose.phase6.yml down -v && cd ../..
-```
-
-`init-phase6.sh` resolves `docker-compose.yml` relative to its own location,
-so it can be run from either `deploy/` or `deploy/scripts/`. Its OIDC settings
-default to the local Keycloak realm and are env-overridable — pointing the same
-script at LS AAI is a matter of setting `OIDC_ISSUER`, `OIDC_CLIENT_ID`,
-`OIDC_CLIENT_SECRET` and `OIDC_EXPECTED_AUDIENCE`.
-
-## Verify the transfers completed
-
-```bash
-docker compose -f phase6-opa/deploy/docker-compose.yml exec -T rucio-client \
-    rucio rule list --account root
-```
-
-Expected: `REPLICATING` → `OK` rules targeting `XRD4` (sourced from `XRD3`),
-`TEAPOT2` (from `TEAPOT1`), and the cross-protocol pairs.
-
-Seeded subject tokens, if the transfers stall at `STUCK`:
-
-```bash
-docker exec compose-ruciodb-1 env PGPASSWORD=rucio psql -U rucio -tAc \
-  "SELECT account, oidc_scope, audience FROM tokens WHERE identity LIKE 'SUB=%';"
-```
-
-`oidc_scope` must contain everything in `rucio.cfg`'s `expected_scope` and
-`audience` must contain its `expected_audience`, or
-`get_token_for_account_operation()` refuses to exchange and the submitter
-fails with `Could not procure source token`.
+Certs are bind-mounted read-only into every container, so they must exist
+before the stack starts; `make up PHASE=6` generates them if they're missing.
+`make init PHASE=6` grants token exchange, registers the RSEs, accounts and
+scopes, seeds the OIDC subject tokens and registers the FTS token provider.
+Its OIDC settings default to the local Keycloak realm and are env-overridable —
+pointing the same script at LS AAI is a matter of setting `OIDC_ISSUER`,
+`OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `OIDC_EXPECTED_AUDIENCE`.
