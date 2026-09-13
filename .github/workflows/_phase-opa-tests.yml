@@ -6,50 +6,27 @@ on:
       phase:
         required: true
         type: string
-        description: phase key, e.g. phase2
-      package_dir:
-        required: true
-        type: string
-        description: installable policy package, e.g. phase2-opa
+        description: phase number, e.g. "2" — everything else is derived from it
       phase_label:
         required: true
         type: string
         description: e.g. "Phase 2"
-      opa_test_file:
-        required: false
-        type: string
-        default: ""
-        description: scenario tests against a live OPA server
-      rucio_test_file:
-        required: false
-        type: string
-        description: tests against Rucio's REST API; needs an initialised testbed
-      transfer_test_file:
-        required: false
-        type: string
-        default: ""
-        description: end-to-end transfer tests (phase 6 only)
       needs_keycloak:
         required: false
         type: boolean
         default: false
-      test_container:
+      run_transfer_tests:
         required: false
-        type: string
-        default: ""
-        description: compose service to run the tests in; empty runs them on the runner
-      setup_script:
-        required: false
-        type: string
-        default: ""
-
-env:
-  COMPOSE_FILE: deploy/compose/docker-compose.${{ inputs.phase }}.yml
+        type: boolean
+        default: false
+        description: end-to-end transfer tests (phase 6 only)
 
 jobs:
   test:
     name: ${{ inputs.phase_label }} - Tests
     runs-on: ubuntu-latest
+    env:
+      PHASE: ${{ inputs.phase }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -57,15 +34,14 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install pytest pytest-cov requests urllib3 -e phases/${{ inputs.package_dir }}/
+        run: make install-dev
 
       - name: Generate certificates
-        run: |
-          [ -x scripts/generate-certs.sh ] || { echo "No certs to generate."; exit 0; }
-          cd scripts && ./generate-certs.sh
+        if: inputs.phase == '6'
+        run: make certs
 
       - name: Start full stack
-        run: docker compose up -d --wait --wait-timeout 900
+        run: make up
 
       - name: Wait for Keycloak token endpoint
         if: inputs.needs_keycloak
@@ -80,37 +56,22 @@ jobs:
           echo "Keycloak token endpoint never became ready."; exit 1
 
       - name: Initialise testbed
-        if: inputs.setup_script != ''
-        run: cd scripts && ./${{ inputs.setup_script }}
+        run: make init
 
       - name: OPA tests (live OPA server)
-        if: inputs.opa_test_file != ''
-        env:
-          OPA_URL: http://localhost:8181
-        run: python -m pytest ${{ inputs.opa_test_file }} -v --tb=short
+        run: make test-opa
 
       - name: Rucio tests (REST API)
-        if: inputs.rucio_test_file != ''
-        run: |
-          if [ -n "${{ inputs.test_container }}" ]; then
-            docker compose exec -T ${{ inputs.test_container }} \
-              python3 -m pytest /tests/$(basename ${{ inputs.rucio_test_file }}) -v --tb=short
-          else
-            python -m pytest ${{ inputs.rucio_test_file }} -v --tb=short
-          fi
+        run: make test-rucio
 
-      # - name: Transfer tests (in container)
-      #   if: inputs.transfer_test_file != ''
-      #   run: |
-      #     docker compose exec -T ${{ inputs.test_container }} \
-      #       python3 -m pytest /tests/$(basename ${{ inputs.transfer_test_file }}) -v --tb=short
+      # - name: Transfer tests
+      #   if: inputs.run_transfer_tests
+      #   run: make test-transfer
 
       - name: Dump logs on failure
         if: failure()
-        run: |
-          docker compose ps -a
-          docker compose logs --tail=200
+        run: make dump
 
       - name: Tear down
         if: always()
-        run: docker compose down -v
+        run: make clean

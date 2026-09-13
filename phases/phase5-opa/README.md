@@ -57,44 +57,32 @@ Single realm (`rucio`), no federation. Two test users:
 
 The realm's group tree (`/rucio/admins`, `/atlas/production`, etc.) is kept for realm-admin bookkeeping only. The token claim itself is sourced from each user's `entitlements` attribute via the `entitlements` client scope, not derived from group membership at token time.
 
-## Install & configure
-
-```bash
-python3 -m pip install -e phases/phase5-opa/
-```
-
-```bash
-export RUCIO_POLICY_PACKAGE=rucio_opa_v4_policy
-export OPA_URL=http://localhost:8181
-export OPA_POLICY_PATH=vo/authz/v4/allow
-export OPA_TIMEOUT=2
-```
+## Configuration
 
 ```ini
-# rucio.cfg  [policy]
+# rucio.cfg
+[policy]
 package = rucio_opa_v4_policy
 ```
 
-## Tests
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPA_URL` | `http://localhost:8181` | OPA server the policy module queries |
+| `OPA_POLICY_PATH` | `vo/authz/v4/allow` | Rego rule path for this phase |
+| `OPA_TIMEOUT` | `2` | Seconds before `query_opa()` fails closed |
 
-```bash
-# Start the full stack (Rucio + OPA + Keycloak + PostgreSQL) once for e2e + smoke
-cd deploy/compose && docker compose -f docker-compose.phase5.yml up -d && cd ../..
+Privilege comes from the token, so `[oidc]` in `configs/rucio/phase4/rucio.cfg`
+matters as much as the above: `expected_scope` and `expected_audience` are
+checked by `validate_jwt()` *before* the policy runs, and a token missing
+either is rejected with a 401 that looks like a policy deny.
 
-# OPA — against OPA directly
-OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase5_opa.py -v
+## Running it
 
-# Create test accounts and map their Keycloak subjects to them
-cd scripts && ./init-phase5.sh && cd ..
+`make e2e PHASE=5` — see [Quick start](../../README.md#quick-start).
 
-# Smoke — against Rucio's REST API + Keycloak
-RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
-    KEYCLOAK_URL=http://localhost:8080 \
-    python3 -m pytest tests/test_phase5_rucio.py -v
-
-# Teardown
-cd deploy/compose && docker compose -f docker-compose.phase5.yml down -v && cd ../..
-```
+`make init PHASE=5` maps each Keycloak subject to exactly one Rucio account;
+without it `validate_jwt()` cannot resolve a token to an account and every
+test fails with `CannotAuthenticate`.
 
 ## Verify Keycloak issues entitlements
 

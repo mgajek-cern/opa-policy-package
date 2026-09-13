@@ -2,8 +2,6 @@
 
 Phase 3 — OPA as PDP, data-driven configuration, broader action coverage. Policy bundle (`data.vo.policy`) is pushed at deploy time via `ingest_policies.py`. Rego falls back to hardcoded defaults when no bundle is loaded.
 
----
-
 ## What's new in Phase 3
 
 | Addition | Detail |
@@ -18,8 +16,6 @@ Phase 3 — OPA as PDP, data-driven configuration, broader action coverage. Poli
 
 **New `_PASSTHROUGH_KEYS`:** `scheme`, `hostname`, `attachments`, `rule_id`
 
----
-
 ## Actions delegated to OPA
 
 | Category | Actions |
@@ -32,39 +28,25 @@ Phase 3 — OPA as PDP, data-driven configuration, broader action coverage. Poli
 
 \* Phase 3 addition or behaviour change.
 
----
-
-## Install & configure
-
-```bash
-python3 -m pip install -e phases/phase3-opa/
-```
-
-```bash
-export RUCIO_POLICY_PACKAGE=rucio_opa_v2_policy
-export OPA_URL=http://localhost:8181
-export OPA_POLICY_PATH=vo/authz/v2/allow
-export OPA_TIMEOUT=2
-```
+## Configuration
 
 ```ini
-# rucio.cfg  [policy]
+# rucio.cfg
+[policy]
 package = rucio_opa_v2_policy
 ```
 
-## Tests
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPA_URL` | `http://localhost:8181` | OPA server the policy module queries |
+| `OPA_POLICY_PATH` | `vo/authz/v2/allow` | Rego rule path for this phase |
+| `OPA_TIMEOUT` | `2` | Seconds before `query_opa()` fails closed |
 
-```bash
-# Start the full stack (Rucio + OPA + PostgreSQL) once for e2e + smoke
-cd deploy/compose && docker compose -f docker-compose.phase3.yml up -d && cd ../..
+Read by `opa_client.py` at request time — the compose file sets them per phase.
+The policy bundle (`data.vo.policy`) is pushed separately at deploy time by
+`scripts/ingest_policies.py`; Rego falls back to its hardcoded defaults when no
+bundle is loaded.
 
-# OPA — against OPA directly
-OPA_URL=http://localhost:8181 python3 -m pytest tests/test_phase3_opa.py -v
+## Running it
 
-# Smoke — against Rucio's REST API
-RUCIO_URL=http://localhost OPA_URL=http://localhost:8181 \
-    python3 -m pytest tests/test_phase3_rucio.py -v
-
-# Teardown (add -v to also wipe the DB volume)
-cd deploy/compose && docker compose -f docker-compose.phase3.yml down -v && cd ../..
-```
+`make e2e PHASE=3` — see [Quick start](../../README.md#quick-start).
