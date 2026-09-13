@@ -1,20 +1,5 @@
 """
 Phase 2 — smoke test against the full Rucio + OPA + PostgreSQL stack.
-
-Unlike test_phase2_e2e.py (which queries OPA directly, bypassing Rucio
-entirely) and test_phase2_opa.py (fully mocked HTTP), this file exercises
-real Rucio REST endpoints over HTTP: authentication, request routing,
-schema validation, and — critically — that Rucio's policy-package hook
-actually calls out to OPA end-to-end.
-
-    test_phase2_opa.py    -> unit: input construction, fail-closed
-    test_phase2_e2e.py    -> policy content, via OPA directly
-    this file              -> wiring: Rucio API -> policy package -> OPA
-
-stack_urls, root_token, rucio_call, and rucio_opa_container_logs are shared
-fixtures/helpers defined in conftest.py — see there for details.
-
-Skips automatically if the stack isn't reachable.
 """
 
 import pytest
@@ -90,7 +75,7 @@ class TestAccountAndScope:
 
 
 # Wiring verification — proves Rucio actually calls OPA, not just that OPA
-# answers correctly in isolation (that part is test_phase2_e2e.py)
+# answers correctly in isolation
 
 
 class TestOpaWiring:

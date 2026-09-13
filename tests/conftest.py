@@ -1020,7 +1020,7 @@ def rucio_token() -> str:
 
     Defaults to userpass-as-root, which the Rego short-circuits — right for
     the transfer suite, which tests transfers rather than authorisation. The
-    claims path is covered by test_phase6_authz.py. Set RUCIO_AUTH=oidc to
+    claims path is covered by test_phase6_rucio.py. Set RUCIO_AUTH=oidc to
     run token-natively once the Rego covers the transfer actions.
     """
     if RUCIO_AUTH == "oidc":

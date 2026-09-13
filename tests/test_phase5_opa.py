@@ -1,15 +1,5 @@
 """
 Phase 5 — e2e scenario tests against a live OPA server.
-
-Privilege is derived from token.entitlements (URN entitlement strings) — no
-is_root/is_admin, no wlcg.groups. Same dispatch/naming/self-service logic as
-Phase 4; only the privilege-derivation claim shape changed.
-
-Scenario groups:
-  — Entitlement-based privilege (admin entitlement → privileged)
-  — User entitlement actions (non-privileged but self-service still works)
-  — Root bootstrap account (no token → allowed unconditionally)
-  — Entitlement policy bundle override (runtime mapping via OPA data API)
 """
 
 import json

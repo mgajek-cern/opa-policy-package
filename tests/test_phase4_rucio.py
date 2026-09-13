@@ -1,23 +1,5 @@
 """
 Phase 4 — exercises the OIDC → has_permission() → OPA path with real tokens.
-
-The half the smoke tests don't cover: test_phase4_smoke.py mints a token and
-decodes it locally, proving the IdP issues the claim; test_phase4_e2e.py
-POSTs handcrafted documents to OPA, proving the Rego evaluates them. Neither
-sends a token to Rucio. This does.
-
-The positive test is the regression guard for the claims plumbing
-(patches/rucio/: authentication.py, oidc.py, types.py, common.py). The
-negative test would also pass with that plumbing reverted, since empty
-claims deny too — read them as a pair, and don't delete the positive one.
-
-Uses REST rather than the Rucio client: auth_type=oidc drives an interactive
-browser flow. REST also surfaces ExceptionClass/ExceptionMessage, which is
-what distinguishes a policy deny from a rejected token — both are 401.
-
-Requires scripts/init-phase4.sh to have run: without the identity mapping,
-validate_jwt cannot resolve a token to an account and every test here fails
-with CannotAuthenticate.
 """
 
 import json

@@ -31,8 +31,6 @@ Everything inside `has_permission()` is under the policy package's control.
 The individual `perm_*` functions in Rucio's `generic.py` are a convention,
 not a requirement imposed by the framework.
 
----
-
 ## Full call chain
 
 ```
@@ -52,8 +50,6 @@ OPA / inline Python                  ← policy decision
 The gateway layer (`rucio/gateway/permission.py`) is responsible for the
 string-to-internal-type conversion — `has_permission()` always receives
 fully resolved `InternalAccount` and `InternalScope` objects, never raw strings.
-
----
 
 ## Call sequence — Phase 1 (inline Python PDP)
 
@@ -81,8 +77,6 @@ perm_add_rse()
 The policy logic lives entirely in Python. No external service is involved.
 `rules.py` contains pure functions (protocol combos, RSE naming) that are
 testable without any Rucio infrastructure.
-
----
 
 ## Call sequence — Phase 2 (OPA as external PDP)
 
@@ -134,8 +128,6 @@ OPA is the sole decision maker. The Python module is intentionally thin —
 it only handles serialisation and the one DB call needed to resolve
 `is_admin` (so Rego never needs a DB round-trip).
 
----
-
 ## Fail-closed behaviour
 
 If OPA is unreachable for any reason (connection refused, timeout, malformed
@@ -151,8 +143,6 @@ query_opa() catches URLError / TimeoutError
     └── log.error("OPA unreachable — failing closed")
         return False   ← request denied
 ```
-
----
 
 ## What the policy package must provide
 
@@ -178,22 +168,3 @@ gateway layer: `kwargs["rse_id"]` for RSE actions, `kwargs["account"]`
 (as `InternalAccount`) and `kwargs["locked"]` for rules, and so on. The
 package can only decide what to *do* with these values, not change what
 they are called.
-
----
-
-## Extending the Phase 2 policy
-
-To delegate a new action to OPA:
-
-1. **Rego** — add a rule to `authz.rego` and include the action name in
-   the relevant action set (`_rule_actions`, `_rse_actions`, `_did_actions`,
-   or a new set).
-
-2. **Python** — add any new kwargs keys the Rego rule needs to
-   `_PASSTHROUGH_KEYS` in `permission.py` so they survive serialisation.
-
-3. **Tests** — add scenario tests to `test_phase2_e2e.py` and a
-   corresponding check to `smoke_test.sh`.
-
-No changes to `has_permission()` itself are needed — it forwards everything
-to OPA regardless of action.

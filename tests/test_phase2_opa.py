@@ -1,17 +1,5 @@
 """
 Phase 2 — end-to-end scenario tests against a live OPA server.
-
-These tests start OPA as a subprocess, load the real Rego policy, and drive
-has_permission() through the full stack — Python client → HTTP → OPA → Rego.
-No mock is used; the tests validate that the Rego policy enforces the same
-rules as Phase 1.
-
-Protocol-combo scenarios were removed: Rucio core already resolves TPC
-feasibility dynamically per-RSE via the third_party_copy_read /
-third_party_copy_write protocol capability flags, so the Rego policy no
-longer duplicates that check.
-
-Skips automatically if the stack isn't reachable.
 """
 
 from pathlib import Path

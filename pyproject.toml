@@ -56,39 +56,43 @@ ignore = [
     "S607",  # partial executable path (opa) is intentional — resolved via PATH
     "S501",
 ]
-"tests/test_phase2_e2e.py" = [
+"tests/test_phase2_opa.py" = [
     "S603",
     "S607",
 ]
-"tests/test_phase2_smoke.py" = [
+"tests/test_phase2_rucio.py" = [
     "S603",
     "S607",
 ]
-"tests/test_phase3_e2e.py" = [
+"tests/test_phase3_opa.py" = [
     "S603",
     "S607",
 ]
-"tests/test_phase3_smoke.py" = [
+"tests/test_phase3_rucio.py" = [
     "S603",
     "S607",
 ]
-"tests/test_phase4_e2e.py" = [
+"tests/test_phase4_opa.py" = [
     "S603",
     "S607",
 ]
-"tests/test_phase4_smoke.py" = [
+"tests/test_phase4_rucio.py" = [
     "S603",
     "S607",
 ]
-"tests/test_phase5_e2e.py" = [
+"tests/test_phase5_opa.py" = [
     "S603",
     "S607",
 ]
-"tests/test_phase5_smoke.py" = [
+"tests/test_phase5_rucio.py" = [
     "S603",
     "S607",
 ]
-"tests/test_phase6_smoke.py" = [
+"tests/test_phase6_rucio.py" = [
+    "S603",
+    "S607",
+]
+"tests/test_phase6_full_transfer.py" = [
     "S603",
     "S607",
 ]
