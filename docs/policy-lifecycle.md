@@ -51,13 +51,14 @@ DB before the OPA call. OPA receives a flat, Rucio-specific input document.
 | `constraint` | `kwargs.locked`, ... |
 | _(derived)_ | `is_root`, `is_admin` — resolved in Python |
 
-### Option B — Claims-based / token-native (Phase 4/5)
+### Option B — Claims-based / token-native (Phase 4/5/6)
 
-No `is_root`/`is_admin` pre-resolution. OPA resolves privilege directly from
-a claim forwarded under `token` — no DB call in Python. Phase 4 forwards
-`token.groups` (WLCG group paths); Phase 5 forwards `token.entitlements`
-(URN strings) instead. Same shape either way, different claim key and value
-format:
+No `is_root`/`is_admin` pre-resolution. The claims of the validated token are
+forwarded under `token` and OPA resolves privilege from them — no DB call in
+Python. One membership claim differs per phase; the scalars are the same
+everywhere.
+
+Phase 4 forwards `token.groups`, from the token's `wlcg.groups`:
 
 ```json
 {
@@ -65,7 +66,11 @@ format:
     "issuer": "alice",
     "action": "add_rule",
     "token": {
-      "entitlements": ["urn:example:aai.example.org:group:rucio-admins:role=member"]
+      "groups": ["/rucio/users", "/atlas/users"],
+      "acr": "https://refeds.org/profile/mfa",
+      "aud": "rucio",
+      "iss": "http://keycloak:8080/realms/rucio",
+      "sub": "8b14e07a-3f52-4d6c-91ab-2e70d5c48f93"
     },
     "kwargs": { "account": "alice", "locked": false,
                 "rse_expression": "CERN_DATADISK" }
@@ -73,10 +78,23 @@ format:
 }
 ```
 
-OPA evaluates the claim against a group/entitlement-to-privilege mapping in
-the data bundle (`data.vo.group_policy` or `data.vo.entitlement_policy`) —
-no Rucio DB round-trip per request. The bootstrap `root` account (userpass,
-no token) is allowed unconditionally by a separate Rego rule.
+Phases 5 and 6 forward `token.entitlements` (URN strings) in its place, with
+`token.groups` absent:
+
+```json
+    "token": {
+      "entitlements": ["urn:example:aai.example.org:group:rucio-admins:role=member"],
+      "acr": "https://refeds.org/profile/mfa",
+      "aud": "rucio",
+      "iss": "http://keycloak:8080/realms/rucio",
+      "sub": "2f61b40c-93d7-4e18-8a52-7c09e4d6ab31"
+    }
+```
+
+The forwarded set is an allowlist in `permission.py`, not the raw payload —
+adding a claim to policy means adding it there first. Scalar claims appear
+only when the token carries them; the membership claim is always present, so a
+Rego clause iterating it is safe.
 
 **Not the same as the Authorization Service contract.** The `operation` /
 `subject` / `resource` / `context` shape used by the WP4 Authorization

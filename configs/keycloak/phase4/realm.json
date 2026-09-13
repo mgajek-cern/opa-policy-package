@@ -38,7 +38,10 @@
       "enabled": true,
       "realmRoles": [ "offline_access" ],
       "credentials": [{ "type": "password", "value": "alice123", "temporary": false }],
-      "groups": ["/rucio/users", "/atlas/users"]
+      "groups": ["/rucio/users", "/atlas/users"],
+      "attributes": {
+        "acr": ["https://refeds.org/profile/mfa"]
+      }
     },
     {
       "username": "adminuser",
@@ -48,7 +51,10 @@
       "enabled": true,
       "realmRoles": [ "offline_access" ],
       "credentials": [{ "type": "password", "value": "admin123", "temporary": false }],
-      "groups": ["/rucio/admins", "/atlas/production"]
+      "groups": ["/rucio/admins", "/atlas/production"],
+      "attributes": {
+        "acr": ["https://refeds.org/profile/mfa"]
+      }
     }
   ],
 
@@ -109,6 +115,21 @@
           "config": {
             "claim.name": "wlcg\\.groups",
             "full.path": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        },
+        {
+          "name": "acr-from-attribute",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "acr",
+            "claim.name": "acr",
+            "jsonType.label": "String",
+            "multivalued": "false",
+            "aggregate.attrs": "false",
             "access.token.claim": "true",
             "id.token.claim": "false",
             "userinfo.token.claim": "false"

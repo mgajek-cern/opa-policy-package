@@ -77,24 +77,24 @@ Rucio and IAM are the only direct callers of the Authorization Service. Storage 
 
 ## Phase 6 — entitlement-driven authorisation
 
-[Phase 6 authz.rego file](../rego/phase6/authz.rego). Privilege comes from the token, not the Rucio DB.
-
 ```mermaid
 flowchart TD
     T["Request + X-Rucio-Auth-Token"] --> V["validate_auth_token<br/>claims → request.environ['token_claims']"]
-    V --> P["permission.py builds the OPA input<br/>issuer, action, token.entitlements, kwargs"]
+    V --> P["permission.py builds the OPA input<br/>issuer, action, token.{entitlements, acr, aud, iss, sub}, kwargs"]
     P --> I{"issuer == 'root'?"}
     I -->|yes| PRIV["_is_privileged"]
-    I -->|no| E{"entitlement mapped to 'admin'<br/>in data.vo.entitlement_policy?"}
+    I -->|no| A{"data.vo.policy.required_acr set<br/>and token.acr matches?<br/>(absent → satisfied)"}
+    A -->|no| U["not privileged"]
+    A -->|yes| E{"entitlement mapped to 'admin'<br/>in data.vo.entitlement_policy?"}
     E -->|yes| PRIV
-    E -->|no| U["not privileged"]
+    E -->|no| L{"entitlement mapped to 'user'?"}
+    L -->|yes| USER["user level"]
+    L -->|no| U
     PRIV --> ALL["all actions, subject to<br/>RSE-name and scheme checks"]
+    USER --> UADD["add_replicas on a<br/>name-valid RSE"]
+    USER --> SELF
     U --> SELF["self-service clauses only"]
 ```
-
-Only `"admin"` is consulted. The bundle's `rucio-users → "user"` mapping is
-documentation rather than policy: a non-admin entitlement and no entitlement
-at all reach the same clauses.
 
 ### What each action requires
 
@@ -116,17 +116,17 @@ flowchart LR
         B5["attach_dids_to_dids<br/>attachment scope<br/>starts with issuer"]
     end
 
-    subgraph FLAG["privileged OR bundle opt-in"]
-        C1["add_replicas<br/>allow_replica_writes_to_<br/>allowlisted_rses"]
+    subgraph LEVEL["privileged OR user level OR bundle opt-in"]
+        C1["add_replicas<br/>entitlement → 'user'<br/>+ valid RSE name,<br/>or allow_replica_writes_to_<br/>allowlisted_rses"]
     end
 ```
 
-| Action group | root | `rucio-admins` | `rucio-users` / userpass |
-|---|---|---|---|
-| RSE, protocol, approval, unlisted | ✓ | ✓ | ✗ |
-| `add_replicas` | ✓ | ✓ | only with bundle flag |
-| Rules | ✓ | ✓ | own account, unlocked, valid RSE |
-| DIDs | ✓ | ✓ | own scope |
+| Action group | root | `rucio-admins` | `rucio-users` | no entitlement / userpass |
+|---|---|---|---|---|
+| RSE, protocol, approval, unlisted | ✓ | ✓ | ✗ | ✗ |
+| `add_replicas` | ✓ | ✓ | valid RSE name | only with bundle flag |
+| Rules | ✓ | ✓ | own account, unlocked, valid RSE | same |
+| DIDs | ✓ | ✓ | own scope | same |
 
 Verified by `tests/test_phase6_rucio.py`: `TestEntitlementAuthorisation`
 covers the privileged path, `TestSelfService` the ownership clauses.

@@ -22,10 +22,16 @@ Phase 5 — OPA as PDP, OIDC token-native authorisation via URN entitlements. Ke
   "input": {
     "issuer": "alice",
     "action": "add_rule",
-    "token": { "entitlements": [
+    "token": {
+      "entitlements": [
         "urn:example:aai.example.org:group:rucio-users:role=member",
         "urn:example:aai.example.org:group:atlas-users:role=member"
-    ] },
+      ],
+      "acr": "https://refeds.org/profile/mfa",
+      "aud": "rucio",
+      "iss": "http://keycloak:8080/realms/rucio",
+      "sub": "8b14e07a-3f52-4d6c-91ab-2e70d5c48f93"
+    },
     "kwargs": { "account": "alice", "locked": false,
                 "rse_expression": "CERN_DATADISK" }
   }

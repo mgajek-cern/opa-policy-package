@@ -86,12 +86,20 @@ _perm_update_rse if {
 # add_replicas
 #
 # kwargs carry only {rse, rse_id} — no scope — so there is no ownership
-# signal to gate on. The non-privileged path is therefore opt-in via the
-# bundle: set data.vo.policy.allow_replica_writes_to_allowlisted_rses to
-# true to let any authenticated account register replicas on an RSE whose
-# name passes the naming convention. Default is privileged-only.
+# signal to gate on. Two non-privileged paths:
+#
+#   - a group mapped to "user" in the bundle, on an RSE whose name passes
+#     the convention. This is the only rule that distinguishes a mapped
+#     non-admin group from an account with no groups at all.
+#   - data.vo.policy.allow_replica_writes_to_allowlisted_rses, which drops
+#     the group requirement entirely. Broader; default is off.
 
 _perm_add_replicas if { _is_privileged }
+
+_perm_add_replicas if {
+    _has_privilege_level("user")
+    _rse_name_valid(input.kwargs.rse)
+}
 
 _perm_add_replicas if {
     data.vo.policy.allow_replica_writes_to_allowlisted_rses == true
@@ -182,10 +190,26 @@ _is_expression(expr) if { contains(expr, "=") }
 _is_expression(expr) if { contains(expr, "&") }
 _is_expression(expr) if { contains(expr, "|") }
 
+# Authentication context
+#
+# data.vo.policy.required_acr, when set, is compared against the token's acr
+# claim before any group can grant privilege. Absent by default, so the
+# testbed behaves as before; set it at runtime to require e.g.
+# "https://refeds.org/profile/mfa" for privileged actions.
+#
+# This gates the OIDC privilege path only. The root bootstrap below has no
+# token and therefore no acr — requiring one there would leave no way to
+# bring a stack up.
+
+_acr_satisfied if { not data.vo.policy.required_acr }
+
+_acr_satisfied if { input.token.acr == data.vo.policy.required_acr }
+
 # Privilege — derived from wlcg.groups, not is_root/is_admin flags
 #
 # data.vo.group_policy maps WLCG group paths to privilege levels, e.g.:
-#   { "/rucio/admins": "admin", "/atlas/production": "admin", ... }
+#   { "/rucio/admins": "admin", "/atlas/production": "admin",
+#     "/rucio/users": "user", ... }
 #
 # Falls back to hardcoded defaults when no bundle is loaded (CI / unit tests).
 
@@ -194,24 +218,34 @@ default _is_privileged := false
 # Bootstrap: root account has no OIDC token — allow unconditionally.
 _is_privileged if { input.issuer == "root" }
 
-# OIDC path: any group in token.groups that maps to "admin" grants privilege.
-# Only "admin" is consulted — a "user" mapping in the bundle is
-# documentation rather than policy, since non-admin accounts reach the same
-# self-service clauses as an account with no groups at all.
+# OIDC path: any group mapping to "admin", subject to the acr constraint.
 _is_privileged if {
+    _acr_satisfied
+    _has_privilege_level("admin")
+}
+
+# True when any group in the token maps to the given level. "admin" grants
+# privilege; "user" is consulted by _perm_add_replicas, so a mapped group is
+# no longer equivalent to no group at all.
+_has_privilege_level(level) if {
     group := input.token.groups[_]
-    _group_privilege(group) == "admin"
+    _group_privilege(group) == level
 }
 
 # Bundle-driven group policy. When a bundle IS loaded this is the only
-# source of privilege — the fallback below does not apply, so the bundle
+# source of privilege — the fallbacks below do not apply, so the bundle
 # must contain /rucio/admins or admin tokens will be denied.
 _group_privilege(group) := level if {
     level := data.vo.group_policy[group]
 }
 
-# Hardcoded fallback — used when no bundle is loaded (CI / testing).
+# Hardcoded fallbacks — used when no bundle is loaded (CI / testing).
 _group_privilege(group) := "admin" if {
     not data.vo.group_policy
     group in {"/rucio/admins", "/atlas/production"}
+}
+
+_group_privilege(group) := "user" if {
+    not data.vo.group_policy
+    group in {"/rucio/users", "/atlas/users"}
 }
