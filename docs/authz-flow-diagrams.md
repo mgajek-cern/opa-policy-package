@@ -128,5 +128,5 @@ flowchart LR
 | Rules | ✓ | ✓ | own account, unlocked, valid RSE |
 | DIDs | ✓ | ✓ | own scope |
 
-Verified by `tests/test_phase6_authz.py`: `TestEntitlementAuthorisation`
+Verified by `tests/test_phase6_rucio.py`: `TestEntitlementAuthorisation`
 covers the privileged path, `TestSelfService` the ownership clauses.

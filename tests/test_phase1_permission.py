@@ -4,11 +4,6 @@ Tests for phase1-no-opa permission.py
 Tests the has_permission() dispatch table together with the domain rules,
 organized by action. Rucio's DB layer is replaced with monkeypatched stubs
 from conftest.py — no live Rucio server is needed.
-
-Previously split across test_phase1_permission.py and
-test_phase1_e2e_scenarios.py; merged here since both exercised the same
-has_permission() entry point against the same stubbed layer, with
-significant overlap once protocol-combo cases were removed.
 """
 
 from rucio_no_opa_policy.permission import has_permission

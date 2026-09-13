@@ -1,16 +1,5 @@
 """
 Exercises the OIDC → has_permission() → OPA path with real tokens.
-
-The positive test is the regression guard for the claims plumbing
-(patches/rucio/: authentication.py, oidc.py, types.py, common.py). The
-negative test would also pass with that plumbing reverted, since empty
-claims deny too — read them as a pair, and don't delete the positive one.
-
-Uses REST rather than the Rucio client: auth_type=oidc drives an
-interactive browser flow, and the non-interactive alternative (pre-writing
-the client's token cache) depends on a path derived from get_tmp_dir() and
-the account name. REST also surfaces ExceptionClass/ExceptionMessage
-headers, so a failure says why.
 """
 
 import os

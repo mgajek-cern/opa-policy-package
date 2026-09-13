@@ -41,7 +41,7 @@ Every action not listed falls through the `_is_known_action` catch-all to `_is_p
 **Reviewed, no change recommended unless noted:** bad-PFN and suspicious-replica declarations (💡 could gate on a `checker` role), accounts/identities (💡 `update_account`, `add_account_identity` should allow self-service; 💡 `add_account`/`add_scope` could get naming-convention checks), subscriptions (💡 `add_subscription` could validate embedded RSE expressions), auth token issuance (never delegate — auth mechanism, not authorization), transfers/requests (💡 `list_requests`, `cancel_request` should scope to the issuer's own unless privileged), account limits (privileged-only is correct; 💡 usage *reads* could be self-service), config and lifetime-exceptions/export (privileged-only is correct).
 
 
-## Layer 2 — Authorization Service contract
+## (DRAFT) Layer 2 — Authorization Service contract
 
 `POST /v1/authorize` serves two request shapes:
 

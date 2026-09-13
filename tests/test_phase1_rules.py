@@ -1,14 +1,5 @@
 """
 Unit tests for phase1-no-opa rules.py
-
-These tests cover the pure domain logic — RSE naming — without touching
-Rucio internals. They run without a live Rucio instance.
-
-Protocol-combo enforcement was removed from the policy package: Rucio
-core already resolves TPC feasibility dynamically per-RSE via the
-third_party_copy_read / third_party_copy_write protocol capability flags
-(see lib/rucio/core/rse.py, lib/rucio/core/transfer.py), so a hardcoded
-combo table in the policy package was a stale, duplicate source of truth.
 """
 
 import pytest

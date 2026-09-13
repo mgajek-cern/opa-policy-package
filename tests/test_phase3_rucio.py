@@ -1,12 +1,5 @@
 """
 Phase 3 — smoke test against the full Rucio + OPA + PostgreSQL stack.
-
-Same boundary as Phase 2's smoke test — see test_phase2_smoke.py for the
-full rationale. Does not duplicate OPA policy-content checks (RSE naming,
-account/DID ownership, rule owner self-service, protocol scheme allowlist,
-data-driven bundle overrides) — those are covered by test_phase3_e2e.py.
-
-Skips automatically if the stack isn't reachable.
 """
 
 import pytest
@@ -46,7 +39,7 @@ class TestRseManagement:
 
 
 # Wiring verification — proves Rucio actually calls OPA, not just that OPA
-# answers correctly in isolation (that part is test_phase3_e2e.py)
+# answers correctly in isolation
 
 
 class TestOpaWiring:

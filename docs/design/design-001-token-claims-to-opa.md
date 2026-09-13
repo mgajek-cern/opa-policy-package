@@ -38,12 +38,10 @@ The coverage is real but the two halves never meet:
 
 | Suite | Talks to | Proves |
 |---|---|---|
-| `test_phaseN_smoke.py::TestKeycloak*Claim` | Keycloak | the IdP mints the claim |
-| `test_phaseN_smoke.py::TestRseManagement` | Rucio, as `root` via `/auth/userpass` | the OPA call is wired up |
-| `test_phaseN_e2e.py` | OPA directly | the Rego evaluates claims correctly |
+| `test_phaseN_rucio.py::TestRseManagement` | Rucio, as `root` via `/auth/userpass` | the OPA call is wired up |
+| `test_phaseN_opa.py` | OPA directly | the Rego evaluates claims correctly |
 
-No test authenticates to Rucio with a token *and* asserts on a
-claim-dependent decision.
+No test authenticates to Rucio with a token *and* asserts on a claim-dependent decision.
 
 ## Options
 
@@ -231,7 +229,7 @@ correct: a userpass token is not a JWT and has no claims to decode.
 The 401 that follows is `AccessDenied: Account ddmlab can not add RSE` —
 the OPA decision, not an auth failure.
 
-`tests/test_phase6_authz.py` makes this a regression test: `adminuser`
+`tests/test_phase6_rucio.py` makes this a regression test: `adminuser`
 (`rucio-admins`) is allowed a privileged action, `randomaccount`
 (`rucio-users`) is denied it with `ExceptionClass: AccessDenied`. The
 positive case is the guard for the claims plumbing — the negative case

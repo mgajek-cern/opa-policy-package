@@ -1,13 +1,5 @@
 """
 Phase 4 — e2e scenario tests against a live OPA server.
-
-Privilege is derived from token.groups (wlcg.groups) — no is_root/is_admin.
-
-Scenario groups:
-  — Group-based privilege (admin group → privileged)
-  — User group actions (non-privileged but self-service still works)
-  — Root bootstrap account (no token → allowed unconditionally)
-  — Group policy bundle override (runtime mapping via OPA data API)
 """
 
 import json

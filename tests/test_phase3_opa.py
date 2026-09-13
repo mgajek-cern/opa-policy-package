@@ -1,19 +1,5 @@
 """
 Phase 3 — end-to-end scenario tests against a live OPA server.
-
-Mirrors the structure of test_phase2_e2e.py and extends it with
-scenarios for newly delegated actions:
-  - attach_dids_to_dids
-  - del_rule / update_rule with owner self-service
-  - add_protocol / del_protocol / update_protocol
-  - Data-driven policy bundle overrides
-
-Protocol-combo bundle overrides were removed: Rucio core already resolves
-TPC feasibility dynamically per-RSE via the third_party_copy_read /
-third_party_copy_write protocol capability flags, so no Rego rule
-consumes allowed_protocol_combos anymore.
-
-Skips automatically if the stack isn't reachable.
 """
 
 import json

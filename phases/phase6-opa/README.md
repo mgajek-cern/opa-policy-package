@@ -18,21 +18,6 @@ enforcement.
 
 **Rego policy path:** `vo/authz/v5/allow` (same package version as Phase 5 — no entitlement-model changes, only the RSE allowlist addition)
 
-## What this does *not* yet prove
-
-Phase 6 exercises the transfer/token-exchange path end to end, but the
-Rucio-side authorization calls in the test suite currently run under
-**userpass** (account `root`, via `configs/rucio/userpass-client.cfg`), not
-OIDC — so `_is_privileged`/entitlement-based checks in the Rego are not yet
-exercised by this specific test. The exchanged storage tokens *do* carry the
-`entitlements` claim, but the endpoints that consume them authorize on
-issuer/audience/scope, and `_extract_entitlements` has no populated source
-under userpass. The transfer's storage-endpoint leg *is* genuinely
-OIDC/token-exchange-driven end to end; only the Rucio-API leg still uses
-userpass in the current tests. Closing that gap (an OIDC-authenticated
-privileged action, e.g. `adminuser` calling `add_rse`) and the ADR's
-`transfer.authorize` operation are tracked in [BACKLOG.md](../BACKLOG.md).
-
 ## OPA input document
 
 Identical shape to Phase 5 — see [phase5-opa/README.md](../phase5-opa/README.md#opa-input-document).
@@ -57,7 +42,7 @@ name still requires it. Update at runtime without restarting Rucio or OPA.
 
 Same realm model as Phase 5 (`entitlements` claim, per-user attribute), plus
 token-exchange audience clients for the transfer path itself (`xrd3`, `xrd4`,
-`teapot1`, `teapot2`, `fts`) — see `deploy/configs/keycloak/phase6/realm.json`.
+`teapot1`, `teapot2`, `fts`) — see [configs/keycloak/phase6/realm.json](../../configs/keycloak/phase6/realm.json).
 
 Two Keycloak-specific details the LS AAI profile in
 [dep-dlm-bbmri](https://github.com/RI-SCALE/dep-dlm-bbmri) doesn't need, both
@@ -97,13 +82,5 @@ DID/RSE schema.
 
 ## Running it
 
-`make e2e PHASE=6` then `make test-transfer PHASE=6` — see
+`make certs && make e2e PHASE=6` then `make test-transfer PHASE=6` — see
 [Quick start](../../README.md#quick-start).
-
-Certs are bind-mounted read-only into every container, so they must exist
-before the stack starts; `make up PHASE=6` generates them if they're missing.
-`make init PHASE=6` grants token exchange, registers the RSEs, accounts and
-scopes, seeds the OIDC subject tokens and registers the FTS token provider.
-Its OIDC settings default to the local Keycloak realm and are env-overridable —
-pointing the same script at LS AAI is a matter of setting `OIDC_ISSUER`,
-`OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `OIDC_EXPECTED_AUDIENCE`.
