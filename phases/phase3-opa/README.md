@@ -37,7 +37,7 @@ Phase 3 — OPA as PDP, data-driven configuration, broader action coverage. Poli
 ## Install & configure
 
 ```bash
-python3 -m pip install -e phase3-opa/
+python3 -m pip install -e phases/phase3-opa/
 ```
 
 ```bash

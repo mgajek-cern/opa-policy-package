@@ -60,7 +60,7 @@ The realm's group tree (`/rucio/admins`, `/atlas/production`, etc.) is kept for 
 ## Install & configure
 
 ```bash
-python3 -m pip install -e phase5-opa/
+python3 -m pip install -e phases/phase5-opa/
 ```
 
 ```bash

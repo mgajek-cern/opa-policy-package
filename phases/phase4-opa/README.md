@@ -65,7 +65,7 @@ The `wlcg` client scope maps Keycloak group membership to `wlcg.groups` in the J
 ## Install & configure
 
 ```bash
-python3 -m pip install -e phase4-opa/
+python3 -m pip install -e phases/phase4-opa/
 ```
 
 ```bash

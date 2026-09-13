@@ -39,7 +39,7 @@ services:
       - opa
     volumes:
       - ../../scripts/ingest_policies.py:/app/ingest_policies.py:ro
-      - ../../rego/phase5:/app/rego/phase5:ro
+      - ../../policies/rego/phase5:/app/rego/phase5:ro
     working_dir: /app
     command:
       - sh
@@ -102,7 +102,7 @@ services:
       - bash
       - -c
       - |
-        cp -r /policy-package/phase5-opa /tmp/rucio-opa-policy &&
+        cp -r /policy-package/phases/phase5-opa /tmp/rucio-opa-policy &&
         pip install -q --force-reinstall --no-deps /tmp/rucio-opa-policy &&
         python3 /tmp/bootstrap-db.py &&
         exec /docker-entrypoint.sh httpd -DFOREGROUND

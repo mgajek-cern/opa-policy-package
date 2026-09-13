@@ -23,7 +23,7 @@ from rucio_opa_policy.opa_client import query_opa
 
 # OPA server fixture
 
-REGO_PATH = Path(__file__).parent.parent / "rego" / "phase2" / "authz.rego"
+REGO_PATH = Path(__file__).parent.parent / "policies" / "rego" / "phase2" / "authz.rego"
 opa_server = build_opa_server_fixture(REGO_PATH, "vo/authz/allow")
 
 

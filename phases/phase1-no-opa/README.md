@@ -21,7 +21,7 @@ Phase 1 Rucio policy package — Rucio as PDP, permission logic inline in Python
 ## Install & configure
 
 ```bash
-python3 -m pip install -e phase1-no-opa/
+python3 -m pip install -e phases/phase1-no-opa/
 ```
 
 ```ini
