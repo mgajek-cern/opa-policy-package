@@ -11,33 +11,21 @@ Preserving the same group information, e.g.:
 
 ## 2. [x] FTS + real storage-endpoint integration
 
-One source and one destination RSE supporting third-party copy (e.g. Teapot
-or XrootD), OIDC-enabled. Refer to [dep-dlm-testbed](https://github.com/RI-SCALE/dep-dlm-testbed).
+One source and one destination RSE supporting third-party copy (e.g. Teapot or XrootD), OIDC-enabled. Refer to [dep-dlm-testbed](https://github.com/RI-SCALE/dep-dlm-testbed).
 
-## 3. [x] Close the OIDC → has_permission() gap. See [docs/design/design-001-token-claims-to-opa.md](./docs/design/design-001-token-claims-to-opa.md).
+## 3. [x] Close the OIDC → has_permission() gap. See [design-001-token-claims-to-opa.md](./docs/design/design-001-token-claims-to-opa.md).
 
-## 4. [ ] Fine-grained, resource-level permissions
+## 4. [~] Resource-level ownership resolved against the DB
 
-Ownership is a string prefix: `startswith(input.kwargs.scope, input.issuer)`.
-Wrong both ways — issuer `a` matches scope `alice.data`, and an account owning
-a scope not named after it is denied.
+`is_scope_owner()` replaces the name-prefix check for DIDs in phases 4/5/6; rule ownership (`del_rule`/`update_rule`) still needs the same treatment via `get_rule()`. See [design-003-scope-ownership.md](docs/design/design-003-scope-ownership.md).
 
-1. **Resolve ownership against the DB.** `has_permission()` receives `session`;
-   call `rucio.core.scope.is_scope_owner()` as `generic.py` does and forward
-   the result as a kwarg, the way phases 2/3 did for `is_admin`. Costs a
-   round-trip — the "no DB lookup" property was about resolving *privilege*
-   from the token, and no claim can carry scope ownership since the IdP has no
-   concept of a Rucio scope. Settles what `resource` has to express before the
-   Authorization Service contract is written.
+## 5. [ ] Attribute- and context-based permissions
 
-2. **Then the rest.** Per-RSE/per-scope ABAC and time/context constraints
-   (rule expiry, maintenance windows) need a use-case/persona overview first,
-   so policies are modeled against real access patterns rather than a guessed
-   ABAC shape.
+Per-RSE/per-scope ABAC and time constraints (rule expiry, maintenance windows), blocked on a use-case and persona overview rather than on implementation.
 
-## 5. [ ] Stand up the Authorization Service ([docs/adrs/adr-001-authz-service.md](./docs/adrs/adr-001-authz-service.md))
+## 6. [ ] Stand up the Authorization Service ([adr-001-authz-service.md](./docs/adrs/adr-001-authz-service.md))
 
-##  6. [ ] Consolidate knowledge in the [dep-dlm-testbed repository](https://github.com/RI-SCALE/dep-dlm-testbed.git)
+## 7. [ ] Consolidate knowledge in the [dep-dlm-testbed repository](https://github.com/RI-SCALE/dep-dlm-testbed.git)
 
 Capture the relevant implementation details, configuration, integration steps
 and lessons learned in dep-dlm-testbed to make the setup reproducible and
