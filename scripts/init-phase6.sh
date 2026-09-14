@@ -566,6 +566,14 @@ setup_scopes_and_quotas() {
     ra scope add --account ddmlab --scope ddmlab || true
     ra scope add --account randomaccount --scope randomaccount || true
 
+    # Scope not named after its owner. The prefix check denies this;
+    # is_scope_owner allows it — the under-permissive case design-003 fixes.
+    ra scope add --account randomaccount --scope projectdata || true
+
+    # Owned by ddmlab, but its name has randomaccount's as a prefix. The
+    # prefix check allows it; is_scope_owner denies it.
+    ra scope add --account ddmlab --scope randomaccountleak || true
+
     for rse in XRD3 XRD4 TEAPOT1 TEAPOT2; do
         ra account set-limits root "$rse" -1 || true
         ra account set-limits randomaccount "$rse" -1 || true

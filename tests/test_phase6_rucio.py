@@ -16,7 +16,7 @@ from conftest import (
     rucio_rest,
 )
 
-# Must match AUTHZ_TEST_USERS in scripts/init-testbed.sh.
+# Must match AUTHZ_TEST_USERS in scripts/init-phase6.sh.
 ADMIN_USERNAME = os.environ.get("OIDC_ADMIN_USERNAME", "adminuser")
 ADMIN_PASSWORD = os.environ.get("OIDC_ADMIN_PASSWORD", "admin123")
 USER_USERNAME = os.environ.get("OIDC_USER_USERNAME", "randomaccount")
@@ -36,6 +36,14 @@ AUTHZ_SCOPE = os.environ.get(
 # is unambiguously an entitlement decision.
 PRIVILEGED_PATH = "/accounts/ddmlab/limits/local/XRD3"
 PRIVILEGED_BODY = {"bytes": -1}
+
+# Scopes created by scripts/init-phase6.sh. The last two are what make the
+# ownership tests meaningful: one the user owns but is not named after, and
+# one whose name starts with the user's but belongs to ddmlab.
+OWNED_SCOPE = USER_USERNAME
+OWNED_SCOPE_UNNAMED = "projectdata"
+FOREIGN_SCOPE_PREFIXED = "randomaccountleak"
+FOREIGN_SCOPE = "ddmlab"
 
 
 def _token(username, password):
@@ -64,10 +72,10 @@ def _did_name(prefix):
 
 
 # TestEntitlementAuthorisation covers the privileged path — an entitlement
-# that maps to "admin" in the bundle. TestSelfService covers the ownership
-# clauses, which gate on kwargs matching the issuer rather than on
+# that maps to "admin" in the bundle. TestScopeOwnership covers the
+# ownership clauses, which gate on kwargs.owned_scopes rather than on
 # entitlements; those would pass for any authenticated account and test the
-# Rego's logic rather than the claims plumbing.
+# Rego plus the scopes-table lookup rather than the claims plumbing.
 
 
 class TestEntitlementAuthorisation:
@@ -91,36 +99,104 @@ class TestEntitlementAuthorisation:
         )
 
 
-# Self-service: the non-privileged clauses gate on kwargs matching the
-# issuer, not on entitlements. These would pass for any authenticated
-# account, so they test the Rego's ownership logic rather than the claims
-# path — the pair above is what guards the plumbing.
+# Scope ownership
+#
+# permission.py resolves kwargs.owned_scopes from the scopes table and the
+# Rego compares against it. The two middle cases are the ones the old name
+# prefix check got wrong; they are the reason this is a DB lookup.
 
 
-class TestSelfService:
+class TestScopeOwnership:
     def test_user_can_create_did_in_own_scope(self, user_token):
-        """startswith(kwargs.scope, issuer) → allow."""
         name = _did_name("selfservice")
-        resp = rucio_rest(f"/dids/{USER_USERNAME}/{name}", user_token, "POST", {"type": "DATASET"})
+        resp = rucio_rest(f"/dids/{OWNED_SCOPE}/{name}", user_token, "POST", {"type": "DATASET"})
         assert resp.status_code == 201, f"HTTP {resp.status_code} {deny_reason(resp)}"
 
-    def test_user_cannot_create_did_in_foreign_scope(self, user_token):
-        """scope ddmlab, issuer randomaccount → no ownership → deny."""
-        name = _did_name("foreign")
-        resp = rucio_rest(f"/dids/ddmlab/{name}", user_token, "POST", {"type": "DATASET"})
+    def test_user_can_create_did_in_owned_scope_not_named_after_account(self, user_token):
+        """Owned via the scopes table, denied by any name-based check."""
+        name = _did_name("unnamed")
+        resp = rucio_rest(
+            f"/dids/{OWNED_SCOPE_UNNAMED}/{name}", user_token, "POST", {"type": "DATASET"}
+        )
+        assert resp.status_code == 201, (
+            f"HTTP {resp.status_code} {deny_reason(resp)} — is "
+            f"'{OWNED_SCOPE_UNNAMED}' registered to {USER_USERNAME}? "
+            "scripts/init-phase6.sh adds it."
+        )
+
+    def test_user_cannot_create_did_in_foreign_scope_sharing_its_prefix(self, user_token):
+        """Owned by ddmlab; a prefix check would have allowed this."""
+        name = _did_name("prefixleak")
+        resp = rucio_rest(
+            f"/dids/{FOREIGN_SCOPE_PREFIXED}/{name}", user_token, "POST", {"type": "DATASET"}
+        )
         assert resp.status_code in (401, 403), f"HTTP {resp.status_code}"
         assert deny_reason(resp)[0] == "AccessDenied", deny_reason(resp)
 
+    def test_user_cannot_create_did_in_foreign_scope(self, user_token):
+        name = _did_name("foreign")
+        resp = rucio_rest(f"/dids/{FOREIGN_SCOPE}/{name}", user_token, "POST", {"type": "DATASET"})
+        assert resp.status_code in (401, 403), f"HTTP {resp.status_code}"
+        assert deny_reason(resp)[0] == "AccessDenied", deny_reason(resp)
+
+    def test_admin_can_create_did_in_any_scope(self, admin_token):
+        """Privilege short-circuits ownership."""
+        name = _did_name("adminforeign")
+        resp = rucio_rest(f"/dids/{FOREIGN_SCOPE}/{name}", admin_token, "POST", {"type": "DATASET"})
+        assert resp.status_code == 201, f"HTTP {resp.status_code} {deny_reason(resp)}"
+
+
+class TestBulkScopeOwnership:
+    """add_dids and attach_dids_to_dids carry scopes nested in a list.
+
+    Worth exercising over REST: the nested InternalScope objects have to
+    survive serialisation into the OPA input, which a top-level-only unwrap
+    does not manage — the request then fails closed before OPA sees it.
+    """
+
+    def test_bulk_add_in_owned_scopes(self, user_token):
+        ts = int(time.time() * 1000)
+        resp = rucio_rest(
+            "/dids",
+            user_token,
+            "POST",
+            [
+                {"scope": OWNED_SCOPE, "name": f"bulk-a-{ts}", "type": "DATASET"},
+                {"scope": OWNED_SCOPE_UNNAMED, "name": f"bulk-b-{ts}", "type": "DATASET"},
+            ],
+        )
+        assert resp.status_code in (201, 409), f"HTTP {resp.status_code} {deny_reason(resp)}"
+
+    def test_bulk_add_denied_when_one_scope_is_foreign(self, user_token):
+        ts = int(time.time() * 1000)
+        resp = rucio_rest(
+            "/dids",
+            user_token,
+            "POST",
+            [
+                {"scope": OWNED_SCOPE, "name": f"bulk-c-{ts}", "type": "DATASET"},
+                {"scope": FOREIGN_SCOPE, "name": f"bulk-d-{ts}", "type": "DATASET"},
+            ],
+        )
+        assert resp.status_code in (401, 403), f"HTTP {resp.status_code}"
+        assert deny_reason(resp)[0] == "AccessDenied", deny_reason(resp)
+
+
+# Rule self-service — gates on kwargs.account, two account names the gateway
+# already resolved. No scopes table involved.
+
+
+class TestRuleSelfService:
     def test_user_can_add_rule_for_own_account(self, user_token):
         """kwargs.account == issuer and locked == false → allow."""
         name = _did_name("ownrule")
-        rucio_rest(f"/dids/{USER_USERNAME}/{name}", user_token, "POST", {"type": "DATASET"})
+        rucio_rest(f"/dids/{OWNED_SCOPE}/{name}", user_token, "POST", {"type": "DATASET"})
         resp = rucio_rest(
             "/rules/",
             user_token,
             "POST",
             {
-                "dids": [{"scope": USER_USERNAME, "name": name}],
+                "dids": [{"scope": OWNED_SCOPE, "name": name}],
                 "copies": 1,
                 "rse_expression": "XRD4",
                 "account": USER_USERNAME,
@@ -139,13 +215,13 @@ class TestSelfService:
         Tighten this to (401, 403) if a future Rucio fixes the translation.
         """
         name = _did_name("otherrule")
-        rucio_rest(f"/dids/{USER_USERNAME}/{name}", user_token, "POST", {"type": "DATASET"})
+        rucio_rest(f"/dids/{OWNED_SCOPE}/{name}", user_token, "POST", {"type": "DATASET"})
         resp = rucio_rest(
             "/rules/",
             user_token,
             "POST",
             {
-                "dids": [{"scope": USER_USERNAME, "name": name}],
+                "dids": [{"scope": OWNED_SCOPE, "name": name}],
                 "copies": 1,
                 "rse_expression": "XRD4",
                 "account": "ddmlab",

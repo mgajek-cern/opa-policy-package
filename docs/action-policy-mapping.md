@@ -26,7 +26,7 @@ see each phase's own Rego.
 | `rse.create` | `add_rse` | ✅ Custom | ✅ `_perm_add_rse` | Privileged + naming convention, with a testbed allowlist in the bundle. |
 | `rse.update` | `update_rse` | ✅ Custom | ✅ `_perm_update_rse` | Privileged + naming enforced on rename. |
 | — | `del_rse`, `add/del_rse_attribute` | 🔒 Fallback | 🔒 `_is_privileged` | Destructive — privileged-only. 💡 Attribute-key allowlist (block setting `admin` directly). |
-| `did.create` | `add_did`, `add_dids` | 🔲 Generic | ✅ `_perm_did_action` | Scope-owner or privileged. `add_dids` carries a DID list and no top-level scope, so it has its own clause: every `did.scope` must start with the issuer. **Phase 1 inconsistency** — Phase 1 should adopt the scope-owner check. |
+| `did.create` | `add_did`, `add_dids` | 🔲 Generic | ✅ `_perm_did_action` | `add_dids` carries a DID list and no top-level scope, so it has its own clause: every `did.scope` must be in `kwargs.owned_scopes`, the subset of this request's scopes the issuer owns per the `scopes` table ([design-003-scope-ownership.md](./design/design-003-scope-ownership.md)). |
 | `did.attach` | `attach_dids`, `attach_dids_to_dids` | 🔲 Generic | ✅ `_perm_did_action` | Both covered; `attach_dids_to_dids` checks `attachments[_].scope`. |
 | `did.detach` | `detach_dids` | 🔲 Generic | ✅ `_perm_did_action` | Scope-owner or privileged. |
 | `protocol.update` | `add_protocol`, `update_protocol`, `del_protocol` | 🔲 Generic | ✅ `_perm_protocol_action` | Privileged + scheme allowlist from `data.vo.policy.allowed_schemes`. |
@@ -39,6 +39,8 @@ see each phase's own Rego.
 Every action not listed falls through the `_is_known_action` catch-all to `_is_privileged` — roughly 70 of `generic.py`'s `perm_*` functions. That is invisible while a caller authenticates as `root` or holds an admin entitlement, and becomes visible the moment a non-privileged account is used.
 
 **Privilege is additionally gated on `acr`.** Every row resolving through `_is_privileged` — the 🔒 rows, the privileged branch of each ✅ rule, and the catch-all — also requires the token's `acr` claim to equal `data.vo.policy.required_acr` when that key is set.
+
+**DID ownership is a DB lookup, not a name comparison.** `permission.py` resolves `kwargs.owned_scopes` via `is_scope_owner()` before the OPA call; the Rego does the membership test. See [design-003-scope-ownership.md](./design/design-003-scope-ownership.md)
 
 **Reviewed, no change recommended unless noted:** bad-PFN and suspicious-replica declarations (💡 could gate on a `checker` role), accounts/identities (💡 `update_account`, `add_account_identity` should allow self-service; 💡 `add_account`/`add_scope` could get naming-convention checks), subscriptions (💡 `add_subscription` could validate embedded RSE expressions), auth token issuance (never delegate — auth mechanism, not authorization), transfers/requests (💡 `list_requests`, `cancel_request` should scope to the issuer's own unless privileged), account limits (privileged-only is correct; 💡 usage *reads* could be self-service), config and lifetime-exceptions/export (privileged-only is correct).
 

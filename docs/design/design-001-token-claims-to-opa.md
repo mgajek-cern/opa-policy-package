@@ -1,9 +1,6 @@
 # Design 001 — Getting token claims into the OPA input document
 
-**Status:** implemented for phase 6 (2026-09-11). Option B, with option D
-documented as the fallback if patch maintenance becomes a burden. Phases 4
-and 5 pending — same patches, `wlcg.groups` instead of `entitlements` for
-phase 4.
+**Status:** implemented for phase 6 (2026-09-11)
 
 ## Problem
 
@@ -51,8 +48,7 @@ No test authenticates to Rucio with a token *and* asserts on a claim-dependent d
 account's newest unexpired row, decode the JWT, read the claim.
 
 - No Rucio patch; works with the stock server.
-- Costs a DB round-trip per authorisation decision, contradicting the
-  phase 4/5 READMEs' "no DB lookup in the decision path".
+- Costs a DB round-trip per authorisation decision.
 - Ambiguous when an account has several valid tokens, or when one identity
   maps to several accounts.
 
@@ -234,21 +230,3 @@ the OPA decision, not an auth failure.
 (`rucio-users`) is denied it with `ExceptionClass: AccessDenied`. The
 positive case is the guard for the claims plumbing — the negative case
 would pass with the patches reverted, since empty claims also deny.
-
-## Remaining work
-
-Tracked in BACKLOG.md, not blockers for this change:
-
-1. **Rego action coverage (3a).** `add_replicas` and `add_dids` are
-   addressed; `skip_availability_check` is deliberately left
-   privileged-only, since Rucio treats it as an admin escalation and the
-   client only requests it under `ignore_availability=True`. The remaining
-   long tail of `perm_*` actions still falls through to `_is_privileged`,
-   which stays invisible while the transfer suite runs as `root`.
-2. **Move the transfer suite to OIDC (3b, later half).** The authz tests
-   cover the claims path directly; switching `rucio-client` to
-   `auth_type = oidc` additionally requires (1) to be complete, and a
-   non-interactive `make_client()` — Rucio's OIDC client flow scrapes the
-   IdP's HTML login form, so REST is used for the authz tests instead.
-3. **Phases 4 and 5 (3c).** Same patches, mounted in the respective compose
-   files. Phase 4 reads `wlcg.groups`, already present in the token.

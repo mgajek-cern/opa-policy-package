@@ -53,10 +53,9 @@ DB before the OPA call. OPA receives a flat, Rucio-specific input document.
 
 ### Option B — Claims-based / token-native (Phase 4/5/6)
 
-No `is_root`/`is_admin` pre-resolution. The claims of the validated token are
-forwarded under `token` and OPA resolves privilege from them — no DB call in
-Python. One membership claim differs per phase; the scalars are the same
-everywhere.
+No `is_root`/`is_admin` pre-resolution — the claims of the validated token are
+forwarded under `token` and OPA resolves privilege from them. One membership
+claim differs per phase; the scalars are the same everywhere.
 
 Phase 4 forwards `token.groups`, from the token's `wlcg.groups`:
 
@@ -95,6 +94,10 @@ The forwarded set is an allowlist in `permission.py`, not the raw payload —
 adding a claim to policy means adding it there first. Scalar claims appear
 only when the token carries them; the membership claim is always present, so a
 Rego clause iterating it is safe.
+
+`kwargs.owned_scopes` is not a claim. It is resolved from the `scopes` table
+per request and is always present, empty when the action names no scope — so a
+Rego `in` test against it is safe for every action, not just DID ones.
 
 **Not the same as the Authorization Service contract.** The `operation` /
 `subject` / `resource` / `context` shape used by the WP4 Authorization

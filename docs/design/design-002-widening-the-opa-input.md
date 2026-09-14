@@ -1,7 +1,6 @@
 # Design 002 — Widening the OPA input before the contract is fixed
 
-**Status:** proposed (2026-09-13). Precedes BACKLOG 4 (Authorization Service).
-Does not depend on BACKLOG 5 (fine-grained ABAC) and does not attempt it.
+**Status:** implemented (2026-09-13)
 
 ## Problem
 

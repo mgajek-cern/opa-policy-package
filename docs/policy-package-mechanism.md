@@ -124,9 +124,7 @@ rucio_opa_policy.permission.has_permission()
     True / False  ←──────────────────── returned to Rucio core
 ```
 
-OPA is the sole decision maker. The Python module is intentionally thin —
-it only handles serialisation and the one DB call needed to resolve
-`is_admin` (so Rego never needs a DB round-trip).
+Decision-making rests entirely with OPA. The Python module is purposefully lightweight, serving only to manage serialization and ownership-related database calls.
 
 ## Fail-closed behaviour
 

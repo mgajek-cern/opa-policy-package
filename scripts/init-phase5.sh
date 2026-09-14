@@ -7,6 +7,9 @@ set -euo pipefail
 # exchange. The smoke tests create their own RSEs over REST, so all this
 # needs to do is make each Keycloak subject resolve to exactly one Rucio
 # account, which is what validate_jwt() requires.
+#
+# Privilege in this phase comes from the token's entitlements, never from an
+# account attribute — see the realm notes on AUTHZ_TEST_USERS below.
 
 OIDC_ISSUER="${OIDC_ISSUER:-http://keycloak:8080/realms/rucio}"
 OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-rucio-oidc}"
@@ -23,12 +26,30 @@ OIDC_AUTHZ_SCOPE="${OIDC_AUTHZ_SCOPE:-openid offline_access aud:rucio}"
 # keycloak_username:password:rucio_account — strictly one Keycloak user per
 # Rucio account. A subject mapped to several accounts resolves ambiguously in
 # validate_jwt(), and could land on root, which is unconditionally privileged.
+#
+# Both users are pre-created in the phase 5 realm export; usernames and
+# passwords here must match it. What that realm grants them:
+#
+#   adminuser  entitlements  urn:example:aai.example.org:group:rucio-admins:role=member
+#                            urn:example:aai.example.org:group:atlas-production:role=member
+#              acr           REFEDS MFA
+#   alice      entitlements  urn:example:aai.example.org:group:rucio-users:role=member
+#                            urn:example:aai.example.org:group:atlas-users:role=member
+#              acr           REFEDS MFA
+#
+# The realm still defines the /rucio/* and /atlas/* groups, but no group
+# mapper is attached to the rucio-oidc client here — the token carries
+# entitlement URNs only, and data.vo.entitlement_policy is keyed on those.
+# Both users carry the *same* acr, deliberately: no real-token test can then
+# exercise the required_acr deny branch, and no test breaks because the claim
+# happens to be present. That branch is covered against synthetic input in
+# tests/test_phase5_opa.py instead.
 AUTHZ_TEST_USERS=(
     "adminuser:admin123:adminuser"
     "alice:alice123:alice"
 )
 
-# The phase 4 compose file sets container_name, so address containers directly.
+# The phase 5 compose file sets container_name, so address containers directly.
 RUCIO_CONTAINER="${RUCIO_CONTAINER:-rucio-server}"
 DB_CONTAINER="${DB_CONTAINER:-ruciodb}"
 
@@ -66,15 +87,31 @@ wait_for_infrastructure() {
 setup_accounts() {
     echo "=== Configuring Rucio accounts ==="
 
-    # Positive case: holds /rucio/admins in Keycloak. Privilege comes from
-    # the token, not from any account attribute.
+    # Positive case: holds the rucio-admins entitlement, which
+    # data.vo.entitlement_policy maps to "admin". No account attribute is set
+    # or read — _is_privileged never touches the DB in this phase.
     ra account add --type USER --email adminuser@example.org adminuser || true
 
-    # Negative case: /rucio/users only, so it must NOT be admin here either.
+    # Negative case: rucio-users only, which maps to "user" — enough for
+    # add_replicas on a name-valid RSE, not enough for anything privileged.
     ra account add --type USER --email alice@example.org alice || true
-    ra account delete-attribute alice --key admin 2>/dev/null || true
 
+    # Scopes for the self-service tests. alice writes into her own; the
+    # foreign-scope test writes into adminuser's, and that scope has to exist
+    # for the resulting AccessDenied to be unambiguously a policy decision
+    # rather than a missing resource.
     ra scope add --account alice --scope alice || true
+    ra scope add --account adminuser --scope adminuser || true
+
+    # The two cases design-003 turns on, mirroring init-phase6.sh. Without
+    # them this phase has no REST-level evidence that the prefix check is
+    # gone — only that it still allows what it always allowed.
+    #
+    # Owned by alice, not named after her: the prefix check denied this.
+    ra scope add --account alice --scope projectdata || true
+    # Owned by adminuser, but prefixed with alice's name: the prefix check
+    # allowed this.
+    ra scope add --account adminuser --scope aliceleak || true
 }
 
 # ── OIDC identity mapping ─────────────────────────────────────────
@@ -150,12 +187,21 @@ if claim_name not in claims:
     print(f'  ⚠ {username}: no {claim_name} claim — check the '
           "'entitlements' client scope on the rucio-oidc client")
 
+# acr is only consulted when data.vo.policy.required_acr is set, so its
+# absence is not fatal here — but it silently turns every privileged action
+# into a deny the moment that key is written, which is worth seeing at init.
+if 'acr' not in claims:
+    print(f'  ⚠ {username}: no acr claim — check the acr-from-attribute mapper '
+          "on the 'entitlements' client scope and the user attribute in the "
+          'realm export')
+
 try:
     add_account_identity(identity, 'OIDC', InternalAccount(account), f'{account}@rucio')
     print(f'  ✓ {username} → {account}: {identity}')
 except exception.Duplicate:
     print(f'  ✓ {username} → {account} already mapped')
 print(f'      {claim_name} = {claims.get(claim_name)}')
+print(f'      acr = {claims.get("acr")}')
 PY
     done
 }
@@ -177,14 +223,16 @@ assert_identities_unambiguous() {
                     WHERE identity_type='OIDC'
                     GROUP BY identity HAVING count(*) > 1;")
 
+    # Hard failure: such a token resolves ambiguously in validate_jwt(), may
+    # land on root, and every authz assertion built on it is meaningless. A
+    # green test run off an ambiguous mapping is worse than no run.
     if [[ -n "$dupes" ]]; then
-        echo "  ⚠ subjects mapped to multiple accounts:"
+        echo "  ✗ subjects mapped to multiple accounts:"
         echo "$dupes" | sed 's/^/      /'
-        echo "    Such a token resolves ambiguously in validate_jwt() and any"
-        echo "    authz test using it is meaningless."
-    else
-        echo "  ✓ every OIDC subject maps to exactly one account"
+        echo "    Remove the extra account_map rows before running the authz tests."
+        exit 1
     fi
+    echo "  ✓ every OIDC subject maps to exactly one account"
 }
 
 main() {

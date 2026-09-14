@@ -1,6 +1,6 @@
 # rucio-opa-v4-policy
 
-Phase 5 — OPA as PDP, OIDC token-native authorisation via URN entitlements. Keycloak issues JWTs with an `entitlements` claim; OPA evaluates entitlement strings against `data.vo.entitlement_policy` in the bundle — no Rucio DB round-trip per authorisation decision.
+Phase 5 — OPA as PDP, OIDC token-native authorisation via URN entitlements. Keycloak issues JWTs with an `entitlements` claim; OPA evaluates entitlement strings against `data.vo.entitlement_policy` in the bundle.
 
 ## What's new in Phase 5
 
@@ -30,7 +30,7 @@ Phase 5 — OPA as PDP, OIDC token-native authorisation via URN entitlements. Ke
       "acr": "https://refeds.org/profile/mfa",
       "aud": "rucio",
       "iss": "http://keycloak:8080/realms/rucio",
-      "sub": "8b14e07a-3f52-4d6c-91ab-2e70d5c48f93"
+      "sub": "2f61b40c-93d7-4e18-8a52-7c09e4d6ab31"
     },
     "kwargs": { "account": "alice", "locked": false,
                 "rse_expression": "CERN_DATADISK" }
@@ -58,8 +58,8 @@ Single realm (`rucio`), no federation. Two test users:
 
 | User | Password | Entitlements | Privilege |
 |------|----------|--------------|-----------|
-| `alice` | `alice123` | `...group:rucio-users:role=member`, `...group:atlas-users:role=member` | none |
-| `adminuser` | `admin123` | `...group:rucio-admins:role=member`, `...group:atlas-production:role=member` | admin |
+| `alice` | `alice123` | `...group:rucio-users:role=member`, `...group:atlas-users:role=member` | `user` |
+| `adminuser` | `admin123` | `...group:rucio-admins:role=member`, `...group:atlas-production:role=member` | `admin` |
 
 The realm's group tree (`/rucio/admins`, `/atlas/production`, etc.) is kept for realm-admin bookkeeping only. The token claim itself is sourced from each user's `entitlements` attribute via the `entitlements` client scope, not derived from group membership at token time.
 
@@ -77,7 +77,7 @@ package = rucio_opa_v4_policy
 | `OPA_POLICY_PATH` | `vo/authz/v4/allow` | Rego rule path for this phase |
 | `OPA_TIMEOUT` | `2` | Seconds before `query_opa()` fails closed |
 
-Privilege comes from the token, so `[oidc]` in `configs/rucio/phase4/rucio.cfg`
+Privilege comes from the token, so `[oidc]` in `configs/rucio/phase5/rucio.cfg`
 matters as much as the above: `expected_scope` and `expected_audience` are
 checked by `validate_jwt()` *before* the policy runs, and a token missing
 either is rejected with a 401 that looks like a policy deny.

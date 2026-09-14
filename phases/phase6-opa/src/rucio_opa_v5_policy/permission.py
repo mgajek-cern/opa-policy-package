@@ -17,7 +17,7 @@ Input document shape:
             "iss":          "http://keycloak:8080/realms/rucio",
             "sub":          "..."
         },
-        "kwargs":  { ... }
+        "kwargs":  { ..., "owned_scopes": ["alice", "alice.data"] }
     }
 
 Scalar claims appear only when the token carries them; the list claims are
@@ -26,6 +26,11 @@ authenticated via userpass (e.g. the bootstrap root account) every list is
 empty and no scalar is set. The Rego rule
   _is_privileged if { input.issuer == "root" }
 handles this unconditionally so the server can start.
+
+`kwargs.owned_scopes` is the subset of the scopes named in this request that
+the issuer actually owns, resolved against the `scopes` table. No token claim
+can carry it — the IdP has no concept of a Rucio scope — so Python fetches
+the fact and the Rego decides on it.
 """
 
 import logging
@@ -53,6 +58,34 @@ _LIST_CLAIMS: dict[str, str] = {
 
 _SCALAR_CLAIMS: tuple[str, ...] = ("acr", "aud", "iss", "sub")
 
+_PASSTHROUGH_KEYS: frozenset[str] = frozenset(
+    {
+        "account",
+        "locked",
+        "rse_expression",
+        "source_rse_expression",
+        "rule_id",
+        "rse",
+        "parameters",
+        "parameter",
+        "rse_id",
+        "scheme",
+        "hostname",
+        "data",
+        "scope",
+        "name",
+        "dids",
+        "attachments",
+    }
+)
+
+# Keys under which a nested protocol/parameter dict might carry `scheme` —
+# Rucio's add_protocol API passes the scheme/hostname/port/prefix bundled
+# into one dict (matching add_protocol(rse_id, parameter, *, session) in
+# core), not as flat kwargs. Check these, in order, for a top-level
+# `scheme` substitute so existing Rego (`input.kwargs.scheme`) keeps working.
+_NESTED_SCHEME_CONTAINERS = ("parameter", "parameters", "data")
+
 
 def has_permission(
     issuer: "InternalAccount",
@@ -61,7 +94,7 @@ def has_permission(
     *,
     session: "Optional[Session]" = None,
 ) -> bool:
-    input_doc = _build_input(issuer, action, kwargs)
+    input_doc = _build_input(issuer, action, kwargs, session)
     if _DEBUG_INPUT:
         log.warning("OPA input for action=%s: %s", action, input_doc)
     return query_opa(input_doc)
@@ -71,12 +104,15 @@ def _build_input(
     issuer: "InternalAccount",
     action: str,
     kwargs: dict[str, Any],
+    session: "Optional[Session]" = None,
 ) -> dict[str, Any]:
+    serialisable = _serialisable_kwargs(kwargs)
+    serialisable["owned_scopes"] = _owned_scopes(issuer, kwargs, session)
     return {
         "issuer": issuer.external,
         "action": action,
         "token": _token_claims(),
-        "kwargs": _serialisable_kwargs(kwargs),
+        "kwargs": serialisable,
     }
 
 
@@ -130,43 +166,98 @@ def _token_claims() -> dict[str, Any]:
     return token
 
 
-_PASSTHROUGH_KEYS: frozenset[str] = frozenset(
-    {
-        "account",
-        "locked",
-        "rse_expression",
-        "source_rse_expression",
-        "rule_id",
-        "rse",
-        "parameters",
-        "parameter",
-        "rse_id",
-        "scheme",
-        "hostname",
-        "data",
-        "scope",
-        "name",
-        "dids",
-        "attachments",
-    }
-)
+# Scope ownership
 
-# Keys under which a nested protocol/parameter dict might carry `scheme` —
-# Rucio's add_protocol API passes the scheme/hostname/port/prefix bundled
-# into one dict (matching add_protocol(rse_id, parameter, *, session) in
-# core), not as flat kwargs. Check these, in order, for a top-level
-# `scheme` substitute so existing Rego (`input.kwargs.scheme`) keeps working.
-_NESTED_SCHEME_CONTAINERS = ("parameter", "parameters", "data")
+_SCOPE_CONTAINERS: tuple[str, ...] = ("dids", "attachments")
+
+
+def _scopes_in(issuer: "InternalAccount", kwargs: dict[str, Any]) -> list[Any]:
+    """Every distinct scope named by this request, as InternalScope."""
+    from rucio.common.types import InternalScope
+
+    found = []
+    candidates = []
+
+    if "scope" in kwargs:
+        candidates.append(kwargs["scope"])
+    for container in _SCOPE_CONTAINERS:
+        for entry in kwargs.get(container) or []:
+            if isinstance(entry, dict) and "scope" in entry:
+                candidates.append(entry["scope"])
+
+    for value in candidates:
+        if value is None:
+            continue
+        scope = value if hasattr(value, "internal") else InternalScope(value, vo=issuer.vo)
+        if scope not in found:
+            found.append(scope)
+
+    return found
+
+
+def _owned_scopes(
+    issuer: "InternalAccount",
+    kwargs: dict[str, Any],
+    session: "Optional[Session]" = None,
+) -> list[str]:
+    """
+    The subset of this request's scopes that the issuer owns.
+    """
+    scopes = (
+        _scopes_in(issuer, kwargs)
+        if "scope" in kwargs or any(k in kwargs for k in _SCOPE_CONTAINERS)
+        else []
+    )
+    if not scopes or session is None:
+        return []
+
+    try:
+        from rucio.core.scope import is_scope_owner
+    except ImportError:
+        if _DEBUG_INPUT:
+            log.warning("OPA owned_scopes: rucio.core.scope not importable")
+        return []
+
+    owned = [
+        scope.external
+        for scope in scopes
+        if is_scope_owner(scope=scope, account=issuer, session=session)
+    ]
+
+    if _DEBUG_INPUT:
+        log.warning(
+            "OPA owned_scopes: checked=%s owned=%s",
+            [s.external for s in scopes],
+            owned,
+        )
+
+    return owned
+
+
+def _externalise(value: Any) -> Any:
+    """
+    Recursively replace InternalScope/InternalAccount with their external
+    string form.
+
+    `dids` and `attachments` are lists of dicts whose `scope` the gateway has
+    already converted to InternalScope, so unwrapping only the top level
+    leaves objects json.dumps cannot serialise — query_opa would fail closed
+    on every bulk DID action, including for root.
+    """
+    if hasattr(value, "external"):
+        return value.external
+    if isinstance(value, dict):
+        return {k: _externalise(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_externalise(v) for v in value]
+    return value
 
 
 def _serialisable_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key in _PASSTHROUGH_KEYS:
         if key in kwargs:
-            val = kwargs[key]
-            if hasattr(val, "external"):
-                val = val.external
-            result[key] = val
+            result[key] = _externalise(kwargs[key])
 
     if "scheme" not in result:
         for container_key in _NESTED_SCHEME_CONTAINERS:

@@ -1,9 +1,27 @@
 """
 Phase 5 — exercises the OIDC → has_permission() → OPA path with real tokens.
+
+The two accounts come pre-created in the phase 5 Keycloak realm and are mapped
+to same-named Rucio accounts by scripts/init-phase5.sh:
+
+    adminuser   entitlements rucio-admins, atlas-production   acr REFEDS MFA
+    alice       entitlements rucio-users,  atlas-users        acr REFEDS MFA
+
+(full URNs of the form urn:example:aai.example.org:group:<name>:role=member).
+data.vo.entitlement_policy maps rucio-admins and atlas-production to "admin"
+and rucio-users to "user"; atlas-users is deliberately unmapped. The realm
+still defines the /rucio/* and /atlas/* groups, but no group mapper is on the
+rucio-oidc client here, so the token carries entitlement URNs only.
+
+Both users carry the same acr, so nothing here can exercise the
+data.vo.policy.required_acr deny branch — and nothing here breaks because the
+claim is present, since the bundle sets no requirement. That branch is covered
+against synthetic input in tests/test_phase5_opa.py.
 """
 
 import json
 import os
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -13,7 +31,8 @@ import pytest
 KEYCLOAK_CLIENT_ID = "rucio-oidc"
 KEYCLOAK_CLIENT_SECRET = "rucio-oidc-secret"
 
-# Must match AUTHZ_TEST_USERS in scripts/init-phase5.sh.
+# Must match AUTHZ_TEST_USERS in scripts/init-phase5.sh, which in turn must
+# match the users in the phase 5 realm export.
 ADMIN_USERNAME = os.environ.get("OIDC_ADMIN_USERNAME", "adminuser")
 ADMIN_PASSWORD = os.environ.get("OIDC_ADMIN_PASSWORD", "admin123")
 USER_USERNAME = os.environ.get("OIDC_USER_USERNAME", "alice")
@@ -24,10 +43,20 @@ USER_PASSWORD = os.environ.get("OIDC_USER_PASSWORD", "alice123")
 # by validate_jwt before has_permission() runs.
 AUTHZ_SCOPE = os.environ.get("OIDC_AUTHZ_SCOPE", "openid offline_access aud:rucio")
 
-# Created by the smoke tests; CERN_DATADISK passes the Rego naming rule, so a
-# deny on it is unambiguously a privilege decision.
+# CERN_DATADISK passes the Rego naming rule, so a deny on it is unambiguously
+# a privilege decision; CERN_UNKNOWN has no known RSE type suffix and fails
+# the rule regardless of who asks. Neither is created by init — the first
+# admin test below creates CERN_DATADISK, and tolerates it already existing.
 VALID_RSE = "CERN_DATADISK"
 BAD_NAME_RSE = "CERN_UNKNOWN"
+
+# Scopes created by the init script. The first is the ordinary case; the
+# other two are what make the ownership tests meaningful — one alice owns
+# but is not named after, one whose name starts with hers but belongs to
+# adminuser.
+OWNED_SCOPE = USER_USERNAME
+OWNED_SCOPE_UNNAMED = "projectdata"
+FOREIGN_SCOPE_PREFIXED = "aliceleak"
 
 
 @pytest.fixture(scope="module")
@@ -101,6 +130,10 @@ def _call(rucio_url, path, token, method="GET", body=None):
         return exc.code, exc.headers.get("ExceptionClass"), exc.headers.get("ExceptionMessage")
 
 
+def _unique(prefix):
+    return f"{prefix}-{int(time.time() * 1000)}"
+
+
 # Entitlement-driven privilege
 #
 # adminuser holds rucio-admins, which data.vo.entitlement_policy maps to
@@ -138,26 +171,32 @@ class TestEntitlementAuthorisation:
     def test_admin_entitlement_denies_bad_rse_name(self, stack_urls, admin_token):
         """Naming rule runs regardless of privilege — _perm_add_rse needs both."""
         rucio_url, _ = stack_urls
-        status, exc_cls, _ = _call(
+        status, exc_cls, exc_msg = _call(
             rucio_url, f"/rses/{BAD_NAME_RSE}", admin_token, "POST", {"rse_type": "DISK"}
         )
-        assert status in (401, 403)
-        assert exc_cls == "AccessDenied"
+        assert status in (401, 403), f"HTTP {status} {exc_cls}: {exc_msg}"
+        assert exc_cls == "AccessDenied", f"{exc_cls}: {exc_msg}"
 
     def test_admin_entitlement_allows_del_rse_attribute(self, stack_urls, admin_token):
-        """del_rse_attribute is privileged-only with no domain check."""
+        """del_rse_attribute is privileged-only with no domain check.
+
+        The attribute doesn't exist, so the expected outcome is a not-found
+        from Rucio rather than a policy deny. Asserting on the specific
+        exception rather than "not AccessDenied" — the looser form is also
+        satisfied by CannotAuthenticate, which would hide a broken token.
+        """
         rucio_url, _ = stack_urls
         status, exc_cls, exc_msg = _call(
-            rucio_url, f"/rses/{VALID_RSE}/attr/nonexistent", admin_token, "DELETE"
+            rucio_url, f"/rses/{VALID_RSE}/attr/{_unique('nokey')}", admin_token, "DELETE"
         )
-        # The attribute doesn't exist, so expect a not-found rather than a
-        # policy deny — what matters is that it isn't AccessDenied.
-        assert exc_cls != "AccessDenied", f"HTTP {status} {exc_cls}: {exc_msg}"
+        assert exc_cls in (None, "KeyNotFound", "RSEAttributeNotFound"), (
+            f"HTTP {status} {exc_cls}: {exc_msg}"
+        )
 
     def test_user_entitlement_denies_del_rse_attribute(self, stack_urls, user_token):
         rucio_url, _ = stack_urls
         status, exc_cls, exc_msg = _call(
-            rucio_url, f"/rses/{VALID_RSE}/attr/nonexistent", user_token, "DELETE"
+            rucio_url, f"/rses/{VALID_RSE}/attr/{_unique('nokey')}", user_token, "DELETE"
         )
         assert exc_cls == "AccessDenied", f"HTTP {status} {exc_cls}: {exc_msg}"
 
@@ -169,14 +208,11 @@ class TestEntitlementAuthorisation:
 
 class TestSelfService:
     def test_user_can_create_did_in_own_scope(self, stack_urls, user_token):
-        """startswith(kwargs.scope, issuer) → allow. alice owns scope 'alice'."""
-        import time
-
+        """kwargs.scope in kwargs.owned_scopes → allow. alice owns scope 'alice'."""
         rucio_url, _ = stack_urls
-        name = f"selfservice-{int(time.time() * 1000)}"
         status, exc_cls, exc_msg = _call(
             rucio_url,
-            f"/dids/{USER_USERNAME}/{name}",
+            f"/dids/{USER_USERNAME}/{_unique('selfservice')}",
             user_token,
             "POST",
             {"type": "DATASET"},
@@ -184,14 +220,47 @@ class TestSelfService:
         assert status == 201, f"HTTP {status} {exc_cls}: {exc_msg}"
 
     def test_user_cannot_create_did_in_foreign_scope(self, stack_urls, user_token):
-        """Scope owned by another account → no ownership clause matches → deny."""
-        import time
+        """Scope owned by another account → no ownership clause matches → deny.
 
+        init-phase5.sh creates the 'adminuser' scope so the deny here is a
+        policy decision and not a missing resource.
+        """
         rucio_url, _ = stack_urls
-        name = f"foreign-{int(time.time() * 1000)}"
         status, exc_cls, exc_msg = _call(
             rucio_url,
-            f"/dids/adminuser/{name}",
+            f"/dids/{ADMIN_USERNAME}/{_unique('foreign')}",
+            user_token,
+            "POST",
+            {"type": "DATASET"},
+        )
+        assert status in (401, 403), f"HTTP {status} {exc_cls}: {exc_msg}"
+        assert exc_cls == "AccessDenied", f"{exc_cls}: {exc_msg}"
+
+    def test_user_can_create_did_in_owned_scope_not_named_after_account(
+        self, stack_urls, user_token
+    ):
+        """Owned via the scopes table, denied by any name-based check."""
+        rucio_url, _ = stack_urls
+        status, exc_cls, exc_msg = _call(
+            rucio_url,
+            f"/dids/{OWNED_SCOPE_UNNAMED}/{_unique('unnamed')}",
+            user_token,
+            "POST",
+            {"type": "DATASET"},
+        )
+        assert status == 201, (
+            f"HTTP {status} {exc_cls}: {exc_msg} — is '{OWNED_SCOPE_UNNAMED}' "
+            f"registered to {USER_USERNAME}? The init script adds it."
+        )
+
+    def test_user_cannot_create_did_in_foreign_scope_sharing_its_prefix(
+        self, stack_urls, user_token
+    ):
+        """Owned by adminuser; a prefix check would have allowed this."""
+        rucio_url, _ = stack_urls
+        status, exc_cls, exc_msg = _call(
+            rucio_url,
+            f"/dids/{FOREIGN_SCOPE_PREFIXED}/{_unique('prefixleak')}",
             user_token,
             "POST",
             {"type": "DATASET"},
