@@ -1,5 +1,19 @@
 """
 Phase 4 — exercises the OIDC → has_permission() → OPA path with real tokens.
+
+The two accounts come pre-created in the phase 4 Keycloak realm and are mapped
+to same-named Rucio accounts by scripts/init-phase4.sh:
+
+    adminuser   wlcg.groups /rucio/admins, /atlas/production   acr REFEDS MFA
+    alice       wlcg.groups /rucio/users,  /atlas/users        acr REFEDS MFA
+
+data.vo.group_policy maps /rucio/admins and /atlas/production to "admin" and
+/rucio/users to "user"; /atlas/users is deliberately unmapped.
+
+Both users carry the same acr, so nothing here can exercise the
+data.vo.policy.required_acr deny branch — and nothing here breaks because the
+claim is present, since the bundle sets no requirement. That branch is covered
+against synthetic input in tests/test_phase4_opa.py.
 """
 
 import json
@@ -14,7 +28,8 @@ import pytest
 KEYCLOAK_CLIENT_ID = "rucio-oidc"
 KEYCLOAK_CLIENT_SECRET = "rucio-oidc-secret"
 
-# Must match AUTHZ_TEST_USERS in scripts/init-phase4.sh.
+# Must match AUTHZ_TEST_USERS in scripts/init-phase4.sh, which in turn must
+# match the users in the phase 4 realm export.
 ADMIN_USERNAME = os.environ.get("OIDC_ADMIN_USERNAME", "adminuser")
 ADMIN_PASSWORD = os.environ.get("OIDC_ADMIN_PASSWORD", "admin123")
 USER_USERNAME = os.environ.get("OIDC_USER_USERNAME", "alice")
@@ -25,10 +40,20 @@ USER_PASSWORD = os.environ.get("OIDC_USER_PASSWORD", "alice123")
 # by validate_jwt before has_permission() runs.
 AUTHZ_SCOPE = os.environ.get("OIDC_AUTHZ_SCOPE", "openid offline_access aud:rucio")
 
-# Created by the smoke tests; CERN_DATADISK passes the Rego naming rule, so a
-# deny on it is unambiguously a privilege decision.
+# CERN_DATADISK passes the Rego naming rule, so a deny on it is unambiguously
+# a privilege decision; CERN_UNKNOWN has no known RSE type suffix and fails
+# the rule regardless of who asks. Neither is created by init — the first
+# admin test below creates CERN_DATADISK, and tolerates it already existing.
 VALID_RSE = "CERN_DATADISK"
 BAD_NAME_RSE = "CERN_UNKNOWN"
+
+# Scopes created by the init script. The first is the ordinary case; the
+# other two are what make the ownership tests meaningful — one alice owns
+# but is not named after, one whose name starts with hers but belongs to
+# adminuser.
+OWNED_SCOPE = USER_USERNAME
+OWNED_SCOPE_UNNAMED = "projectdata"
+FOREIGN_SCOPE_PREFIXED = "aliceleak"
 
 
 @pytest.fixture(scope="module")
@@ -185,7 +210,7 @@ class TestGroupAuthorisation:
 
 class TestSelfService:
     def test_user_can_create_did_in_own_scope(self, stack_urls, user_token):
-        """startswith(kwargs.scope, issuer) → allow. alice owns scope 'alice'."""
+        """kwargs.scope in kwargs.owned_scopes → allow. alice owns scope 'alice'."""
         rucio_url, _ = stack_urls
         status, exc_cls, exc_msg = _call(
             rucio_url,
@@ -197,11 +222,47 @@ class TestSelfService:
         assert status == 201, f"HTTP {status} {exc_cls}: {exc_msg}"
 
     def test_user_cannot_create_did_in_foreign_scope(self, stack_urls, user_token):
-        """Scope owned by another account → no ownership clause matches → deny."""
+        """Scope owned by another account → no ownership clause matches → deny.
+
+        init-phase4.sh creates the 'adminuser' scope so the deny here is a
+        policy decision and not a missing resource.
+        """
         rucio_url, _ = stack_urls
         status, exc_cls, exc_msg = _call(
             rucio_url,
             f"/dids/{ADMIN_USERNAME}/{_unique('foreign')}",
+            user_token,
+            "POST",
+            {"type": "DATASET"},
+        )
+        assert status in (401, 403), f"HTTP {status} {exc_cls}: {exc_msg}"
+        assert exc_cls == "AccessDenied", f"{exc_cls}: {exc_msg}"
+
+    def test_user_can_create_did_in_owned_scope_not_named_after_account(
+        self, stack_urls, user_token
+    ):
+        """Owned via the scopes table, denied by any name-based check."""
+        rucio_url, _ = stack_urls
+        status, exc_cls, exc_msg = _call(
+            rucio_url,
+            f"/dids/{OWNED_SCOPE_UNNAMED}/{_unique('unnamed')}",
+            user_token,
+            "POST",
+            {"type": "DATASET"},
+        )
+        assert status == 201, (
+            f"HTTP {status} {exc_cls}: {exc_msg} — is '{OWNED_SCOPE_UNNAMED}' "
+            f"registered to {USER_USERNAME}? The init script adds it."
+        )
+
+    def test_user_cannot_create_did_in_foreign_scope_sharing_its_prefix(
+        self, stack_urls, user_token
+    ):
+        """Owned by adminuser; a prefix check would have allowed this."""
+        rucio_url, _ = stack_urls
+        status, exc_cls, exc_msg = _call(
+            rucio_url,
+            f"/dids/{FOREIGN_SCOPE_PREFIXED}/{_unique('prefixleak')}",
             user_token,
             "POST",
             {"type": "DATASET"},

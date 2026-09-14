@@ -111,9 +111,9 @@ flowchart LR
     subgraph SELF["privileged OR ownership"]
         B1["add_rule<br/>account == issuer<br/>AND locked == false"]
         B2["del_rule / update_rule<br/>account == issuer"]
-        B3["add_did / attach_dids /<br/>detach_dids<br/>scope starts with issuer"]
-        B4["add_dids<br/>every did.scope<br/>starts with issuer"]
-        B5["attach_dids_to_dids<br/>attachment scope<br/>starts with issuer"]
+        B3["add_did / attach_dids /<br/>detach_dids<br/>scope in owned_scopes"]
+        B4["add_dids<br/>every did.scope<br/>in owned_scopes"]
+        B5["attach_dids_to_dids<br/>attachment scope<br/>in owned_scopes"]
     end
 
     subgraph LEVEL["privileged OR user level OR bundle opt-in"]
@@ -129,4 +129,7 @@ flowchart LR
 | DIDs | ✓ | ✓ | own scope | same |
 
 Verified by `tests/test_phase6_rucio.py`: `TestEntitlementAuthorisation`
-covers the privileged path, `TestSelfService` the ownership clauses.
+covers the privileged path, `TestScopeOwnership` and `TestBulkScopeOwnership`
+the ownership clauses against the scopes table, and `TestRuleSelfService` the
+`kwargs.account` comparison. `tests/test_phase6_opa.py` covers the same rules
+against synthetic input.

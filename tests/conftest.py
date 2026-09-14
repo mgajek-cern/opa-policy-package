@@ -36,6 +36,68 @@ RUCIO_PASSWORD = "secret"
 OPA_STARTUP_TIMEOUT = 10  # seconds
 RUCIO_REST_URL = os.environ.get("RUCIO_URL", "http://rucio-server").rstrip("/")
 
+VALSTORAGE_HOST = os.environ.get("VALIDATION_STORAGE_HOST")
+
+TEAPOT1_URL = os.environ.get("TEAPOT1_URL") or (
+    f"https://{VALSTORAGE_HOST}:8081" if VALSTORAGE_HOST else "https://teapot1:8081"
+)
+
+TEAPOT2_URL = os.environ.get("TEAPOT2_URL") or (
+    f"https://{VALSTORAGE_HOST}:8082" if VALSTORAGE_HOST else "https://teapot2:8081"
+)
+
+
+# ── Phase 6 OIDC provider config ─────────────────────────────────────────
+#
+# docker-compose.yml sets these on rucio-client, but the defaults here must
+# describe the local Keycloak too — a Keycloak realm's token endpoint is under
+# /protocol/openid-connect/token, not /token, and only the password grant
+# yields offline_access (a service account has no user session to hang an
+# offline token off).
+
+OIDC_ISSUER = os.environ.get("OIDC_ISSUER") or "https://keycloak:8443/realms/rucio"
+
+OIDC_TOKEN_URL = (
+    os.environ.get("OIDC_TOKEN_URL") or f"{OIDC_ISSUER.rstrip('/')}/protocol/openid-connect/token"
+)
+
+OIDC_CLIENT_ID = os.environ.get("OIDC_CLIENT_ID") or "rucio"
+OIDC_CLIENT_SECRET = os.environ.get("OIDC_CLIENT_SECRET") or "rucio-secret"
+OIDC_USERNAME = os.environ.get("OIDC_USERNAME") or "seeduser"
+OIDC_PASSWORD = os.environ.get("OIDC_PASSWORD") or "secret"
+
+OIDC_GRANT_TYPE = os.environ.get("OIDC_GRANT_TYPE") or "password"  # password | client_credentials
+
+OIDC_EXPECTED_SCOPE = (
+    os.environ.get("OIDC_EXPECTED_SCOPE") or "openid storage.read:/ storage.modify:/"
+)
+
+OIDC_TEAPOT_AUD_SCOPE = os.environ.get("OIDC_TEAPOT_AUD_SCOPE") or "aud:teapot1 aud:teapot2"
+
+# RFC 8707 resource indicators require a URI. Keycloak's aud:* scope syntax
+# works with bare RSE names, so this is only consulted under
+# client_credentials (the LS AAI/EGI path); under the password grant it never
+# reaches the token request.
+OIDC_RESOURCE_SUFFIX = os.environ.get("OIDC_RESOURCE_SUFFIX") or ".example.org"
+
+XRDFS_TRANSIENT_ERR = "resource temporarily unavailable"
+
+# ── Phase 6 Rucio REST ────────────────────────────────────────────────────
+#
+# REST rather than the Rucio Python client: the client needs a rucio.cfg
+# mounted in the container, and auth_type=oidc there drives an interactive
+# browser flow. Going over REST keeps the suite runnable anywhere that can
+# reach the server, and surfaces ExceptionClass/ExceptionMessage on failures
+# — which is what distinguishes a policy deny from a rejected token, since
+# both come back as 401.
+
+RUCIO_VO = os.environ.get("RUCIO_VO", "def")
+
+# Which credential the transfer suite uses. 'userpass' authenticates as root,
+# which the Rego short-circuits before any entitlement lookup — fine for
+# testing transfers, but it does not exercise the claims path. Set
+# RUCIO_AUTH=oidc once BACKLOG 3a lands to run the suite token-natively.
+RUCIO_AUTH = os.environ.get("RUCIO_AUTH", "userpass")
 
 # ── Phase 2/3 Rucio stubs ─────────────────────────────────────────────────
 #
@@ -290,52 +352,6 @@ def build_opa_server_fixture(rego_path, default_policy_path):
 
 # ── Phase 6 service constants ─────────────────────────────────────────────
 
-VALSTORAGE_HOST = os.environ.get("VALIDATION_STORAGE_HOST")
-
-TEAPOT1_URL = os.environ.get("TEAPOT1_URL") or (
-    f"https://{VALSTORAGE_HOST}:8081" if VALSTORAGE_HOST else "https://teapot1:8081"
-)
-
-TEAPOT2_URL = os.environ.get("TEAPOT2_URL") or (
-    f"https://{VALSTORAGE_HOST}:8082" if VALSTORAGE_HOST else "https://teapot2:8081"
-)
-
-
-# ── Phase 6 OIDC provider config ─────────────────────────────────────────
-#
-# docker-compose.yml sets these on rucio-client, but the defaults here must
-# describe the local Keycloak too — a Keycloak realm's token endpoint is under
-# /protocol/openid-connect/token, not /token, and only the password grant
-# yields offline_access (a service account has no user session to hang an
-# offline token off).
-
-OIDC_ISSUER = os.environ.get("OIDC_ISSUER") or "https://keycloak:8443/realms/rucio"
-
-OIDC_TOKEN_URL = (
-    os.environ.get("OIDC_TOKEN_URL") or f"{OIDC_ISSUER.rstrip('/')}/protocol/openid-connect/token"
-)
-
-OIDC_CLIENT_ID = os.environ.get("OIDC_CLIENT_ID") or "rucio"
-OIDC_CLIENT_SECRET = os.environ.get("OIDC_CLIENT_SECRET") or "rucio-secret"
-OIDC_USERNAME = os.environ.get("OIDC_USERNAME") or "seeduser"
-OIDC_PASSWORD = os.environ.get("OIDC_PASSWORD") or "secret"
-
-OIDC_GRANT_TYPE = os.environ.get("OIDC_GRANT_TYPE") or "password"  # password | client_credentials
-
-OIDC_EXPECTED_SCOPE = (
-    os.environ.get("OIDC_EXPECTED_SCOPE") or "openid storage.read:/ storage.modify:/"
-)
-
-OIDC_TEAPOT_AUD_SCOPE = os.environ.get("OIDC_TEAPOT_AUD_SCOPE") or "aud:teapot1 aud:teapot2"
-
-# RFC 8707 resource indicators require a URI. Keycloak's aud:* scope syntax
-# works with bare RSE names, so this is only consulted under
-# client_credentials (the LS AAI/EGI path); under the password grant it never
-# reaches the token request.
-OIDC_RESOURCE_SUFFIX = os.environ.get("OIDC_RESOURCE_SUFFIX") or ".example.org"
-
-XRDFS_TRANSIENT_ERR = "resource temporarily unavailable"
-
 
 def _rse_resource(name: str) -> str:
     """Map a bare RSE name to the URI form LS AAI/EGI expects as resource=."""
@@ -351,21 +367,6 @@ def _auth_headers(token: str = None) -> dict:
 
 
 # ── Phase 6 Rucio REST ────────────────────────────────────────────────────
-#
-# REST rather than the Rucio Python client: the client needs a rucio.cfg
-# mounted in the container, and auth_type=oidc there drives an interactive
-# browser flow. Going over REST keeps the suite runnable anywhere that can
-# reach the server, and surfaces ExceptionClass/ExceptionMessage on failures
-# — which is what distinguishes a policy deny from a rejected token, since
-# both come back as 401.
-
-RUCIO_VO = os.environ.get("RUCIO_VO", "def")
-
-# Which credential the transfer suite uses. 'userpass' authenticates as root,
-# which the Rego short-circuits before any entitlement lookup — fine for
-# testing transfers, but it does not exercise the claims path. Set
-# RUCIO_AUTH=oidc once BACKLOG 3a lands to run the suite token-natively.
-RUCIO_AUTH = os.environ.get("RUCIO_AUTH", "userpass")
 
 
 def rucio_rest(path, token, method="GET", body=None, timeout=30):
@@ -1146,3 +1147,116 @@ def xrd4_write_token():
         OIDC_EXPECTED_SCOPE,
         resource=_rse_resource("xrd4"),
     )
+
+
+def _put(opa_url: str, path: str, data) -> None:
+    url = f"{opa_url.rstrip('/')}/v1/data/{path}"
+    req = Request(
+        url,
+        data=json.dumps(data).encode(),
+        headers={"Content-Type": "application/json"},
+        method="PUT",
+    )
+    with urlopen(req, timeout=5):
+        pass
+
+
+def _delete(opa_url: str, path: str) -> None:
+    """Remove a data document. Tolerates it never having been written."""
+    url = f"{opa_url.rstrip('/')}/v1/data/{path}"
+    try:
+        with urlopen(Request(url, method="DELETE"), timeout=5):
+            pass
+    except HTTPError as exc:
+        if exc.code != 404:
+            raise
+
+
+def _get(opa_url: str, path: str):
+    """Current value, or None when the path holds nothing.
+
+    OPA answers 200 with no `result` key for an undefined path rather than
+    404, so the absent case comes out of the .get() not the HTTPError.
+    """
+    url = f"{opa_url.rstrip('/')}/v1/data/{path}"
+    try:
+        with urlopen(url, timeout=5) as resp:
+            return json.load(resp).get("result")
+    except HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise
+
+
+@pytest.fixture
+def group_policy(opa_server):
+    """Replace data.vo.group_policy for one test, then restore it.
+
+    Phase 4 keys privilege off this document; phases 5 and 6 use
+    entitlement_policy below. Written out rather than shared with it — a
+    factory has to pass @pytest.fixture(name=...) to register under anything
+    but its inner function's name, which makes fixture discovery harder to
+    follow than the fifteen duplicated lines it saves.
+
+    Without the restore, the suite leaves the testbed's bundle rewritten and
+    /rucio/admins unprivileged, which surfaces as an unrelated failure in
+    test_phase4_rucio.py on the next run.
+    """
+    saved = _get(opa_server, "vo/group_policy")
+    written = False
+
+    def _set(mapping: dict) -> None:
+        nonlocal written
+        written = True
+        _put(opa_server, "vo/group_policy", mapping)
+
+    yield _set
+
+    if written:
+        if saved is None:
+            _delete(opa_server, "vo/group_policy")
+        else:
+            _put(opa_server, "vo/group_policy", saved)
+
+
+@pytest.fixture
+def policy_leaf(opa_server):
+    """Set data.vo.policy leaves for one test, then put back what was there."""
+    saved = {}
+
+    def _set(leaf: str, value) -> None:
+        saved.setdefault(leaf, _get(opa_server, f"vo/policy/{leaf}"))
+        _put(opa_server, f"vo/policy/{leaf}", value)
+
+    yield _set
+
+    for leaf, previous in saved.items():
+        if previous is None:
+            _delete(opa_server, f"vo/policy/{leaf}")
+        else:
+            _put(opa_server, f"vo/policy/{leaf}", previous)
+
+
+@pytest.fixture
+def entitlement_policy(opa_server):
+    """Replace data.vo.entitlement_policy for one test, then restore it.
+
+    Without this the suite leaves the testbed's bundle rewritten and
+    rucio-admins unprivileged, which surfaces as an unrelated failure in
+    test_phase6_rucio.py on the next run.
+    """
+    saved = _get(opa_server, "vo/entitlement_policy")
+    written = False
+
+    def _set(mapping: dict) -> None:
+        nonlocal written
+        written = True
+        _put(opa_server, "vo/entitlement_policy", mapping)
+
+    yield _set
+
+    if written:
+        if saved is None:
+            _delete(opa_server, "vo/entitlement_policy")
+        else:
+            _put(opa_server, "vo/entitlement_policy", saved)

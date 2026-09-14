@@ -109,30 +109,19 @@ _perm_add_replicas if {
 # DID actions
 
 _perm_did_action if { _is_privileged }
-_perm_did_action if { input.kwargs.scope == "mock" }
 
-# NOTE: startswith, not equality — an issuer "a" matches scope "alice.data".
-# Left as-is because phases 5 and 6 share this shape and the e2e input
-# documents rely on it; tightening it to == (or to a scope_owner lookup) is
-# a deliberate policy change to be made across all phases at once.
-_perm_did_action if { startswith(input.kwargs.scope, input.issuer) }
+_perm_did_action if { input.kwargs.scope in input.kwargs.owned_scopes }
 
 _perm_did_action if {
     input.action == "attach_dids_to_dids"
     attachment := input.kwargs.attachments[_]
-    startswith(attachment.scope, input.issuer)
+    attachment.scope in input.kwargs.owned_scopes
 }
 
-# add_dids passes a list of DIDs and no top-level scope, so the clause
-# above can never match it — it was silently falling through to
-# privileged-only despite being listed in _did_actions. Every DID in the
-# batch must be in a scope the issuer owns.
 _perm_did_action if {
     input.action == "add_dids"
     count(input.kwargs.dids) > 0
-    every did in input.kwargs.dids {
-        startswith(did.scope, input.issuer)
-    }
+    every did in input.kwargs.dids { did.scope in input.kwargs.owned_scopes }
 }
 
 # Protocol actions

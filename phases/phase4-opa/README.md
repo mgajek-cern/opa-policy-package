@@ -1,13 +1,13 @@
 # rucio-opa-v3-policy
 
-Phase 4 — OPA as PDP, OIDC token-native authorisation via `wlcg.groups`. Keycloak issues JWTs with a `wlcg.groups` claim; OPA evaluates group paths against `data.vo.group_policy` in the bundle — no Rucio DB round-trip per authorisation decision.
+Phase 4 — OPA as PDP, OIDC token-native authorisation via `wlcg.groups`. Keycloak issues JWTs with a `wlcg.groups` claim; OPA evaluates group paths against `data.vo.group_policy` in the bundle.
 
 ## What's new in Phase 4
 
 | Addition | Detail |
 |----------|--------|
 | OIDC identity provider | Keycloak (single realm `rucio`) issues JWTs with `wlcg.groups` |
-| Token-native privilege | `wlcg.groups` replaces `is_root`/`is_admin` DB lookup — 0 DB calls per auth decision |
+| Token-native privilege | `wlcg.groups` replaces the `is_root`/`is_admin` account lookup — privilege comes from the claim |
 | Group policy bundle | `data.vo.group_policy` maps group paths → privilege level, updateable at runtime |
 | Root bootstrap | `issuer == "root"` allowed unconditionally — no OIDC token needed for userpass |
 
@@ -55,10 +55,9 @@ Single realm (`rucio`), no federation. Two test users:
 
 | User | Password | Groups | Privilege |
 |------|----------|--------|-----------|
-| `alice` | `alice123` | `/rucio/users`, `/atlas/users` | none |
-| `adminuser` | `admin123` | `/rucio/admins`, `/atlas/production` | admin |
+| `alice` | `alice123` | `/rucio/users`, `/atlas/users` | `user` |
+| `adminuser` | `admin123` | `/rucio/admins`, `/atlas/production` | `admin` |
 
-The `wlcg` client scope maps Keycloak group membership to `wlcg.groups` in the JWT.
 
 ## Configuration
 
