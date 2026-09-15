@@ -17,7 +17,10 @@ Input document shape:
             "iss":          "http://keycloak:8080/realms/rucio",
             "sub":          "..."
         },
-        "kwargs":  { ..., "owned_scopes": ["alice", "alice.data"] }
+        "kwargs":  { ...,
+                     "owned_scopes": ["alice", "alice.data"],
+                     "rule_owner":   "alice",
+                     "rule_scope":   "alice.data" }
     }
 
 Scalar claims appear only when the token carries them; the list claims are
@@ -27,10 +30,15 @@ empty and no scalar is set. The Rego rule
   _is_privileged if { input.issuer == "root" }
 handles this unconditionally so the server can start.
 
-`kwargs.owned_scopes` is the subset of the scopes named in this request that
-the issuer actually owns, resolved against the `scopes` table. No token claim
-can carry it — the IdP has no concept of a Rucio scope — so Python fetches
-the fact and the Rego decides on it.
+Two families of fact are resolved in Python rather than read off a claim,
+because no IdP has authoritative knowledge of them (design-003, design-004):
+
+  - `kwargs.owned_scopes` — the subset of the scopes named in this request
+    that the issuer owns, from the `scopes` table.
+  - `kwargs.rule_owner` / `kwargs.rule_scope` — for rule-id-keyed actions,
+    the rule's owning account and the scope of the DID it targets, from the
+    `rules` table. Absent when the rule cannot be resolved, which makes the
+    Rego comparison undefined and denies.
 """
 
 import logging
@@ -43,6 +51,7 @@ if TYPE_CHECKING:
     from typing import Optional
 
     from rucio.common.types import InternalAccount
+    from rucio.core.permission import PermissionResult
     from sqlalchemy.orm import Session
 
 log = logging.getLogger(__name__)
@@ -65,6 +74,7 @@ _PASSTHROUGH_KEYS: frozenset[str] = frozenset(
         "rse_expression",
         "source_rse_expression",
         "rule_id",
+        "options",
         "rse",
         "parameters",
         "parameter",
@@ -86,7 +96,16 @@ _PASSTHROUGH_KEYS: frozenset[str] = frozenset(
 # `scheme` substitute so existing Rego (`input.kwargs.scheme`) keeps working.
 _NESTED_SCHEME_CONTAINERS = ("parameter", "parameters", "data")
 
+# kwargs keys holding a single scope, and keys holding a list of dicts that
+# each carry one. `rule_scope` is not a gateway kwarg — it is resolved by
+# _rule_facts() and merged in before ownership is computed, so that one
+# lookup covers it alongside everything else.
+_SCOPE_KEYS: tuple[str, ...] = ("scope", "rule_scope")
 _SCOPE_CONTAINERS: tuple[str, ...] = ("dids", "attachments")
+
+# Actions whose kwargs identify a rule by id and nothing else. The owning
+# account lives on the `rules` row, not in kwargs, so it has to be fetched.
+_RULE_ID_ACTIONS: frozenset[str] = frozenset({"del_rule", "update_rule"})
 
 
 def has_permission(
@@ -95,7 +114,7 @@ def has_permission(
     kwargs: dict[str, Any],
     *,
     session: "Optional[Session]" = None,
-) -> "PermissionResult":  # noqa: F821
+) -> "PermissionResult":
     from rucio.core.permission import PermissionResult
 
     # 1. Isolate input generation to catch underlying implementation bugs cleanly
@@ -145,8 +164,16 @@ def _build_input(
     kwargs: dict[str, Any],
     session: "Optional[Session]" = None,
 ) -> dict[str, Any]:
+    rule_facts = _rule_facts(action, kwargs, session)
+
     serialisable = _serialisable_kwargs(kwargs)
-    serialisable["owned_scopes"] = _owned_scopes(issuer, kwargs, session)
+    serialisable.update(rule_facts)
+
+    # _scopes_in() reads the raw kwargs, which carry no rule_scope — merge the
+    # resolved facts in first so a rule's target scope is resolved by the same
+    # single is_scope_owner() pass as everything else in the request.
+    serialisable["owned_scopes"] = _owned_scopes(issuer, {**kwargs, **rule_facts}, session)
+
     return {
         "issuer": issuer.external,
         "action": action,
@@ -205,6 +232,61 @@ def _token_claims() -> dict[str, Any]:
     return token
 
 
+# Rule ownership
+
+
+def _rule_facts(
+    action: str,
+    kwargs: dict[str, Any],
+    session: "Optional[Session]" = None,
+) -> dict[str, str]:
+    """
+    The rule's owning account and target scope, for rule-id-keyed actions.
+
+    Returns {} when the facts cannot be established — a missing rule, an
+    unusable id, or no session. The Rego comparison is then undefined and
+    the action denies, which is the intended failure direction.
+    """
+    if action not in _RULE_ID_ACTIONS or session is None:
+        return {}
+
+    rule_id = kwargs.get("rule_id")
+    if not rule_id:
+        return {}
+
+    try:
+        from rucio.common.exception import RuleNotFound
+        from rucio.core.rule import get_rule
+    except ImportError:
+        if _DEBUG_INPUT:
+            log.warning("OPA rule_facts: rucio.core.rule not importable")
+        return {}
+
+    try:
+        row = get_rule(rule_id, session=session)
+    except RuleNotFound:
+        # An ordinary outcome, not a fault: nothing to own, so nothing to
+        # compare against.
+        if _DEBUG_INPUT:
+            log.warning("OPA rule_facts: rule %s not found", rule_id)
+        return {}
+    except Exception:
+        # A fault. Still denies, but never silently — otherwise a transient
+        # DB error is indistinguishable from "you don't own this rule".
+        log.exception("OPA rule_facts: could not resolve rule %s", rule_id)
+        return {}
+
+    facts = {
+        "rule_owner": row["account"].external,
+        "rule_scope": row["scope"].external,
+    }
+
+    if _DEBUG_INPUT:
+        log.warning("OPA rule_facts: rule=%s facts=%s", rule_id, facts)
+
+    return facts
+
+
 # Scope ownership
 
 
@@ -215,8 +297,9 @@ def _scopes_in(issuer: "InternalAccount", kwargs: dict[str, Any]) -> list[Any]:
     found = []
     candidates = []
 
-    if "scope" in kwargs:
-        candidates.append(kwargs["scope"])
+    for key in _SCOPE_KEYS:
+        if key in kwargs:
+            candidates.append(kwargs[key])
     for container in _SCOPE_CONTAINERS:
         for entry in kwargs.get(container) or []:
             if isinstance(entry, dict) and "scope" in entry:
@@ -240,11 +323,8 @@ def _owned_scopes(
     """
     The subset of this request's scopes that the issuer owns.
     """
-    scopes = (
-        _scopes_in(issuer, kwargs)
-        if "scope" in kwargs or any(k in kwargs for k in _SCOPE_CONTAINERS)
-        else []
-    )
+    named = any(k in kwargs for k in _SCOPE_KEYS) or any(k in kwargs for k in _SCOPE_CONTAINERS)
+    scopes = _scopes_in(issuer, kwargs) if named else []
     if not scopes or session is None:
         return []
 
