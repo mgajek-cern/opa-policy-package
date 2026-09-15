@@ -99,12 +99,6 @@ Rego clause iterating it is safe.
 per request and is always present, empty when the action names no scope — so a
 Rego `in` test against it is safe for every action, not just DID ones.
 
-**Not the same as the Authorization Service contract.** The `operation` /
-`subject` / `resource` / `context` shape used by the WP4 Authorization
-Service (see the ADRs and `authz-flow-diagrams.md`) is a separate, higher
-layer that this package's OPA input predates and does not implement — this
-policy package still talks to OPA directly, not through that service.
-
 Rucio has no knowledge of ODRL. Whether the Rego inside OPA was hand-authored
 or generated from ODRL documents makes no difference to the package — only
 the boolean result matters.
