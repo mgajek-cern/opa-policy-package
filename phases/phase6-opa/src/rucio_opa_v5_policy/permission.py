@@ -86,6 +86,8 @@ _PASSTHROUGH_KEYS: frozenset[str] = frozenset(
 # `scheme` substitute so existing Rego (`input.kwargs.scheme`) keeps working.
 _NESTED_SCHEME_CONTAINERS = ("parameter", "parameters", "data")
 
+_SCOPE_CONTAINERS: tuple[str, ...] = ("dids", "attachments")
+
 
 def has_permission(
     issuer: "InternalAccount",
@@ -93,11 +95,48 @@ def has_permission(
     kwargs: dict[str, Any],
     *,
     session: "Optional[Session]" = None,
-) -> bool:
-    input_doc = _build_input(issuer, action, kwargs, session)
+) -> "PermissionResult":  # noqa: F821
+    from rucio.core.permission import PermissionResult
+
+    # 1. Isolate input generation to catch underlying implementation bugs cleanly
+    try:
+        input_doc = _build_input(issuer, action, kwargs, session)
+    except Exception:
+        # Catch genuine implementation faults (e.g., typos inside nested code helpers)
+        # without allowing a partial failure to proceed down an untrusted path.
+        log.exception(
+            "OPA engineering fault: Input payload generation failed for action=%s", action
+        )
+        return PermissionResult(False, "Internal authorization failure: Payload construction error")
+
     if _DEBUG_INPUT:
         log.warning("OPA input for action=%s: %s", action, input_doc)
-    return query_opa(input_doc)
+
+    # 2. Execute network-bound policy assessment inside a dedicated safety block
+    try:
+        # Refactor query_opa downstream to return an object or tuple containing
+        # both a boolean decision status and a contextual reason string from Rego
+        opa_response = query_opa(input_doc)
+
+        # Fallback handling assuming query_opa returns a boolean or structured object
+        if isinstance(opa_response, bool):
+            allowed = opa_response
+            reason = "" if allowed else "Access denied by OPA policy validation"
+        else:
+            allowed = getattr(opa_response, "allowed", False)
+            reason = getattr(opa_response, "reason", "Access denied by OPA policy validation")
+
+        return PermissionResult(allowed, reason)
+
+    except Exception as network_err:
+        # 3. Fail-Closed cleanly on infrastructure outages (Network Down, OPA Container Dead)
+        log.critical(
+            "OPA connection infrastructure failure for action=%s: %s",
+            action,
+            str(network_err),
+            exc_info=True,
+        )
+        return PermissionResult(False, "Authorization engine unreachable (System Degraded)")
 
 
 def _build_input(
@@ -167,8 +206,6 @@ def _token_claims() -> dict[str, Any]:
 
 
 # Scope ownership
-
-_SCOPE_CONTAINERS: tuple[str, ...] = ("dids", "attachments")
 
 
 def _scopes_in(issuer: "InternalAccount", kwargs: dict[str, Any]) -> list[Any]:
