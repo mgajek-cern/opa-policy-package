@@ -302,8 +302,10 @@ paths:
     post:
       tags: [replicas]
       operationId: authorizeReplicaRegister
-      summary: May the subject register replicas on this RSE?
-      description: Reached by uploads, which register replicas after writing files.
+      summary: May the subject register replicas of these files on this RSE?
+      description: |
+        Reached by uploads, which register replicas after writing files.
+        Non-privileged subjects must own the scope of every file.
       security:
         - oauth2: [pep:rucio]
       requestBody:
@@ -323,7 +325,8 @@ paths:
     post:
       tags: [replicas]
       operationId: authorizeReplicaDelete
-      summary: May the subject delete replicas on this RSE?
+      summary: May the subject delete replicas of these files on this RSE?
+      description: Non-privileged subjects must own the scope of every file.
       security:
         - oauth2: [pep:rucio]
       requestBody:
@@ -345,7 +348,7 @@ paths:
       summary: May the subject perform an operation reserved for privileged subjects?
       description: |
         For every consumer operation without an endpoint of its own (e.g.
-        add_account, add_scope, approve_rule). The policy for all of them is: privileged subjects
+        update_replicas_states, add_account, add_scope, approve_rule). The policy for all of them is: privileged subjects
         only. An operation that has its own endpoint is rejected with 400, so each
         operation has exactly one route.
       security:
@@ -691,18 +694,28 @@ components:
 
     ReplicaRegisterRequest:
       type: object
-      required: [subject, rse, context]
+      required: [subject, rse, files, context]
       properties:
         subject: { $ref: '#/components/schemas/Subject' }
         rse: { $ref: '#/components/schemas/Rse' }
+        files:
+          type: array
+          minItems: 1
+          description: The files whose replicas are registered. A replica's ownership is its DID's.
+          items: { $ref: '#/components/schemas/Did' }
         context: { $ref: '#/components/schemas/Context' }
 
     ReplicaDeleteRequest:
       type: object
-      required: [subject, rse, context]
+      required: [subject, rse, files, context]
       properties:
         subject: { $ref: '#/components/schemas/Subject' }
         rse: { $ref: '#/components/schemas/Rse' }
+        files:
+          type: array
+          minItems: 1
+          description: The files whose replicas are deleted. A replica's ownership is its DID's.
+          items: { $ref: '#/components/schemas/Did' }
         context: { $ref: '#/components/schemas/Context' }
 
     # Everything else

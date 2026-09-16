@@ -6,7 +6,7 @@
 #   make down PHASE=4      stop it (add clean to wipe volumes)
 #   make e2e PHASE=4       up + init + test
 #
-# Every target takes PHASE=1..6. Override RUCIO_URL / OPA_URL / KEYCLOAK_URL
+# Every target takes PHASE=1..7. Override RUCIO_URL / OPA_URL / KEYCLOAK_URL
 # to point at a remote stack.
 
 PHASE ?= 6
@@ -19,10 +19,11 @@ PKG_3 := phase3-opa
 PKG_4 := phase4-opa
 PKG_5 := phase5-opa
 PKG_6 := phase6-opa
+PKG_7 := phase7-opa
 PKG := $(PKG_$(PHASE))
 
 ifeq ($(PKG),)
-$(error PHASE=$(PHASE) is not one of 1 2 3 4 5 6)
+$(error PHASE=$(PHASE) is not one of 1 2 3 4 5 6 7)
 endif
 
 COMPOSE_FILE := deploy/compose/docker-compose.phase$(PHASE).yml

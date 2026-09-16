@@ -20,6 +20,8 @@ privileged-only catch-all, share one typed endpoint that carries only the
 operation's name.
 
 Phase 7 of the policy package replaces the direct OPA call with this client.
+The phase 7 Rego (`policies/rego/phase7/authz.rego`) has one dispatch line and
+one named rule per typed endpoint, and a test keeps the two lists equal.
 
 ## On the ADR
 
@@ -64,28 +66,40 @@ option stays open.
 
 ### Operation catalogue
 
-Every phase 6 known action has its own endpoint. Operation names are domain
-terms, independent of Rucio's action names.
+Every typed endpoint has one dispatch line and one named rule in the phase 7
+Rego, and every action the phase 7 Rego knows has a typed endpoint. Operation
+names are domain terms, independent of Rucio's action names.
 
-| Operation | Endpoint | Phase 6 action(s) | Phase 6 policy reads |
-|---|---|---|---|
-| `rule.create` | `POST /v1/decisions/rules/create` | `add_rule` | owner, locked, RSE expressions, DID scope owners |
-| `rule.update` | `POST /v1/decisions/rules/update` | `update_rule` | rule owner, target scope owner, reassignment |
-| `rule.delete` | `POST /v1/decisions/rules/delete` | `del_rule` | rule owner |
-| `did.create` | `POST /v1/decisions/dids/create` | `add_did`, `add_dids` | DID scope owners |
-| `did.attach` | `POST /v1/decisions/dids/attach` | `attach_dids`, `attach_dids_to_dids` | parent scope owners |
-| `did.detach` | `POST /v1/decisions/dids/detach` | `detach_dids` | parent scope owner |
-| `rse.create` | `POST /v1/decisions/rses/create` | `add_rse` | RSE name |
-| `rse.update` | `POST /v1/decisions/rses/update` | `update_rse` | new RSE name, if renamed |
-| `rse.delete` | `POST /v1/decisions/rses/delete` | `del_rse` | privilege |
-| `rse.attribute.set` | `POST /v1/decisions/rses/attributes/set` | `add_rse_attribute` | privilege |
-| `rse.attribute.delete` | `POST /v1/decisions/rses/attributes/delete` | `del_rse_attribute` | privilege |
-| `protocol.create` | `POST /v1/decisions/protocols/create` | `add_protocol` | scheme |
-| `protocol.update` | `POST /v1/decisions/protocols/update` | `update_protocol` | scheme |
-| `protocol.delete` | `POST /v1/decisions/protocols/delete` | `del_protocol` | scheme, if present |
-| `replica.register` | `POST /v1/decisions/replicas/register` | `add_replicas` | RSE name, user-level claim |
-| `replica.delete` | `POST /v1/decisions/replicas/delete` | `delete_replicas` | privilege |
-| *(named)* | `POST /v1/decisions/privileged-operations` | everything else: `add_account`, `add_scope`, `approve_rule`, ... | privilege |
+| Operation | Endpoint | Rucio action(s) | Phase 7 rule | Who may | Also checked |
+|---|---|---|---|---|---|
+| `rule.create` | `POST /v1/decisions/rules/create` | `add_rule` | `_perm_add_rule` | privileged, or owner of every DID scope creating an unlocked rule for itself | RSE expression names |
+| `rule.update` | `POST /v1/decisions/rules/update` | `update_rule` | `_perm_update_rule` | privileged, or rule owner who also owns the target scope | no reassignment |
+| `rule.delete` | `POST /v1/decisions/rules/delete` | `del_rule` | `_perm_del_rule` | privileged, or rule owner | |
+| `did.create` | `POST /v1/decisions/dids/create` | `add_did`, `add_dids` | `_perm_add_did`, `_perm_add_dids` | privileged, or owner of every DID scope | |
+| `did.attach` | `POST /v1/decisions/dids/attach` | `attach_dids`, `attach_dids_to_dids` | `_perm_attach_dids`, `_perm_attach_dids_to_dids` | privileged, or owner of every parent scope | |
+| `did.detach` | `POST /v1/decisions/dids/detach` | `detach_dids` | `_perm_detach_dids` | privileged, or owner of the parent scope | |
+| `rse.create` | `POST /v1/decisions/rses/create` | `add_rse` | `_perm_add_rse` | privileged only | RSE name |
+| `rse.update` | `POST /v1/decisions/rses/update` | `update_rse` | `_perm_update_rse` | privileged only | new RSE name, if renamed |
+| `rse.delete` | `POST /v1/decisions/rses/delete` | `del_rse` | `_perm_del_rse` | privileged only | |
+| `rse.attribute.set` | `POST /v1/decisions/rses/attributes/set` | `add_rse_attribute` | `_perm_add_rse_attribute` | privileged only | |
+| `rse.attribute.delete` | `POST /v1/decisions/rses/attributes/delete` | `del_rse_attribute` | `_perm_del_rse_attribute` | privileged only | |
+| `protocol.create` | `POST /v1/decisions/protocols/create` | `add_protocol` | `_perm_add_protocol` | privileged only | scheme |
+| `protocol.update` | `POST /v1/decisions/protocols/update` | `update_protocol` | `_perm_update_protocol` | privileged only | scheme, if present |
+| `protocol.delete` | `POST /v1/decisions/protocols/delete` | `del_protocol` | `_perm_del_protocol` | privileged only | scheme, if present |
+| `replica.register` | `POST /v1/decisions/replicas/register` | `add_replicas` | `_perm_add_replicas` | privileged, or owner of every file scope holding a user entitlement | RSE name |
+| `replica.delete` | `POST /v1/decisions/replicas/delete` | `delete_replicas` | `_perm_delete_replicas` | privileged, or owner of every file scope holding a user entitlement | |
+| *(named)* | `POST /v1/decisions/privileged-operations` | everything else: `add_account`, `add_scope`, `approve_rule`, `update_replicas_states`, ... | catch-all | privileged only | |
+
+The split follows what Rucio records an owner for:
+
+- **RSEs and protocols are privileged only.** The `rses` table has no account
+  column, and protocols belong to RSEs, so there is no owner to compare with.
+  They are infrastructure, and attributes such as `fts` or `lfn2pfn_algorithm`
+  change how data moves.
+- **Rules, DIDs and replicas are ownership-gated.** `rules.account` and
+  `scopes.account` name owners directly. A replica has no account column; its
+  ownership is its DID's, resolved at the scope grain like every other DID
+  check (design-003).
 
 Two rules apply:
 
@@ -99,7 +113,7 @@ Two rules apply:
 
 ### The privileged-operations endpoint
 
-Rucio's permission layer has many more actions than phase 6 lists, and every
+Rucio's permission layer has many more actions than the Rego lists, and every
 unlisted one reaches the catch-all: privileged subjects only. The root bootstrap
 depends on these actions (`add_account`, `add_scope`, `add_identity`, ...), so
 phase 7 cannot work without a route for them. A generated function per Rucio
@@ -121,7 +135,7 @@ instead:
   route, so one question can never get two answers.
 - **Promotion is the extension path.** When an operation needs a real policy
   (for example, users managing their own account identities), it gets its own
-  endpoint. Once the endpoint exists, the operation's name is rejected on this
+  endpoint and its own Rego rule in the same change. Once the endpoint exists, the operation's name is rejected on this
   route.
 
 ### Request model
@@ -217,11 +231,66 @@ has_permission(issuer, action, kwargs, session)
   `httpx` and `attrs`. Check both against the Rucio server image pins before
   committing to that generator.
 
+## Phase 7 Rego
+
+`policies/rego/phase7/authz.rego`, package `vo.authz.v6`, is the phase 6
+policy restructured around the contract:
+
+- **One dispatch line and one named rule per typed endpoint action.** No action
+  is dispatched through a set difference. Phase 6's shared `_perm_did_action`
+  and `_perm_protocol_action` are split per action.
+- **`_all_known_actions` equals the set of actions with typed endpoints.**
+  `TestContractAlignment` in `tests/test_phase7_opa.py` reads the OpenAPI
+  operation ids and OPA's `_all_known_actions`, and fails if they diverge.
+- **The input shape is unchanged** (`issuer`, `action`, `token`, `kwargs`), so
+  the phase 6 `permission.py` and the v0 service adapter can both drive it.
+- **`tests/test_phase7_opa.py` re-runs the phase 6 test classes against it.**
+  The replica classes are replaced by ownership cases. It also adds what phase 6
+  never had: the three explicit privileged-only RSE rules, `update_rse`,
+  `attach_dids` and all three protocol actions.
+
+Before committing, both policies were evaluated side by side over 2,430
+decisions: every action, five subject types, and six data-bundle variants
+(defaults, RSE allowlist, `required_acr`, custom schemes, replica writes, and an
+entitlement bundle). 2,365 were identical, and all 65 differences are the
+deliberate changes below:
+
+- 39 DID decisions went from allow to deny (the two DID changes).
+- 20 `add_replicas` decisions went from allow to deny: a user entitlement on a
+  valid RSE is no longer enough without owned files.
+- 6 `delete_replicas` decisions went from deny to allow: users deleting replicas
+  of files in scopes they own.
+
+No privileged decision changed. The only admin-entitled subjects among the
+differences were admins failing `required_acr`, and those are not privileged.
+
+### Replica ownership: prerequisite
+
+The Rucio gateway passes only `{rse, rse_id}` to `has_permission` for
+`add_replicas` and `delete_replicas`, so today the policy never sees which files
+a request touches. Until that changes, the phase 7 Rego denies every
+non-privileged replica request, which **breaks user uploads**. Root and admin
+paths keep working.
+
+Enabling the ownership path takes two changes, which ship together:
+
+1. **Gateway.** A local patch to `gateway/replica.py` adds the request's `files`
+   to the permission kwargs for both actions, the same kind of local patch
+   design-004 considers for passing the session through on `del_rule`.
+2. **Policy package.** `permission.py` adds `files` to `_PASSTHROUGH_KEYS` and to
+   `_SCOPE_CONTAINERS`, so file scopes are forwarded and resolved into
+   `owned_scopes` by the same `is_scope_owner()` pass as other DIDs.
+
+The contract requires `files` on both replica requests, so the phase 7 service
+adapter cannot build a valid request without the gateway patch. For privileged
+callers too, it is a hard prerequisite for phase 7, not an optional extra.
+
 ## Equivalence with phase 6
 
-Contract tests reuse phase 6's vectors: each `test_phase6_opa.py` case becomes a
-contract request with the same expected decision. The v0 service maps requests
-onto the phase 6 OPA input and runs the phase 6 Rego unchanged. After that,
+Contract tests reuse the phase 7 vectors: each `test_phase7_opa.py` case, which
+includes every phase 6 case, becomes a contract request with the same expected
+decision. The v0 service maps requests onto the unchanged OPA input shape and
+runs the phase 7 Rego. After that,
 `test_phase6_full_transfer.py` must pass through phase 7.
 
 Deliberate differences, each needing a phase 6 change or a documented test update
@@ -229,10 +298,13 @@ first:
 
 | Case | Phase 6 | Contract | Why |
 |---|---|---|---|
-| `attach_dids_to_dids`, one foreign parent | allowed if *any* attachment scope is owned | denied: every attachment must be permitted | Multi-resource semantics belong to the contract. Fix the Rego in phase 6 first. |
+| `attach_dids_to_dids`, one foreign parent | allowed if *any* attachment scope is owned | denied: every attachment must be permitted | Multi-resource semantics belong to the contract. Implemented in the phase 7 Rego. |
+| `add_dids` or `attach_dids_to_dids` with an owned top-level `scope` | allowed, because the shared DID rule read `kwargs.scope` for every DID action | ignored: each action reads only its own fields | The gateway never sends one, so Rucio behaviour is unchanged. |
 | `add_rule` with empty `dids` | deny | 400, which the PEP treats as deny | `minItems: 1`. Same outcome, earlier. |
 | Ownership input | `owned_scopes` | scope owners | The v0 adapter derives `owned_scopes`, so the Rego is unaffected. |
-| Unlisted actions | catch-all | `privileged-operations` with the action's name | Same decision, now an explicit route. |
+| `add_replicas` by a user | user entitlement and a valid RSE name | also every file scope owned | Registering a replica asserts a copy of that DID exists. Requires the gateway patch. |
+| `delete_replicas` by a user | denied: privileged only | allowed for the owner of every file scope with a user entitlement | Replicas inherit ownership from their DID. Requires the gateway patch. |
+| `update_replicas_states` and unlisted actions | listed privileged-only, or catch-all | `privileged-operations` with the action's name | Same decision, now an explicit route. |
 
 ## Security
 

@@ -13,6 +13,7 @@ coexist on one OPA instance. Data bundles differ by phase:
     phase4  + wlcg.groups -> privilege (vo/group_policy)
     phase5  + URN entitlements -> privilege (vo/entitlement_policy)
     phase6  + RSE-name allowlist for the transfer testbed
+    phase7  same data as phase 6; Rego aligned with the authz service contract
 
 Re-run at any time to update a live OPA without restarting Rucio.
 """
@@ -44,7 +45,7 @@ GROUP_POLICY = {
     "/atlas/users": "user",
 }
 
-# URN entitlement strings -> privilege level (phases 5, 6).
+# URN entitlement strings -> privilege level (phases 5, 6, 7).
 ENTITLEMENT_POLICY = {
     "urn:example:aai.example.org:group:rucio-admins:role=member": "admin",
     "urn:example:aai.example.org:group:atlas-production:role=member": "admin",
@@ -99,6 +100,18 @@ PHASES: dict[str, PhaseSpec] = {
                 "known_rse_types": DEFAULT_RSE_TYPES,
                 # XRD3/XRD4/TEAPOT1/TEAPOT2 don't follow the NAME_TYPE
                 # convention; allowlisted rather than relaxing it globally.
+                "allowlisted_rse_names": ["XRD3", "XRD4", "TEAPOT1", "TEAPOT2"],
+            },
+            "vo/entitlement_policy": ENTITLEMENT_POLICY,
+        },
+    ),
+    # Copied from phase6 rather than shared, so the phases can diverge; the
+    # policy (package vo.authz.v6) is what changed, not the data it reads.
+    "phase7": PhaseSpec(
+        policy_id="authz_v6",
+        data={
+            "vo/policy": {
+                "known_rse_types": DEFAULT_RSE_TYPES,
                 "allowlisted_rse_names": ["XRD3", "XRD4", "TEAPOT1", "TEAPOT2"],
             },
             "vo/entitlement_policy": ENTITLEMENT_POLICY,

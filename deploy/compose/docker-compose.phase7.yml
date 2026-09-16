@@ -1,0 +1,48 @@
+services:
+  opa:
+    image: openpolicyagent/opa:1.8.0
+    platform: linux/amd64
+    hostname: opa
+    ports:
+      - "8181:8181"
+    networks:
+      - dep-dlm-testbed
+    command: run --server --log-level info --addr=0.0.0.0:8181
+
+  opa-init:
+    image: python:3.11-slim
+    hostname: opa-init
+    depends_on:
+      - opa
+    networks:
+      - dep-dlm-testbed
+    volumes:
+      - ../../scripts/ingest_policies.py:/app/ingest_policies.py:ro
+      - ../../policies/rego/phase7:/app/rego/phase7:ro
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - |
+        until python -c "import urllib.request; urllib.request.urlopen('http://opa:8181/health')" 2>/dev/null; do sleep 1; done
+        python ingest_policies.py --phase phase7 --opa-url http://opa:8181 \
+          --rego-path /app/rego/phase7/authz.rego
+    restart: "no"
+
+  # Stands in for rucio-server's dependency on opa-init in phase 6. Without a
+  # service_completed_successfully dependant, `up --wait` treats the exited
+  # one-shot container as failed. Replace it with the Rucio services when
+  # phase 7 grows them.
+  opa-ready:
+    image: python:3.11-slim
+    hostname: opa-ready
+    depends_on:
+      opa-init:
+        condition: service_completed_successfully
+    networks:
+      - dep-dlm-testbed
+    command: ["sleep", "infinity"]
+
+networks:
+  dep-dlm-testbed:
+    name: compose-net
