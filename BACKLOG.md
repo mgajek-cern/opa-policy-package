@@ -15,9 +15,9 @@ One source and one destination RSE supporting third-party copy (e.g. Teapot or X
 
 ## 3. [x] Close the OIDC → has_permission() gap. See [design-001-token-claims-to-opa.md](./docs/design/design-001-token-claims-to-opa.md).
 
-## 4. [~] Resource-level ownership resolved against the DB
+## 4. [x] Resource-level ownership resolved against the DB
 
-`is_scope_owner()` replaces the name-prefix check for DIDs in phases 4/5/6; rule ownership (`del_rule`/`update_rule`) still needs the same treatment via `get_rule()`. See [design-003-scope-ownership.md](docs/design/design-003-scope-ownership.md).
+`is_scope_owner()` replaces the name-prefix check for DIDs, and `get_rule()` supplies rule owner and target scope for `del_rule`/`update_rule`, in phases 4/5/6. See [design-003-scope-ownership.md](docs/design/design-003-scope-ownership.md) and [design-004-rule-ownership.md](docs/design/design-004-rule-ownership.md).
 
 ## 5. [ ] Attribute- and context-based permissions
 

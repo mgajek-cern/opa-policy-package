@@ -54,7 +54,7 @@ have prints a line and exits clean.
 
 | Suite | Boundary | Phases |
 |---|---|---|
-| `tests/test_phaseN_opa.py` | OPA directly, with handcrafted input documents | 2–5 |
+| `tests/test_phaseN_opa.py` | OPA directly, with handcrafted input documents | 2–6 |
 | `tests/test_phaseN_rucio.py` | Rucio's REST API, with real tokens | 2–6 |
 | `tests/test_phase6_full_transfer.py` | Rucio → FTS → storage, end to end | 6 |
 

@@ -32,11 +32,18 @@ Phase 5 — OPA as PDP, OIDC token-native authorisation via URN entitlements. Ke
       "iss": "http://keycloak:8080/realms/rucio",
       "sub": "2f61b40c-93d7-4e18-8a52-7c09e4d6ab31"
     },
-    "kwargs": { "account": "alice", "locked": false,
-                "rse_expression": "CERN_DATADISK" }
+    "kwargs": {
+      "account": "alice",
+      "locked": false,
+      "rse_expression": "CERN_DATADISK",
+      "dids": [{"scope": "alice.data", "name": "file1"}],
+      "owned_scopes": ["alice.data"]
+    }
   }
 }
 ```
+
+`kwargs.owned_scopes` is on every input document: the subset of the scopes this request names that the issuer owns, resolved from the `scopes` table rather than read off a claim. For `del_rule` and `update_rule`, `kwargs.rule_owner` and `kwargs.rule_scope` join it, resolved from the `rules` table. See [design-003](../../docs/design/design-003-scope-ownership.md) and [design-004](../../docs/design/design-004-rule-ownership.md).
 
 ## Entitlement policy bundle
 

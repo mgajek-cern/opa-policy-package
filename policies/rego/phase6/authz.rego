@@ -12,7 +12,7 @@ allow if { _action_allowed }
 
 _rse_actions      := {"add_rse", "update_rse", "del_rse",
                        "add_rse_attribute", "del_rse_attribute"}
-_rule_actions     := {"add_rule", "del_rule", "update_rule", "approve_rule"}
+_rule_actions     := {"add_rule", "del_rule", "update_rule"}
 _did_actions      := {"add_did", "add_dids", "attach_dids", "detach_dids",
                        "attach_dids_to_dids"}
 _protocol_actions := {"add_protocol", "del_protocol", "update_protocol"}
@@ -36,8 +36,8 @@ _all_known_actions := _rule_actions | _rse_actions | _did_actions |
 # Dispatch
 
 _action_allowed if { input.action == "add_rule";                                      _perm_add_rule }
-_action_allowed if { input.action in {"del_rule", "update_rule"};                     _perm_rule_owner_or_privileged }
-_action_allowed if { input.action == "approve_rule";                                  _is_privileged }
+_action_allowed if { input.action == "del_rule";                                      _perm_rule_owner }
+_action_allowed if { input.action == "update_rule";                                   _perm_rule_owner_and_data }
 _action_allowed if { input.action == "add_rse";                                       _perm_add_rse }
 _action_allowed if { input.action == "update_rse";                                    _perm_update_rse }
 _action_allowed if { input.action in (_rse_actions - {"add_rse","update_rse"});       _is_privileged }
@@ -60,6 +60,8 @@ _perm_add_rule if {
     _src_rse_name_valid
     input.kwargs.account == input.issuer
     input.kwargs.locked == false
+    count(input.kwargs.dids) > 0
+    every did in input.kwargs.dids { did.scope in input.kwargs.owned_scopes }
 }
 
 _perm_add_rule if {
@@ -70,8 +72,19 @@ _perm_add_rule if {
 
 # del_rule / update_rule — owner self-service
 
-_perm_rule_owner_or_privileged if { input.kwargs.account == input.issuer }
-_perm_rule_owner_or_privileged if { _is_privileged }
+_rule_reassignment_requested if {
+    object.get(input.kwargs, ["options", "account"], null) != null
+}
+
+_perm_rule_owner if { _is_privileged }
+_perm_rule_owner if { input.kwargs.rule_owner == input.issuer }
+
+_perm_rule_owner_and_data if { _is_privileged }
+_perm_rule_owner_and_data if {
+    not _rule_reassignment_requested
+    input.kwargs.rule_owner == input.issuer
+    input.kwargs.rule_scope in input.kwargs.owned_scopes
+}
 
 # add_rse / update_rse
 
