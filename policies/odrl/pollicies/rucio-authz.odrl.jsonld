@@ -1,0 +1,407 @@
+{
+  "@context": [
+    "http://www.w3.org/ns/odrl.jsonld",
+    {
+      "rucio": "https://example.org/ns/rucio-authz#",
+      "pol": "https://example.org/policy/rucio-authz/",
+      "party": "https://example.org/party/rucio/",
+      "asset": "https://example.org/asset/rucio/"
+    }
+  ],
+  "@graph": [
+    {
+      "uid": "https://example.org/policy/rucio-authz",
+      "@type": "Set",
+      "profile": "https://example.org/ns/rucio-authz",
+      "target": "asset:vo",
+      "permission": [
+        {
+          "uid": "pol:rule/add_rule/owner",
+          "assignee": "party:account",
+          "action": "rucio:add_rule",
+          "constraint": [
+            {
+              "@id": "pol:constraint/destination-rse-acceptable"
+            },
+            {
+              "@id": "pol:constraint/source-rse-acceptable"
+            },
+            {
+              "leftOperand": "rucio:ruleAccountIsIssuer",
+              "operator": "eq",
+              "rightOperand": true
+            },
+            {
+              "leftOperand": "rucio:locked",
+              "operator": "eq",
+              "rightOperand": false
+            },
+            {
+              "leftOperand": "rucio:allDidScopesOwned",
+              "operator": "eq",
+              "rightOperand": true
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/add_rule/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:add_rule",
+          "constraint": [
+            {
+              "@id": "pol:constraint/destination-rse-acceptable"
+            },
+            {
+              "@id": "pol:constraint/source-rse-acceptable"
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/del_rule/owner",
+          "assignee": "party:account",
+          "action": "rucio:del_rule",
+          "constraint": [
+            {
+              "leftOperand": "rucio:ruleOwnerIsIssuer",
+              "operator": "eq",
+              "rightOperand": true
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/del_rule/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:del_rule"
+        },
+        {
+          "uid": "pol:rule/update_rule/owner",
+          "assignee": "party:account",
+          "action": "rucio:update_rule",
+          "constraint": [
+            {
+              "leftOperand": "rucio:ruleReassignmentRequested",
+              "operator": "eq",
+              "rightOperand": false
+            },
+            {
+              "leftOperand": "rucio:ruleOwnerIsIssuer",
+              "operator": "eq",
+              "rightOperand": true
+            },
+            {
+              "leftOperand": "rucio:ruleScopeOwned",
+              "operator": "eq",
+              "rightOperand": true
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/update_rule/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:update_rule"
+        },
+        {
+          "uid": "pol:rule/add_rse/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:add_rse",
+          "constraint": [
+            {
+              "@id": "pol:constraint/rse-conforms"
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/update_rse/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:update_rse",
+          "constraint": [
+            {
+              "or": {
+                "@list": [
+                  {
+                    "leftOperand": "rucio:rseRenameRequested",
+                    "operator": "eq",
+                    "rightOperand": false
+                  },
+                  {
+                    "leftOperand": "rucio:newRseName",
+                    "operator": "isA",
+                    "rightOperand": {
+                      "@id": "rucio:ConformingRseName"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/del_rse/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:del_rse"
+        },
+        {
+          "uid": "pol:rule/add_rse_attribute/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:add_rse_attribute"
+        },
+        {
+          "uid": "pol:rule/del_rse_attribute/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:del_rse_attribute"
+        },
+        {
+          "uid": "pol:rule/add_did/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:add_did"
+        },
+        {
+          "uid": "pol:rule/add_dids/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:add_dids"
+        },
+        {
+          "uid": "pol:rule/attach_dids/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:attach_dids"
+        },
+        {
+          "uid": "pol:rule/detach_dids/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:detach_dids"
+        },
+        {
+          "uid": "pol:rule/attach_dids_to_dids/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:attach_dids_to_dids"
+        },
+        {
+          "uid": "pol:rule/add_did/scope-owner",
+          "assignee": "party:account",
+          "action": "rucio:add_did",
+          "constraint": [
+            {
+              "leftOperand": "rucio:scopeOwned",
+              "operator": "eq",
+              "rightOperand": true
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/attach_dids/scope-owner",
+          "assignee": "party:account",
+          "action": "rucio:attach_dids",
+          "constraint": [
+            {
+              "leftOperand": "rucio:scopeOwned",
+              "operator": "eq",
+              "rightOperand": true
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/detach_dids/scope-owner",
+          "assignee": "party:account",
+          "action": "rucio:detach_dids",
+          "constraint": [
+            {
+              "leftOperand": "rucio:scopeOwned",
+              "operator": "eq",
+              "rightOperand": true
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/add_dids/scope-owner",
+          "assignee": "party:account",
+          "action": "rucio:add_dids",
+          "constraint": [
+            {
+              "or": {
+                "@list": [
+                  {
+                    "leftOperand": "rucio:scopeOwned",
+                    "operator": "eq",
+                    "rightOperand": true
+                  },
+                  {
+                    "leftOperand": "rucio:allDidScopesOwned",
+                    "operator": "eq",
+                    "rightOperand": true
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/attach_dids_to_dids/scope-owner",
+          "assignee": "party:account",
+          "action": "rucio:attach_dids_to_dids",
+          "constraint": [
+            {
+              "or": {
+                "@list": [
+                  {
+                    "leftOperand": "rucio:scopeOwned",
+                    "operator": "eq",
+                    "rightOperand": true
+                  },
+                  {
+                    "leftOperand": "rucio:anyAttachmentScopeOwned",
+                    "operator": "eq",
+                    "rightOperand": true
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/add_protocol/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:add_protocol",
+          "constraint": [
+            {
+              "@id": "pol:constraint/scheme-acceptable"
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/del_protocol/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:del_protocol",
+          "constraint": [
+            {
+              "@id": "pol:constraint/scheme-acceptable"
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/update_protocol/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:update_protocol",
+          "constraint": [
+            {
+              "@id": "pol:constraint/scheme-acceptable"
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/add_replicas/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:add_replicas"
+        },
+        {
+          "uid": "pol:rule/add_replicas/user",
+          "assignee": "party:user",
+          "action": "rucio:add_replicas",
+          "constraint": [
+            {
+              "@id": "pol:constraint/rse-conforms"
+            }
+          ]
+        },
+        {
+          "uid": "pol:rule/update_replicas_states/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:update_replicas_states"
+        },
+        {
+          "uid": "pol:rule/delete_replicas/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:delete_replicas"
+        },
+        {
+          "uid": "pol:rule/unlisted/privileged",
+          "assignee": "party:privileged",
+          "action": "rucio:unlistedAction"
+        }
+      ]
+    },
+    {
+      "uid": "pol:constraint/destination-rse-acceptable",
+      "or": {
+        "@list": [
+          {
+            "leftOperand": "rucio:destinationRsePresent",
+            "operator": "eq",
+            "rightOperand": false
+          },
+          {
+            "leftOperand": "rucio:destinationRse",
+            "operator": "isA",
+            "rightOperand": {
+              "@id": "rucio:RseExpression"
+            }
+          },
+          {
+            "leftOperand": "rucio:destinationRse",
+            "operator": "isA",
+            "rightOperand": {
+              "@id": "rucio:ConformingRseName"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "uid": "pol:constraint/source-rse-acceptable",
+      "or": {
+        "@list": [
+          {
+            "leftOperand": "rucio:sourceRsePresent",
+            "operator": "eq",
+            "rightOperand": false
+          },
+          {
+            "leftOperand": "rucio:sourceRse",
+            "operator": "isA",
+            "rightOperand": {
+              "@id": "rucio:RseExpression"
+            }
+          },
+          {
+            "leftOperand": "rucio:sourceRse",
+            "operator": "isA",
+            "rightOperand": {
+              "@id": "rucio:ConformingRseName"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "uid": "pol:constraint/rse-conforms",
+      "leftOperand": "rucio:rse",
+      "operator": "isA",
+      "rightOperand": {
+        "@id": "rucio:ConformingRseName"
+      }
+    },
+    {
+      "uid": "pol:constraint/scheme-acceptable",
+      "or": {
+        "@list": [
+          {
+            "leftOperand": "rucio:schemePresent",
+            "operator": "eq",
+            "rightOperand": false
+          },
+          {
+            "leftOperand": "rucio:scheme",
+            "operator": "isAnyOf",
+            "rightOperand": [
+              "davs",
+              "s3",
+              "https",
+              "root",
+              "xrdhttp",
+              "gsiftp"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

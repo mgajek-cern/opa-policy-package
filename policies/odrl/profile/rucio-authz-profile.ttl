@@ -1,0 +1,207 @@
+@prefix rucio: <https://example.org/ns/rucio-authz#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# ODRL profile: Rucio authorisation through OPA
+#
+# Replace https://example.org/ with a namespace you control before this
+# leaves the testbed.
+#
+# ODRL supplies the structure (who, which action, under which constraints).
+# This profile supplies the meaning of every Rucio-specific term. Each term
+# carries two annotations a translator needs:
+#
+#   rucio:opaInput       where the value lives in the OPA input document
+#   rucio:regoPredicate  the Rego expression that implements it today
+#
+# Evaluation conventions for every left operand below:
+#
+#   1. A constraint whose left operand has no value for the request is NOT
+#      satisfied. This is Rego's undefined-means-false, and is what makes
+#      the ownership clauses fail closed when permission.py cannot resolve
+#      a fact.
+#   2. Operands named *Present / *Requested are total: they always have a
+#      boolean value, so `eq false` is safe on them.
+#   3. Absence of a satisfied Permission denies. ODRL leaves this open, and
+#      this profile closes it (Rego: `default allow := false`).
+
+<https://example.org/ns/rucio-authz>
+    a owl:Ontology ;
+    rdfs:label "ODRL profile for Rucio authorisation via OPA" ;
+    owl:versionInfo "0.1 (derived from policies/rego/phase{4,5,6}/authz.rego)" .
+
+# Annotation properties
+
+rucio:rucioAction a owl:AnnotationProperty ;
+    skos:definition "The action string Rucio passes to has_permission()." .
+
+rucio:opaInput a owl:AnnotationProperty ;
+    skos:definition "Path of the value in the OPA input document." .
+
+rucio:regoPredicate a owl:AnnotationProperty ;
+    skos:definition "Rego expression implementing the term." .
+
+rucio:tokenClaim a owl:AnnotationProperty ;
+    skos:definition "JWT claim a left operand is bound to in a given deployment." .
+
+# Actions
+#
+# This list MUST equal _all_known_actions in the Rego. Any Rucio action not
+# listed here maps to rucio:unlistedAction. Adding an action here without
+# giving it rules silently moves it out of the privileged-only catch-all.
+
+rucio:add_rule a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "add_rule" .
+rucio:del_rule a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "del_rule" .
+rucio:update_rule a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "update_rule" .
+
+rucio:add_rse a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "add_rse" .
+rucio:update_rse a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "update_rse" .
+rucio:del_rse a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "del_rse" .
+rucio:add_rse_attribute a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "add_rse_attribute" .
+rucio:del_rse_attribute a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "del_rse_attribute" .
+
+rucio:add_did a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "add_did" .
+rucio:add_dids a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "add_dids" .
+rucio:attach_dids a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "attach_dids" .
+rucio:detach_dids a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "detach_dids" .
+rucio:attach_dids_to_dids a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "attach_dids_to_dids" .
+
+rucio:add_protocol a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "add_protocol" .
+rucio:del_protocol a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "del_protocol" .
+rucio:update_protocol a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "update_protocol" .
+
+rucio:add_replicas a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "add_replicas" .
+rucio:update_replicas_states a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "update_replicas_states" .
+rucio:delete_replicas a odrl:Action ; odrl:includedIn odrl:use ; rucio:rucioAction "delete_replicas" .
+
+rucio:unlistedAction a odrl:Action ;
+    odrl:includedIn odrl:use ;
+    skos:definition "Any Rucio action not declared in this profile (approve_rule, reduce_rule, move_rule, access_rule_vo, ...)." ;
+    rucio:regoPredicate "not _is_known_action(input.action)" .
+
+# Left operands: party refinement
+
+rucio:account a odrl:LeftOperand ;
+    skos:definition "The Rucio account resolved from the validated token." ;
+    rucio:opaInput "input.issuer" .
+
+rucio:membershipClaim a odrl:LeftOperand ;
+    skos:definition """Multi-valued: the membership claim of the token. A constraint
+    `membershipClaim isAnyOf S` is satisfied when any claim value is in S.
+    Which claim it is bound to differs per phase; see policies/bindings/.""" ;
+    rucio:regoPredicate "input.token.<claim>[_] with _{group,entitlement}_privilege" .
+
+rucio:acr a odrl:LeftOperand ;
+    skos:definition "The token's authentication context class reference." ;
+    rucio:opaInput "input.token.acr" ;
+    rucio:regoPredicate "_acr_satisfied" .
+
+# Left operands: RSE naming
+
+rucio:destinationRsePresent a odrl:LeftOperand ;
+    skos:definition "Total. Whether the request names a destination RSE expression." ;
+    rucio:opaInput "input.kwargs.rse_expression" ;
+    rucio:regoPredicate "not input.kwargs.rse_expression (negated)" .
+
+rucio:destinationRse a odrl:LeftOperand ;
+    skos:definition "The destination RSE expression, as given." ;
+    rucio:opaInput "input.kwargs.rse_expression" .
+
+rucio:sourceRsePresent a odrl:LeftOperand ;
+    skos:definition "Total. Whether the request names a source RSE expression." ;
+    rucio:opaInput "input.kwargs.source_rse_expression" .
+
+rucio:sourceRse a odrl:LeftOperand ;
+    skos:definition "The source RSE expression, as given." ;
+    rucio:opaInput "input.kwargs.source_rse_expression" .
+
+rucio:rse a odrl:LeftOperand ;
+    skos:definition "The RSE named by an RSE or replica action." ;
+    rucio:opaInput "input.kwargs.rse" .
+
+rucio:rseRenameRequested a odrl:LeftOperand ;
+    skos:definition "Total. Whether an update_rse request changes the RSE name." ;
+    rucio:opaInput "input.kwargs.parameters.rse" ;
+    rucio:regoPredicate "not input.kwargs.parameters.rse (negated)" .
+
+rucio:newRseName a odrl:LeftOperand ;
+    skos:definition "The new RSE name requested by update_rse." ;
+    rucio:opaInput "input.kwargs.parameters.rse" .
+
+rucio:ConformingRseName a rdfs:Class ;
+    skos:definition """An RSE name matching ^[A-Z0-9]+_[A-Z0-9]+$ whose part after the
+    underscore is a rucio:knownRseType, or a name listed as a
+    rucio:allowlistedRseName. Phases without allowlist support have an empty
+    allowlist. Used as the right operand of odrl:isA.""" ;
+    rucio:regoPredicate "_rse_name_valid(name)" .
+
+rucio:RseExpression a rdfs:Class ;
+    skos:definition "An RSE expression containing '=', '&' or '|'. Exempt from naming checks." ;
+    rucio:regoPredicate "_is_expression(expr)" .
+
+rucio:knownRseType a owl:DatatypeProperty ;
+    rdfs:domain rucio:ConformingRseName ;
+    rucio:opaInput "data.vo.policy.known_rse_types" .
+
+rucio:allowlistedRseName a owl:DatatypeProperty ;
+    rdfs:domain rucio:ConformingRseName ;
+    rucio:opaInput "data.vo.policy.allowlisted_rse_names" .
+
+# Left operands: protocols
+
+rucio:schemePresent a odrl:LeftOperand ;
+    skos:definition "Total. Whether the protocol request carries a scheme." ;
+    rucio:opaInput "input.kwargs.scheme" .
+
+rucio:scheme a odrl:LeftOperand ;
+    skos:definition "The protocol scheme, compared case-insensitively." ;
+    rucio:opaInput "input.kwargs.scheme" ;
+    rucio:regoPredicate "lower(input.kwargs.scheme) in _allowed_schemes" .
+
+# Left operands: rule attributes and ownership (design-003, design-004)
+#
+# These are boolean because ODRL cannot bind a variable: "the rule's
+# account equals the requesting account" has no native encoding. Each one
+# names a comparison that Rego performs over facts permission.py resolved
+# from the database.
+
+rucio:locked a odrl:LeftOperand ;
+    skos:definition "The locked flag requested for a new rule. Absent is not false." ;
+    rucio:opaInput "input.kwargs.locked" .
+
+rucio:ruleAccountIsIssuer a odrl:LeftOperand ;
+    skos:definition "add_rule: the account the new rule will belong to is the requesting account." ;
+    rucio:regoPredicate "input.kwargs.account == input.issuer" .
+
+rucio:ruleOwnerIsIssuer a odrl:LeftOperand ;
+    skos:definition "del_rule/update_rule: rules.account of the existing rule is the requesting account." ;
+    rucio:opaInput "input.kwargs.rule_owner" ;
+    rucio:regoPredicate "input.kwargs.rule_owner == input.issuer" .
+
+rucio:ruleScopeOwned a odrl:LeftOperand ;
+    skos:definition "update_rule: the requesting account owns the scope the existing rule targets." ;
+    rucio:opaInput "input.kwargs.rule_scope, input.kwargs.owned_scopes" ;
+    rucio:regoPredicate "input.kwargs.rule_scope in input.kwargs.owned_scopes" .
+
+rucio:ruleReassignmentRequested a odrl:LeftOperand ;
+    skos:definition "Total. update_rule options carry a non-null account, whatever its value." ;
+    rucio:opaInput "input.kwargs.options.account" ;
+    rucio:regoPredicate "_rule_reassignment_requested" .
+
+rucio:scopeOwned a odrl:LeftOperand ;
+    skos:definition "The request's single scope is owned by the requesting account." ;
+    rucio:opaInput "input.kwargs.scope, input.kwargs.owned_scopes" ;
+    rucio:regoPredicate "input.kwargs.scope in input.kwargs.owned_scopes" .
+
+rucio:allDidScopesOwned a odrl:LeftOperand ;
+    skos:definition "Every dids[].scope is owned by the requesting account. False when dids is empty." ;
+    rucio:opaInput "input.kwargs.dids, input.kwargs.owned_scopes" ;
+    rucio:regoPredicate "count(input.kwargs.dids) > 0; every did in input.kwargs.dids { did.scope in input.kwargs.owned_scopes }" .
+
+rucio:anyAttachmentScopeOwned a odrl:LeftOperand ;
+    skos:definition "At least one attachments[].scope is owned by the requesting account." ;
+    rucio:opaInput "input.kwargs.attachments, input.kwargs.owned_scopes" ;
+    rucio:regoPredicate "attachment := input.kwargs.attachments[_]; attachment.scope in input.kwargs.owned_scopes" .
