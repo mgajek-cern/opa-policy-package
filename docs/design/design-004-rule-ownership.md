@@ -1,7 +1,6 @@
 # Design 004 — Ownership for rule actions
 
-**Status:** proposed (2026-09-15). Follows design-003, which resolved scope
-ownership for DID actions. BACKLOG 4, second half.
+**Status:** implemented (2026-09-16) for phases 4, 5 and 6.
 
 **Scope:** `add_rule`, `del_rule`, `update_rule`. Every other rule action
 stays privileged-only — see "Actions deliberately left privileged" below.
@@ -217,11 +216,7 @@ traceback so the deny is traceable to its cause rather than looking like a
 policy decision. A bare `except Exception: return {}` would make a transient
 DB failure indistinguishable from "you don't own this rule" in the logs.
 
-`_build_input()` merges the result into `serialisable` *before* computing
-`owned_scopes`, so `rule_scope` is picked up by `_scopes_in()` — which means
-`_scopes_in()` gains `rule_scope` alongside the `scope` key it already reads.
-`to_dict()` is a plain `__dict__` copy, so `account` and `scope` come back as
-`InternalAccount`/`InternalScope`; `.external` before forwarding.
+`_build_input()` merges the result into `serialisable` *before* computing `owned_scopes`, so `rule_scope` is picked up by `_scopes_in()` — which means `_scopes_in()` gains `rule_scope` alongside the `scope` key it already reads.
 
 This is the first place `_build_input()` branches on the action. Worth
 keeping the branch in one named helper rather than spreading action checks

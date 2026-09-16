@@ -29,11 +29,20 @@ Phase 4 — OPA as PDP, OIDC token-native authorisation via `wlcg.groups`. Keycl
       "iss": "http://keycloak:8080/realms/rucio",
       "sub": "8b14e07a-3f52-4d6c-91ab-2e70d5c48f93"
     },
-    "kwargs": { "account": "alice", "locked": false,
-                "rse_expression": "CERN_DATADISK" }
+    "kwargs": {
+      "account": "alice",
+      "locked": false,
+      "rse_expression": "CERN_DATADISK",
+      "dids": [{"scope": "alice.data", "name": "file1"}],
+      "owned_scopes": ["alice.data"]
+    }
   }
 }
 ```
+
+The `wlcg` client scope maps Keycloak group membership to `wlcg.groups` in the JWT.
+
+`kwargs.owned_scopes` is on every input document: the subset of the scopes this request names that the issuer owns, resolved from the `scopes` table rather than read off a claim. For `del_rule` and `update_rule`, `kwargs.rule_owner` and `kwargs.rule_scope` join it, resolved from the `rules` table. See [design-003](../../docs/design/design-003-scope-ownership.md) and [design-004](../../docs/design/design-004-rule-ownership.md).
 
 ## Group policy bundle
 

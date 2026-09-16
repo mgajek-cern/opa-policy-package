@@ -46,6 +46,8 @@ ATLAS_USER_GROUP = "/atlas/users"
 # bundle would carry.
 UNMAPPED_GROUP = "/some/other"
 
+RULE_ID = "1f0e3dad99908345f7439f8ffabdffc4"
+
 
 @pytest.fixture(autouse=True)
 def _point_client(opa_server, monkeypatch):
@@ -53,23 +55,41 @@ def _point_client(opa_server, monkeypatch):
     monkeypatch.setenv("OPA_POLICY_PATH", OPA_POLICY_PATH)
 
 
-def _q(issuer: str, action: str, *, groups=None, acr=None, owned_scopes=None, **kw) -> bool:
+def _q(
+    issuer: str,
+    action: str,
+    *,
+    groups=None,
+    acr=None,
+    owned_scopes=None,
+    rule_owner=None,
+    rule_scope=None,
+    **kw,
+) -> bool:
     """Query with a token shaped the way permission.py forwards one here.
 
     Phase 4 forwards `groups` only — the entitlements claim is not in this
     phase's allowlist and never reaches OPA. `groups` is always present, so a
     Rego clause iterating it is safe; `acr` only when the token carries it.
 
-    `owned_scopes` rides in kwargs rather than the token: it is resolved in
-    permission.py against the scopes table, not read off a claim.
+    `owned_scopes`, `rule_owner` and `rule_scope` ride in kwargs rather than
+    the token: they are resolved in permission.py against the `scopes` and
+    `rules` tables, not read off a claim. Omitting rule_owner/rule_scope
+    models a rule permission.py could not resolve — the deny that follows is
+    what the fail-closed path is supposed to produce.
     """
     token: dict[str, Any] = {"groups": groups or []}
     if acr is not None:
         token["acr"] = acr
 
     kwargs = dict(kw)
-    if owned_scopes is not None:
-        kwargs["owned_scopes"] = owned_scopes
+    for key, value in (
+        ("owned_scopes", owned_scopes),
+        ("rule_owner", rule_owner),
+        ("rule_scope", rule_scope),
+    ):
+        if value is not None:
+            kwargs[key] = value
 
     return query_opa(
         {
@@ -133,10 +153,6 @@ class TestGroupPrivilege:
             is False
         )
 
-    def test_approve_rule_requires_admin_group(self):
-        assert _q("alice", "approve_rule", groups=[USER_GROUP]) is False
-        assert _q("adminuser", "approve_rule", groups=[ADMIN_GROUP]) is True
-
 
 # Authentication-context constraint
 #
@@ -177,58 +193,20 @@ class TestAcrConstraint:
     def test_self_service_unaffected_by_acr(self, policy_leaf):
         """Ownership clauses don't route through _is_privileged."""
         policy_leaf("required_acr", MFA)
-        assert _q("alice", "del_rule", groups=[USER_GROUP], account="alice") is True
-
-
-# User group self-service actions
-#
-# The DID cases pass owned_scopes explicitly. permission.py resolves it from
-# the scopes table before the call, so a request reaching OPA without it is
-# one the server would never make.
-
-
-class TestUserGroupActions:
-    def test_user_can_add_own_unlocked_rule(self):
         assert (
-            _q(
-                "alice",
-                "add_rule",
-                groups=[USER_GROUP],
-                account="alice",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-                source_protocol="webdav",
-                dst_protocol="webdav",
-            )
+            _q("alice", "del_rule", groups=[USER_GROUP], rule_id=RULE_ID, rule_owner="alice")
             is True
         )
 
-    def test_user_denied_locked_rule(self):
-        assert (
-            _q(
-                "alice",
-                "add_rule",
-                groups=[USER_GROUP],
-                account="alice",
-                locked=True,
-                rse_expression="CERN_DATADISK",
-            )
-            is False
-        )
 
-    def test_user_denied_rule_for_other_account(self):
-        assert (
-            _q(
-                "alice",
-                "add_rule",
-                groups=[USER_GROUP],
-                account="bob",
-                locked=False,
-                rse_expression="CERN_DATADISK",
-            )
-            is False
-        )
+# DID self-service actions
+#
+# These pass owned_scopes explicitly. permission.py resolves it from the
+# scopes table before the call, so a request reaching OPA without it is one
+# the server would never make.
 
+
+class TestUserGroupActions:
     def test_user_can_add_did_to_own_scope(self):
         assert (
             _q(
@@ -254,12 +232,6 @@ class TestUserGroupActions:
             )
             is False
         )
-
-    def test_user_can_del_own_rule(self):
-        assert _q("alice", "del_rule", groups=[USER_GROUP], account="alice") is True
-
-    def test_user_denied_del_other_rule(self):
-        assert _q("alice", "del_rule", groups=[USER_GROUP], account="bob") is False
 
     def test_add_dids_requires_every_scope_owned(self):
         assert (
@@ -287,6 +259,277 @@ class TestUserGroupActions:
         """del_protocol carries no scheme; the no-scheme clause covers it."""
         assert _q("adminuser", "del_protocol", groups=[ADMIN_GROUP]) is True
         assert _q("alice", "del_protocol", groups=[USER_GROUP]) is False
+
+
+# add_rule — rule ownership AND data ownership (design-004)
+#
+# kwargs.account is the account the new rule will belong to; kwargs.dids
+# names the data it replicates. Both are checked: owning the rule you create
+# says nothing about owning what it pulls.
+
+
+class TestAddRuleOwnership:
+    def test_user_can_add_own_rule_over_own_data(self):
+        assert (
+            _q(
+                "alice",
+                "add_rule",
+                groups=[USER_GROUP],
+                account="alice",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[{"scope": "alice.data", "name": "f1"}],
+                owned_scopes=["alice.data"],
+            )
+            is True
+        )
+
+    def test_user_denied_rule_over_foreign_data(self):
+        """The tenancy case: alice's own rule, but bob's datasets."""
+        assert (
+            _q(
+                "alice",
+                "add_rule",
+                groups=[USER_GROUP],
+                account="alice",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[{"scope": "bob.data", "name": "f1"}],
+                owned_scopes=[],
+            )
+            is False
+        )
+
+    def test_user_denied_when_one_did_is_foreign(self):
+        assert (
+            _q(
+                "alice",
+                "add_rule",
+                groups=[USER_GROUP],
+                account="alice",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[
+                    {"scope": "alice.data", "name": "f1"},
+                    {"scope": "bob.data", "name": "f2"},
+                ],
+                owned_scopes=["alice.data"],
+            )
+            is False
+        )
+
+    def test_empty_did_list_denied(self):
+        """`every` over an empty collection is vacuously true — count() is what
+        stops a no-DID request from being allowed."""
+        assert (
+            _q(
+                "alice",
+                "add_rule",
+                groups=[USER_GROUP],
+                account="alice",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[],
+                owned_scopes=["alice.data"],
+            )
+            is False
+        )
+
+    def test_user_denied_locked_rule(self):
+        assert (
+            _q(
+                "alice",
+                "add_rule",
+                groups=[USER_GROUP],
+                account="alice",
+                locked=True,
+                rse_expression="CERN_DATADISK",
+                dids=[{"scope": "alice.data", "name": "f1"}],
+                owned_scopes=["alice.data"],
+            )
+            is False
+        )
+
+    def test_user_denied_rule_for_other_account(self):
+        assert (
+            _q(
+                "alice",
+                "add_rule",
+                groups=[USER_GROUP],
+                account="bob",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[{"scope": "alice.data", "name": "f1"}],
+                owned_scopes=["alice.data"],
+            )
+            is False
+        )
+
+    def test_admin_allowed_over_foreign_data(self):
+        """Privilege short-circuits ownership, as it does for DIDs."""
+        assert (
+            _q(
+                "adminuser",
+                "add_rule",
+                groups=[ADMIN_GROUP],
+                account="adminuser",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[{"scope": "bob.data", "name": "f1"}],
+                owned_scopes=[],
+            )
+            is True
+        )
+
+
+# del_rule / update_rule — facts resolved from the rules table (design-004)
+#
+# kwargs carry only rule_id; rule_owner and rule_scope are fetched by
+# permission.py via get_rule(). Their absence models a rule that could not be
+# resolved, and must deny.
+
+
+class TestRuleOwnership:
+    def test_owner_can_delete_own_rule(self):
+        assert (
+            _q("alice", "del_rule", groups=[USER_GROUP], rule_id=RULE_ID, rule_owner="alice")
+            is True
+        )
+
+    def test_non_owner_denied_delete(self):
+        assert (
+            _q("alice", "del_rule", groups=[USER_GROUP], rule_id=RULE_ID, rule_owner="bob") is False
+        )
+
+    def test_unresolvable_rule_denied_delete(self):
+        """get_rule() raised, so permission.py omitted the keys — fail closed."""
+        assert _q("alice", "del_rule", groups=[USER_GROUP], rule_id=RULE_ID) is False
+
+    def test_admin_can_delete_any_rule(self):
+        assert (
+            _q("adminuser", "del_rule", groups=[ADMIN_GROUP], rule_id=RULE_ID, rule_owner="bob")
+            is True
+        )
+
+    def test_owner_can_update_own_rule_over_own_data(self):
+        assert (
+            _q(
+                "alice",
+                "update_rule",
+                groups=[USER_GROUP],
+                rule_id=RULE_ID,
+                options={"lifetime": 3600},
+                rule_owner="alice",
+                rule_scope="alice.data",
+                owned_scopes=["alice.data"],
+            )
+            is True
+        )
+
+    def test_owner_denied_update_when_scope_unowned(self):
+        """Owning the rule is not enough — update can change RSE and lifetime."""
+        assert (
+            _q(
+                "alice",
+                "update_rule",
+                groups=[USER_GROUP],
+                rule_id=RULE_ID,
+                options={"lifetime": 3600},
+                rule_owner="alice",
+                rule_scope="bob.data",
+                owned_scopes=["alice.data"],
+            )
+            is False
+        )
+
+    def test_update_without_options_allowed_for_owner(self):
+        """`options` absent entirely must not read as a reassignment."""
+        assert (
+            _q(
+                "alice",
+                "update_rule",
+                groups=[USER_GROUP],
+                rule_id=RULE_ID,
+                rule_owner="alice",
+                rule_scope="alice.data",
+                owned_scopes=["alice.data"],
+            )
+            is True
+        )
+
+    def test_reassignment_denied_for_owner(self):
+        """Handing a rule to another account is a transfer, not self-service."""
+        assert (
+            _q(
+                "alice",
+                "update_rule",
+                groups=[USER_GROUP],
+                rule_id=RULE_ID,
+                options={"account": "bob"},
+                rule_owner="alice",
+                rule_scope="alice.data",
+                owned_scopes=["alice.data"],
+            )
+            is False
+        )
+
+    def test_reassignment_to_self_still_denied(self):
+        """Naming the current owner is a no-op, but the predicate keys on the
+        field being present rather than on its value — deliberately."""
+        assert (
+            _q(
+                "alice",
+                "update_rule",
+                groups=[USER_GROUP],
+                rule_id=RULE_ID,
+                options={"account": "alice"},
+                rule_owner="alice",
+                rule_scope="alice.data",
+                owned_scopes=["alice.data"],
+            )
+            is False
+        )
+
+    def test_reassignment_allowed_for_admin(self):
+        assert (
+            _q(
+                "adminuser",
+                "update_rule",
+                groups=[ADMIN_GROUP],
+                rule_id=RULE_ID,
+                options={"account": "bob"},
+                rule_owner="alice",
+                rule_scope="alice.data",
+                owned_scopes=[],
+            )
+            is True
+        )
+
+    def test_unresolvable_rule_denied_update(self):
+        assert (
+            _q(
+                "alice",
+                "update_rule",
+                groups=[USER_GROUP],
+                rule_id=RULE_ID,
+                options={"lifetime": 3600},
+                owned_scopes=["alice.data"],
+            )
+            is False
+        )
+
+
+# Rule actions left privileged by design-004
+
+
+class TestPrivilegedRuleActions:
+    def test_reduce_rule_privileged_only(self):
+        assert _q("alice", "reduce_rule", groups=[USER_GROUP], rule_id=RULE_ID) is False
+        assert _q("adminuser", "reduce_rule", groups=[ADMIN_GROUP], rule_id=RULE_ID) is True
+
+    def test_move_rule_privileged_only(self):
+        assert _q("alice", "move_rule", groups=[USER_GROUP], rule_id=RULE_ID) is False
+        assert _q("adminuser", "move_rule", groups=[ADMIN_GROUP], rule_id=RULE_ID) is True
 
 
 # add_replicas — the one rule that distinguishes a group mapped to "user"
@@ -323,6 +566,10 @@ class TestRootBootstrap:
 
     def test_root_allowed_unknown_action(self):
         assert _root("some_unknown_action") is True
+
+    def test_root_allowed_rule_action_without_facts(self):
+        """The transfer suite creates and deletes rules as root."""
+        assert _root("del_rule", rule_id=RULE_ID) is True
 
     def test_root_blocked_by_naming_rule(self):
         assert (

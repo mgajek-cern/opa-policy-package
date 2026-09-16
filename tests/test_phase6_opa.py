@@ -37,6 +37,8 @@ OWNED = "randomaccount"
 OWNED_UNNAMED = "projectdata"
 FOREIGN_PREFIXED = "randomaccountleak"
 
+RULE_ID = "1f0e3dad99908345f7439f8ffabdffc4"
+
 
 @pytest.fixture(autouse=True)
 def _point_client(opa_server, monkeypatch):
@@ -51,15 +53,30 @@ def _q(
     entitlements=None,
     acr=None,
     owned_scopes=None,
+    rule_owner=None,
+    rule_scope=None,
     **kw,
 ) -> bool:
+    """Query with a token shaped the way permission.py forwards one here.
+
+    `owned_scopes`, `rule_owner` and `rule_scope` ride in kwargs rather than
+    the token: they are resolved in permission.py against the `scopes` and
+    `rules` tables, not read off a claim. Omitting rule_owner/rule_scope
+    models a rule permission.py could not resolve — the deny that follows is
+    what the fail-closed path is supposed to produce.
+    """
     token = {"entitlements": entitlements or []}
     if acr is not None:
         token["acr"] = acr
 
     kwargs = dict(kw)
-    if owned_scopes is not None:
-        kwargs["owned_scopes"] = owned_scopes
+    for key, value in (
+        ("owned_scopes", owned_scopes),
+        ("rule_owner", rule_owner),
+        ("rule_scope", rule_scope),
+    ):
+        if value is not None:
+            kwargs[key] = value
 
     return query_opa(
         {
@@ -99,6 +116,9 @@ class TestEntitlementPrivilege:
         assert _q("prod", "add_rse", entitlements=[ATLAS_PROD], rse="CERN_DATADISK") is True
 
     def test_approve_rule_requires_admin_entitlement(self):
+        """Reaches _is_privileged through the unknown-action catch-all since
+        design-004 removed approve_rule from _rule_actions. Outcome unchanged;
+        the route is not."""
         assert _q("randomaccount", "approve_rule", entitlements=[USER]) is False
         assert _q("adminuser", "approve_rule", entitlements=[ADMIN]) is True
 
@@ -327,11 +347,15 @@ class TestAcrConstraint:
         )
 
 
-# Rule self-service — account names, not scopes, so no lookup involved
+# add_rule — rule ownership AND data ownership (design-004)
+#
+# kwargs.account is the account the new rule will belong to; kwargs.dids
+# names the data it replicates. Both are checked: owning the rule you create
+# says nothing about owning what it pulls.
 
 
-class TestRuleSelfService:
-    def test_user_can_add_own_unlocked_rule(self):
+class TestAddRuleOwnership:
+    def test_user_can_add_own_rule_over_own_data(self):
         assert (
             _q(
                 "randomaccount",
@@ -340,8 +364,93 @@ class TestRuleSelfService:
                 account="randomaccount",
                 locked=False,
                 rse_expression="CERN_DATADISK",
+                dids=[{"scope": OWNED, "name": "f1"}],
+                owned_scopes=[OWNED],
             )
             is True
+        )
+
+    def test_user_can_add_rule_over_owned_scope_not_named_after_account(self):
+        """The design-003 under-permissive case, now reachable through rules."""
+        assert (
+            _q(
+                "randomaccount",
+                "add_rule",
+                entitlements=[USER],
+                account="randomaccount",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[{"scope": OWNED_UNNAMED, "name": "f1"}],
+                owned_scopes=[OWNED_UNNAMED],
+            )
+            is True
+        )
+
+    def test_user_denied_rule_over_foreign_data(self):
+        """The tenancy case: the issuer's own rule, but ddmlab's datasets."""
+        assert (
+            _q(
+                "randomaccount",
+                "add_rule",
+                entitlements=[USER],
+                account="randomaccount",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[{"scope": "ddmlab", "name": "f1"}],
+                owned_scopes=[],
+            )
+            is False
+        )
+
+    def test_user_denied_rule_over_prefix_matching_foreign_scope(self):
+        """The over-permissive half, through the rule path."""
+        assert (
+            _q(
+                "randomaccount",
+                "add_rule",
+                entitlements=[USER],
+                account="randomaccount",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[{"scope": FOREIGN_PREFIXED, "name": "f1"}],
+                owned_scopes=[OWNED],
+            )
+            is False
+        )
+
+    def test_user_denied_when_one_did_is_foreign(self):
+        assert (
+            _q(
+                "randomaccount",
+                "add_rule",
+                entitlements=[USER],
+                account="randomaccount",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[
+                    {"scope": OWNED, "name": "f1"},
+                    {"scope": "ddmlab", "name": "f2"},
+                ],
+                owned_scopes=[OWNED],
+            )
+            is False
+        )
+
+    def test_empty_did_list_denied(self):
+        """`every` over an empty collection is vacuously true — count() is what
+        stops a no-DID request from being allowed."""
+        assert (
+            _q(
+                "randomaccount",
+                "add_rule",
+                entitlements=[USER],
+                account="randomaccount",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[],
+                owned_scopes=[OWNED],
+            )
+            is False
         )
 
     def test_user_denied_rule_for_other_account(self):
@@ -353,12 +462,196 @@ class TestRuleSelfService:
                 account="ddmlab",
                 locked=False,
                 rse_expression="CERN_DATADISK",
+                dids=[{"scope": OWNED, "name": "f1"}],
+                owned_scopes=[OWNED],
             )
             is False
         )
 
-    def test_user_can_del_own_rule(self):
-        assert _q("randomaccount", "del_rule", entitlements=[USER], account="randomaccount") is True
+    def test_admin_allowed_over_foreign_data(self):
+        """Privilege short-circuits ownership, as it does for DIDs."""
+        assert (
+            _q(
+                "adminuser",
+                "add_rule",
+                entitlements=[ADMIN],
+                account="adminuser",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[{"scope": "ddmlab", "name": "f1"}],
+                owned_scopes=[],
+            )
+            is True
+        )
+
+
+# del_rule / update_rule — facts resolved from the rules table (design-004)
+#
+# kwargs carry only rule_id; rule_owner and rule_scope are fetched by
+# permission.py via get_rule(). Their absence models a rule that could not be
+# resolved, and must deny.
+
+
+class TestRuleOwnership:
+    def test_owner_can_delete_own_rule(self):
+        assert (
+            _q(
+                "randomaccount",
+                "del_rule",
+                entitlements=[USER],
+                rule_id=RULE_ID,
+                rule_owner="randomaccount",
+            )
+            is True
+        )
+
+    def test_non_owner_denied_delete(self):
+        assert (
+            _q(
+                "randomaccount",
+                "del_rule",
+                entitlements=[USER],
+                rule_id=RULE_ID,
+                rule_owner="ddmlab",
+            )
+            is False
+        )
+
+    def test_unresolvable_rule_denied_delete(self):
+        """get_rule() raised, so permission.py omitted the keys — fail closed."""
+        assert _q("randomaccount", "del_rule", entitlements=[USER], rule_id=RULE_ID) is False
+
+    def test_admin_can_delete_any_rule(self):
+        assert (
+            _q(
+                "adminuser",
+                "del_rule",
+                entitlements=[ADMIN],
+                rule_id=RULE_ID,
+                rule_owner="ddmlab",
+            )
+            is True
+        )
+
+    def test_owner_can_update_own_rule_over_own_data(self):
+        assert (
+            _q(
+                "randomaccount",
+                "update_rule",
+                entitlements=[USER],
+                rule_id=RULE_ID,
+                options={"lifetime": 3600},
+                rule_owner="randomaccount",
+                rule_scope=OWNED,
+                owned_scopes=[OWNED],
+            )
+            is True
+        )
+
+    def test_owner_denied_update_when_scope_unowned(self):
+        """Owning the rule is not enough — update can change RSE and lifetime."""
+        assert (
+            _q(
+                "randomaccount",
+                "update_rule",
+                entitlements=[USER],
+                rule_id=RULE_ID,
+                options={"lifetime": 3600},
+                rule_owner="randomaccount",
+                rule_scope="ddmlab",
+                owned_scopes=[OWNED],
+            )
+            is False
+        )
+
+    def test_update_without_options_allowed_for_owner(self):
+        """`options` absent entirely must not read as a reassignment."""
+        assert (
+            _q(
+                "randomaccount",
+                "update_rule",
+                entitlements=[USER],
+                rule_id=RULE_ID,
+                rule_owner="randomaccount",
+                rule_scope=OWNED,
+                owned_scopes=[OWNED],
+            )
+            is True
+        )
+
+    def test_reassignment_denied_for_owner(self):
+        """Handing a rule to another account is a transfer, not self-service."""
+        assert (
+            _q(
+                "randomaccount",
+                "update_rule",
+                entitlements=[USER],
+                rule_id=RULE_ID,
+                options={"account": "ddmlab"},
+                rule_owner="randomaccount",
+                rule_scope=OWNED,
+                owned_scopes=[OWNED],
+            )
+            is False
+        )
+
+    def test_reassignment_to_self_still_denied(self):
+        """Naming the current owner is a no-op, but the predicate keys on the
+        field being present rather than on its value — deliberately."""
+        assert (
+            _q(
+                "randomaccount",
+                "update_rule",
+                entitlements=[USER],
+                rule_id=RULE_ID,
+                options={"account": "randomaccount"},
+                rule_owner="randomaccount",
+                rule_scope=OWNED,
+                owned_scopes=[OWNED],
+            )
+            is False
+        )
+
+    def test_reassignment_allowed_for_admin(self):
+        assert (
+            _q(
+                "adminuser",
+                "update_rule",
+                entitlements=[ADMIN],
+                rule_id=RULE_ID,
+                options={"account": "ddmlab"},
+                rule_owner="randomaccount",
+                rule_scope=OWNED,
+                owned_scopes=[],
+            )
+            is True
+        )
+
+    def test_unresolvable_rule_denied_update(self):
+        assert (
+            _q(
+                "randomaccount",
+                "update_rule",
+                entitlements=[USER],
+                rule_id=RULE_ID,
+                options={"lifetime": 3600},
+                owned_scopes=[OWNED],
+            )
+            is False
+        )
+
+
+# Rule actions left privileged by design-004
+
+
+class TestPrivilegedRuleActions:
+    def test_reduce_rule_privileged_only(self):
+        assert _q("randomaccount", "reduce_rule", entitlements=[USER], rule_id=RULE_ID) is False
+        assert _q("adminuser", "reduce_rule", entitlements=[ADMIN], rule_id=RULE_ID) is True
+
+    def test_move_rule_privileged_only(self):
+        assert _q("randomaccount", "move_rule", entitlements=[USER], rule_id=RULE_ID) is False
+        assert _q("adminuser", "move_rule", entitlements=[ADMIN], rule_id=RULE_ID) is True
 
 
 # add_replicas — privilege levels
@@ -391,6 +684,10 @@ class TestRootBootstrap:
     def test_root_allowed_did_action_without_ownership(self):
         """The transfer suite creates datasets in ddmlab as root."""
         assert _root("add_did", scope="ddmlab", name="dataset1") is True
+
+    def test_root_allowed_rule_action_without_facts(self):
+        """The transfer suite creates and deletes rules as root."""
+        assert _root("del_rule", rule_id=RULE_ID) is True
 
 
 # RSE-name allowlist — the Phase 6 addition
