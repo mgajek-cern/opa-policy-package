@@ -1,0 +1,759 @@
+openapi: 3.1.0
+info:
+  title: DEP Authorization Service
+  version: 0.1.0-draft
+  summary: Authorization decisions for DEP Policy Enforcement Points.
+  description: |
+    Draft contract for the WP4 Authorization Service. See
+    docs/design/design-005-authorization-service-api.md.
+
+    One typed endpoint per operation, so a generated client exposes one
+    function per decision. Operations without an endpoint of their own go
+    through /v1/decisions/privileged-operations.
+
+    A decision is returned with HTTP 200 whether it permits or denies. Any
+    non-200 response is an error, and PEPs MUST treat it as a deny.
+servers:
+  - url: https://authz.example.org
+    description: Replace with the deployment URL
+
+security:
+  - oauth2: []
+
+tags:
+  - name: rules
+  - name: dids
+  - name: rses
+  - name: protocols
+  - name: replicas
+  - name: privileged
+  - name: operations
+
+paths:
+  /v1/decisions/rules/create:
+    post:
+      tags: [rules]
+      operationId: authorizeRuleCreate
+      summary: May the subject create a replication rule over these DIDs?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RuleCreateRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/rules/update:
+    post:
+      tags: [rules]
+      operationId: authorizeRuleUpdate
+      summary: May the subject change an existing rule?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RuleUpdateRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/rules/delete:
+    post:
+      tags: [rules]
+      operationId: authorizeRuleDelete
+      summary: May the subject delete an existing rule?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RuleDeleteRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/dids/create:
+    post:
+      tags: [dids]
+      operationId: authorizeDidCreate
+      summary: May the subject create these DIDs?
+      description: Permitted only if every DID is permitted.
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DidCreateRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/dids/attach:
+    post:
+      tags: [dids]
+      operationId: authorizeDidAttach
+      summary: May the subject attach children to these parent DIDs?
+      description: Permitted only if every attachment is permitted.
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DidAttachRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/dids/detach:
+    post:
+      tags: [dids]
+      operationId: authorizeDidDetach
+      summary: May the subject detach children from a parent DID?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DidDetachRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/rses/create:
+    post:
+      tags: [rses]
+      operationId: authorizeRseCreate
+      summary: May the subject create an RSE with this name?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RseCreateRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/rses/update:
+    post:
+      tags: [rses]
+      operationId: authorizeRseUpdate
+      summary: May the subject update this RSE, including a rename?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RseUpdateRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/rses/delete:
+    post:
+      tags: [rses]
+      operationId: authorizeRseDelete
+      summary: May the subject delete this RSE?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RseDeleteRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/rses/attributes/set:
+    post:
+      tags: [rses]
+      operationId: authorizeRseAttributeSet
+      summary: May the subject set an attribute on this RSE?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RseAttributeSetRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/rses/attributes/delete:
+    post:
+      tags: [rses]
+      operationId: authorizeRseAttributeDelete
+      summary: May the subject delete an attribute from this RSE?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RseAttributeDeleteRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/protocols/create:
+    post:
+      tags: [protocols]
+      operationId: authorizeProtocolCreate
+      summary: May the subject add a protocol to this RSE?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProtocolCreateRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/protocols/update:
+    post:
+      tags: [protocols]
+      operationId: authorizeProtocolUpdate
+      summary: May the subject update a protocol on this RSE?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProtocolUpdateRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/protocols/delete:
+    post:
+      tags: [protocols]
+      operationId: authorizeProtocolDelete
+      summary: May the subject delete a protocol from this RSE?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProtocolDeleteRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/replicas/register:
+    post:
+      tags: [replicas]
+      operationId: authorizeReplicaRegister
+      summary: May the subject register replicas on this RSE?
+      description: Reached by uploads, which register replicas after writing files.
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReplicaRegisterRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+
+  /v1/decisions/replicas/delete:
+    post:
+      tags: [replicas]
+      operationId: authorizeReplicaDelete
+      summary: May the subject delete replicas on this RSE?
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReplicaDeleteRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /v1/decisions/privileged-operations:
+    post:
+      tags: [privileged]
+      operationId: authorizePrivilegedOperation
+      summary: May the subject perform an operation reserved for privileged subjects?
+      description: |
+        For every consumer operation without an endpoint of its own (e.g.
+        add_account, add_scope, approve_rule). The policy for all of them is: privileged subjects
+        only. An operation that has its own endpoint is rejected with 400, so each
+        operation has exactly one route.
+      security:
+        - oauth2: [pep:rucio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PrivilegedOperationRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Decision' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+
+  /healthz:
+    get:
+      tags: [operations]
+      operationId: getHealth
+      summary: Liveness and PDP reachability
+      security: []
+      responses:
+        '200':
+          description: Healthy
+        '503':
+          description: The service or its PDP is unavailable
+
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: |
+        PEPs authenticate as OAuth2 clients. The scope determines which
+        endpoints a PEP may call; it says nothing about the subject.
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.example.org/protocol/openid-connect/token
+          scopes:
+            pep:rucio: Rucio acting as a Policy Enforcement Point
+
+  responses:
+    Decision:
+      description: A decision. A deny is still a 200.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Decision' }
+    Problem:
+      description: Error; the PEP MUST treat it as a deny (RFC 9457)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    # Shared building blocks
+
+    Subject:
+      type: object
+      description: |
+        The principal the decision is about. Its claims are asserted by the
+        authenticated PEP; the service does not re-validate the token (design-005).
+      required: [type, id]
+      properties:
+        type:
+          type: string
+          enum: [rucio_account, oidc_subject]
+        id:
+          type: string
+          description: Account name for rucio_account; "<sub>@<iss>" for oidc_subject.
+          examples: [randomaccount]
+        properties:
+          $ref: '#/components/schemas/SubjectProperties'
+
+    SubjectProperties:
+      type: object
+      properties:
+        token:
+          $ref: '#/components/schemas/Token'
+
+    Token:
+      type: object
+      description: |
+        The token presented by the subject: identifiers for audit, plus the
+        claims the policy reads. Absent for non-token credentials, such as the
+        root bootstrap.
+      required: [iss, sub]
+      properties:
+        iss: { type: string, format: uri }
+        sub: { type: string }
+        jti: { type: string }
+        aud:
+          type: array
+          items: { type: string }
+        entitlements:
+          type: array
+          items: { type: string }
+        acr:
+          type: string
+
+    Context:
+      type: object
+      required: [vo]
+      properties:
+        vo:
+          type: string
+          examples: [def]
+        request_time:
+          type: string
+          format: date-time
+
+    Scope:
+      type: object
+      required: [name, owner]
+      properties:
+        name: { type: string }
+        owner:
+          type: string
+          description: Owning account, resolved by the PEP from its own state.
+
+    Did:
+      type: object
+      required: [scope, name]
+      properties:
+        scope: { $ref: '#/components/schemas/Scope' }
+        name: { type: string }
+        type:
+          type: string
+          enum: [file, dataset, container]
+
+    Rule:
+      type: object
+      description: An existing rule, with the facts the PEP resolved for it.
+      required: [id, owner, target]
+      properties:
+        id: { type: string }
+        owner:
+          type: string
+          description: Account that owns the rule.
+        target:
+          $ref: '#/components/schemas/Did'
+
+    Rse:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+
+    Protocol:
+      type: object
+      properties:
+        scheme:
+          type: string
+          description: Compared case-insensitively. Absent when the request carries no scheme.
+
+    # Rules
+
+    RuleCreateRequest:
+      type: object
+      required: [subject, rule, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rule:
+          type: object
+          required: [owner, locked, dids]
+          properties:
+            owner:
+              type: string
+              description: Account the new rule will belong to.
+            locked: { type: boolean }
+            rse_expression: { type: string }
+            source_rse_expression: { type: string }
+            dids:
+              type: array
+              minItems: 1
+              items: { $ref: '#/components/schemas/Did' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    RuleUpdateRequest:
+      type: object
+      required: [subject, rule, changes, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rule: { $ref: '#/components/schemas/Rule' }
+        changes:
+          type: object
+          description: |
+            Requested changes. `owner` present with any non-null value is a
+            reassignment, including reassignment to the current owner.
+          properties:
+            owner:
+              type: string
+            lifetime:
+              type: [integer, 'null']
+            rse_expression:
+              type: string
+          additionalProperties: true
+        context: { $ref: '#/components/schemas/Context' }
+
+    RuleDeleteRequest:
+      type: object
+      required: [subject, rule, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rule: { $ref: '#/components/schemas/Rule' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    # DIDs
+
+    DidCreateRequest:
+      type: object
+      required: [subject, dids, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        dids:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/Did' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    DidAttachRequest:
+      type: object
+      required: [subject, attachments, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        attachments:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [parent, children]
+            properties:
+              parent: { $ref: '#/components/schemas/Did' }
+              children:
+                type: array
+                items: { $ref: '#/components/schemas/Did' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    DidDetachRequest:
+      type: object
+      required: [subject, parent, children, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        parent: { $ref: '#/components/schemas/Did' }
+        children:
+          type: array
+          items: { $ref: '#/components/schemas/Did' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    # RSEs
+    #
+    # Operations with identical fields still get their own schema, so each
+    # can gain fields later without changing another operation's model.
+
+    RseCreateRequest:
+      type: object
+      required: [subject, rse, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rse: { $ref: '#/components/schemas/Rse' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    RseUpdateRequest:
+      type: object
+      required: [subject, rse, changes, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rse: { $ref: '#/components/schemas/Rse' }
+        changes:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Present when the update renames the RSE.
+          additionalProperties: true
+        context: { $ref: '#/components/schemas/Context' }
+
+    RseDeleteRequest:
+      type: object
+      required: [subject, rse, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rse: { $ref: '#/components/schemas/Rse' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    RseAttributeSetRequest:
+      type: object
+      required: [subject, rse, attribute, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rse: { $ref: '#/components/schemas/Rse' }
+        attribute:
+          type: object
+          required: [key]
+          properties:
+            key: { type: string }
+            value:
+              description: The value being set. Not read by the phase 6 policy.
+        context: { $ref: '#/components/schemas/Context' }
+
+    RseAttributeDeleteRequest:
+      type: object
+      required: [subject, rse, attribute, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rse: { $ref: '#/components/schemas/Rse' }
+        attribute:
+          type: object
+          required: [key]
+          properties:
+            key: { type: string }
+        context: { $ref: '#/components/schemas/Context' }
+
+    # Protocols
+
+    ProtocolCreateRequest:
+      type: object
+      required: [subject, rse, protocol, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rse: { $ref: '#/components/schemas/Rse' }
+        protocol: { $ref: '#/components/schemas/Protocol' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    ProtocolUpdateRequest:
+      type: object
+      required: [subject, rse, protocol, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rse: { $ref: '#/components/schemas/Rse' }
+        protocol: { $ref: '#/components/schemas/Protocol' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    ProtocolDeleteRequest:
+      type: object
+      required: [subject, rse, protocol, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rse: { $ref: '#/components/schemas/Rse' }
+        protocol: { $ref: '#/components/schemas/Protocol' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    # Replicas
+
+    ReplicaRegisterRequest:
+      type: object
+      required: [subject, rse, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rse: { $ref: '#/components/schemas/Rse' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    ReplicaDeleteRequest:
+      type: object
+      required: [subject, rse, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        rse: { $ref: '#/components/schemas/Rse' }
+        context: { $ref: '#/components/schemas/Context' }
+
+    # Everything else
+
+    PrivilegedOperationRequest:
+      type: object
+      required: [subject, operation, context]
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        operation:
+          type: string
+          pattern: '^[a-z][a-z0-9_]*$'
+          description: |
+            The consumer's operation name, e.g. add_account. Carries no
+            arguments: the policy decides on the subject alone.
+          examples: [add_account, add_scope, approve_rule]
+        context: { $ref: '#/components/schemas/Context' }
+
+    # Decision
+
+    Decision:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: boolean }
+        context:
+          $ref: '#/components/schemas/DecisionContext'
+
+    DecisionContext:
+      type: object
+      properties:
+        decision_id:
+          type: string
+          description: |
+            Identifier of the audit record for this decision. PEPs log it
+            next to their own request id to correlate the two.
+        reason_admin:
+          type: string
+          description: Operator-facing reason. Not for end users.
+        policy:
+          type: object
+          description: The policy version that produced the decision.
+          properties:
+            id: { type: string }
+            version: { type: string }
+
+    Problem:
+      type: object
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
