@@ -1,0 +1,83 @@
+{
+  "@context": [
+    "http://www.w3.org/ns/odrl.jsonld",
+    {
+      "rucio": "https://example.org/ns/rucio-authz#",
+      "party": "https://example.org/party/rucio/",
+      "asset": "https://example.org/asset/rucio/",
+      "rdfs": "http://www.w3.org/2000/01/rdf-schema#"
+    }
+  ],
+  "@graph": [
+    {
+      "uid": "asset:vo",
+      "@type": "Asset",
+      "rdfs:label": "The Rucio VO authorised by the phase 6 OPA instance"
+    },
+    {
+      "uid": "party:account",
+      "@type": "PartyCollection",
+      "rdfs:comment": "Every Rucio account a request is issued as (input.issuer), including root. No claim required."
+    },
+    {
+      "uid": "party:privileged",
+      "@type": "PartyCollection",
+      "source": "party:account",
+      "rdfs:comment": "Rego: _is_privileged. Claim values here populate data.vo.entitlement_policy with level \"admin\".",
+      "refinement": [
+        {
+          "or": {
+            "@list": [
+              {
+                "leftOperand": "rucio:account",
+                "operator": "eq",
+                "rightOperand": "root"
+              },
+              {
+                "leftOperand": "rucio:membershipClaim",
+                "operator": "isAnyOf",
+                "rightOperand": [
+                  "urn:example:aai.example.org:group:rucio-admins:role=member",
+                  "urn:example:aai.example.org:group:atlas-production:role=member"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "uid": "party:user",
+      "@type": "PartyCollection",
+      "source": "party:account",
+      "rdfs:comment": "Rego: _has_privilege_level(\"user\"). Claim values here populate data.vo.entitlement_policy with level \"user\".",
+      "refinement": [
+        {
+          "leftOperand": "rucio:membershipClaim",
+          "operator": "isAnyOf",
+          "rightOperand": [
+            "urn:example:aai.example.org:group:rucio-users:role=member",
+            "urn:example:aai.example.org:group:atlas-users:role=member"
+          ]
+        }
+      ]
+    },
+    {
+      "@id": "rucio:membershipClaim",
+      "rucio:tokenClaim": "entitlements",
+      "rucio:opaInput": "input.token.entitlements"
+    },
+    {
+      "@id": "rucio:ConformingRseName",
+      "rucio:knownRseType": [
+        "DATADISK",
+        "SCRATCHDISK",
+        "LOCALGROUPDISK",
+        "TAPE",
+        "USERDISK"
+      ],
+      "rdfs:comment": "Phase 6 supports an RSE-name allowlist. Add each allowlisted name as rucio:allowlistedRseName; it becomes data.vo.policy.allowlisted_rse_names.",
+      "rucio:allowlistedRseName": []
+    }
+  ]
+}

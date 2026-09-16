@@ -1,0 +1,81 @@
+{
+  "@context": [
+    "http://www.w3.org/ns/odrl.jsonld",
+    {
+      "rucio": "https://example.org/ns/rucio-authz#",
+      "party": "https://example.org/party/rucio/",
+      "asset": "https://example.org/asset/rucio/",
+      "rdfs": "http://www.w3.org/2000/01/rdf-schema#"
+    }
+  ],
+  "@graph": [
+    {
+      "uid": "asset:vo",
+      "@type": "Asset",
+      "rdfs:label": "The Rucio VO authorised by the phase 4 OPA instance"
+    },
+    {
+      "uid": "party:account",
+      "@type": "PartyCollection",
+      "rdfs:comment": "Every Rucio account a request is issued as (input.issuer), including root. No claim required."
+    },
+    {
+      "uid": "party:privileged",
+      "@type": "PartyCollection",
+      "source": "party:account",
+      "rdfs:comment": "Rego: _is_privileged. Claim values here populate data.vo.group_policy with level \"admin\".",
+      "refinement": [
+        {
+          "or": {
+            "@list": [
+              {
+                "leftOperand": "rucio:account",
+                "operator": "eq",
+                "rightOperand": "root"
+              },
+              {
+                "leftOperand": "rucio:membershipClaim",
+                "operator": "isAnyOf",
+                "rightOperand": [
+                  "/rucio/admins",
+                  "/atlas/production"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "uid": "party:user",
+      "@type": "PartyCollection",
+      "source": "party:account",
+      "rdfs:comment": "Rego: _has_privilege_level(\"user\"). Claim values here populate data.vo.group_policy with level \"user\".",
+      "refinement": [
+        {
+          "leftOperand": "rucio:membershipClaim",
+          "operator": "isAnyOf",
+          "rightOperand": [
+            "/rucio/users",
+            "/atlas/users"
+          ]
+        }
+      ]
+    },
+    {
+      "@id": "rucio:membershipClaim",
+      "rucio:tokenClaim": "wlcg.groups",
+      "rucio:opaInput": "input.token.groups"
+    },
+    {
+      "@id": "rucio:ConformingRseName",
+      "rucio:knownRseType": [
+        "DATADISK",
+        "SCRATCHDISK",
+        "LOCALGROUPDISK",
+        "TAPE",
+        "USERDISK"
+      ]
+    }
+  ]
+}
