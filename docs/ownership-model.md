@@ -86,7 +86,7 @@ _is_privileged if { input.issuer == "root" }
 | How privileged are they? | `entitlements` / `wlcg.groups` claim → bundle | `input.token.*` |
 | How did they authenticate? | `acr` claim | `input.token.acr` |
 | Do they own this scope? | `scopes` table | `input.kwargs.owned_scopes` |
-| Do they own this rule? | `rules` table | *(not forwarded yet — design-004)* |
+| Do they own this rule? | `rules` table | `input.kwargs.rule_owner` / `rule_scope` (`del_rule`, `update_rule`) |
 
 The split is the design:
 
@@ -117,5 +117,5 @@ PFN are not ownership-gated anywhere in this Rego.
 ## See also
 
 - [design-003-scope-ownership.md](design/design-003-scope-ownership.md) — DID ownership, implemented.
-- [design/design-004-rule-ownership.md](design/design-004-rule-ownership.md) — rule ownership, proposed.
+- [design-004-rule-ownership.md](design/design-004-rule-ownership.md) — rule ownership, implemented.
 - [policy-package-mechanism.md](policy-package-mechanism.md) — how Rucio loads `has_permission()`.
