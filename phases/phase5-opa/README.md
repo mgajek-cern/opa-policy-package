@@ -70,6 +70,12 @@ Single realm (`rucio`), no federation. Two test users:
 
 The realm's group tree (`/rucio/admins`, `/atlas/production`, etc.) is kept for realm-admin bookkeeping only. The token claim itself is sourced from each user's `entitlements` attribute via the `entitlements` client scope, not derived from group membership at token time.
 
+## Installation
+
+```bash
+python3 -m pip install -e phases/phase5-opa/
+```
+
 ## Configuration
 
 ```ini

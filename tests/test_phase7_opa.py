@@ -1,24 +1,5 @@
 """
 Phase 7 — e2e scenario tests against a live OPA server.
-
-Phase 7 is the phase 6 policy, restructured to match the Authorization Service
-contract (design-005). This module is self-contained: the phase 6 constants,
-helpers and scenarios are copied here rather than imported, so the two phases
-can diverge without one test module reaching into the other.
-
-Three things are checked:
-
-1. Every phase 6 scenario still holds, except where phase 7 deliberately
-   changes it. The phase 6 classes below are copies; the replica classes are
-   replaced, because replica actions are now ownership-gated.
-2. The rules phase 6 lacked or never tested: explicit privileged-only rules
-   for del_rse, add_rse_attribute and del_rse_attribute, ownership-gated
-   replica rules, and cases for update_rse, attach_dids and protocols.
-3. The Rego's known actions are exactly the actions with typed endpoints in
-   services/authorization-service/api/openapi.yaml.
-
-The OPA this runs against may be the testbed's own, so every test that writes
-to the data bundle restores what was there.
 """
 
 import json
@@ -26,9 +7,8 @@ import urllib.request
 from pathlib import Path
 
 import pytest
+from rucio_opa_v6_policy.opa_client import query_opa
 from tests.conftest import build_opa_server_fixture
-
-from rucio_opa_v5_policy.opa_client import query_opa
 
 REPO_ROOT = Path(__file__).parent.parent
 REGO_PATH = REPO_ROOT / "policies" / "rego" / "phase7" / "authz.rego"
