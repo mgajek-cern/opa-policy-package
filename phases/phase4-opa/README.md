@@ -67,6 +67,11 @@ Single realm (`rucio`), no federation. Two test users:
 | `alice` | `alice123` | `/rucio/users`, `/atlas/users` | `user` |
 | `adminuser` | `admin123` | `/rucio/admins`, `/atlas/production` | `admin` |
 
+## Installation
+
+```bash
+python3 -m pip install -e phases/phase4-opa/
+```
 
 ## Configuration
 

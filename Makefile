@@ -68,7 +68,11 @@ help: ## List targets
 	  | awk -F':.*?## ' '{printf "  %-16s %s\n", $$1, $$2}'
 
 install: ## pip install -e the selected phase's package
-	python3 -m pip install -e phases/$(PKG)/
+	@if [ ! -f "phases/$(PKG)/pyproject.toml" ] && [ ! -f "phases/$(PKG)/setup.py" ]; then \
+	  echo "phase $(PHASE): no package at phases/$(PKG)"; \
+	else \
+	  python3 -m pip install -e phases/$(PKG)/; \
+	fi
 
 install-dev: ## Install test dependencies plus the selected phase
 	python3 -m pip install pytest pytest-cov requests urllib3
