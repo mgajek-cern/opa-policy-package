@@ -28,28 +28,11 @@ from authz_service.api.generated.models import (
     RuleDeleteRequest,
     RuleUpdateRequest,
 )
-from authz_service.api.generated.models import Subject as _SubjectModel
 from authz_service.api.routes._responses import not_yet_implemented
 from authz_service.core.model import Evaluation, Resource, Subject, grants, http_status_for
 from authz_service.core.ports import PolicyDecisionPoint
 
 router = APIRouter(tags=["rules"])
-
-
-def _claims(subject: _SubjectModel) -> dict[str, object]:
-    token = subject.properties.token if subject.properties else None
-    if token is None:
-        return {}
-    claims: dict[str, object] = {"iss": str(token.iss), "sub": token.sub}
-    if token.jti:
-        claims["jti"] = token.jti
-    if token.aud:
-        claims["aud"] = token.aud
-    if token.entitlements:
-        claims["entitlements"] = token.entitlements
-    if token.acr:
-        claims["acr"] = token.acr
-    return claims
 
 
 @router.post(
@@ -86,9 +69,12 @@ async def authorize_rule_delete(body: RuleDeleteRequest, request: Request) -> De
 
     evaluation = Evaluation(
         operation="del_rule",
-        subject=Subject(
-            type=body.subject.type.value, id=body.subject.id, claims=_claims(body.subject)
-        ),
+        # TODO(authn): claims={} disables the privilege path (_perm_del_rule's
+        # _has_privilege_level("admin") reads input.token.entitlements) until
+        # api/auth.py validates the caller's bearer token and extracts claims
+        # from it, per design-005's Trust model / ADR-006. Only the ownership
+        # path (rule_owner == issuer, via body.subject.id) works until then.
+        subject=Subject(type=body.subject.type.value, id=body.subject.id, claims={}),
         resources=(Resource(type="rule", id=body.rule.id, owner=body.rule.owner),),
         context={"vo": body.context.vo},
     )

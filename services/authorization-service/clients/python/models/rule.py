@@ -1,56 +1,69 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..types import UNSET, Unset
+
+from typing import cast
+
 if TYPE_CHECKING:
-    from ..models.did import Did
+  from ..models.did import Did
+
+
+
 
 
 T = TypeVar("T", bound="Rule")
 
 
+
 @_attrs_define
 class Rule:
-    """An existing rule, with the facts the PEP resolved for it.
+    """ An existing rule, with the facts the PEP resolved for it.
 
-    Attributes:
-        id (str):
-        owner (str): Account that owns the rule.
-        target (Did):
-    """
+        Attributes:
+            id (str):
+            owner (str): Account that owns the rule.
+            target (Did):
+     """
 
     id: str
     owner: str
     target: Did
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
+
+
+
+
     def to_dict(self) -> dict[str, Any]:
+        from ..models.did import Did # noqa: PLC0415
         id = self.id
 
         owner = self.owner
 
         target = self.target.to_dict()
 
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update(
-            {
-                "id": id,
-                "owner": owner,
-                "target": target,
-            }
-        )
+        field_dict.update({
+            "id": id,
+            "owner": owner,
+            "target": target,
+        })
 
         return field_dict
 
+
+
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.did import Did  # noqa: PLC0415
-
+        from ..models.did import Did # noqa: PLC0415
         d = dict(src_dict)
         id = d.pop("id")
 
@@ -58,11 +71,15 @@ class Rule:
 
         target = Did.from_dict(d.pop("target"))
 
+
+
+
         rule = cls(
             id=id,
             owner=owner,
             target=target,
         )
+
 
         rule.additional_properties = d
         return rule

@@ -1,4 +1,4 @@
-"""Contains all the data models used in inputs/outputs"""
+""" Contains all the data models used in inputs/outputs """
 
 from .context import Context
 from .decision import Decision
@@ -35,9 +35,7 @@ from .rule_update_request import RuleUpdateRequest
 from .rule_update_request_changes import RuleUpdateRequestChanges
 from .scope import Scope
 from .subject import Subject
-from .subject_properties import SubjectProperties
 from .subject_type import SubjectType
-from .token import Token
 
 __all__ = (
     "Context",
@@ -75,7 +73,5 @@ __all__ = (
     "RuleUpdateRequestChanges",
     "Scope",
     "Subject",
-    "SubjectProperties",
     "SubjectType",
-    "Token",
 )

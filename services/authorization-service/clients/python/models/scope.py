@@ -1,41 +1,58 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..types import UNSET, Unset
+
+
+
+
+
+
+
 T = TypeVar("T", bound="Scope")
+
 
 
 @_attrs_define
 class Scope:
     """
-    Attributes:
-        name (str):
-        owner (str): Owning account, resolved by the PEP from its own state.
-    """
+        Attributes:
+            name (str):
+            owner (str): Owning account, resolved by the PEP from its own state. Unlike
+                Subject claims, this is never derivable from a token — the
+                service has no database of its own (design-005, "Assign
+                responsibility for resource facts").
+     """
 
     name: str
     owner: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
+
+
+
+
 
     def to_dict(self) -> dict[str, Any]:
         name = self.name
 
         owner = self.owner
 
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update(
-            {
-                "name": name,
-                "owner": owner,
-            }
-        )
+        field_dict.update({
+            "name": name,
+            "owner": owner,
+        })
 
         return field_dict
+
+
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -48,6 +65,7 @@ class Scope:
             name=name,
             owner=owner,
         )
+
 
         scope.additional_properties = d
         return scope
