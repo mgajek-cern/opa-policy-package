@@ -13,6 +13,13 @@ info:
 
     A decision is returned with HTTP 200 whether it permits or denies. Any
     non-200 response is an error, and PEPs MUST treat it as a deny.
+
+    Subject claims (entitlements, acr) come from the caller's own OAuth2
+    bearer token, validated by this service, not from the request body. The
+    body carries only what the token cannot supply: which subject the
+    decision concerns (for logging, and for credentials that carry no token
+    at all, such as the root bootstrap) and resource ownership facts the
+    PEP resolves from its own database.
 servers:
   - url: https://authz.example.org
     description: Replace with the deployment URL
@@ -382,8 +389,19 @@ components:
     oauth2:
       type: oauth2
       description: |
-        PEPs authenticate as OAuth2 clients. The scope determines which
-        endpoints a PEP may call; it says nothing about the subject.
+        PEPs authenticate with an OAuth2 bearer token, validated offline by
+        this service (JWKS signature check, exp, aud scoped to this
+        service). The scope determines which endpoints a PEP may call.
+
+        The token is also the source of the claims the policy reads
+        (entitlements, acr): this service extracts them from its own
+        validated token rather than trusting values asserted in the request
+        body. Deployments may use a token exchanged (RFC 8693) for this
+        service's audience, carrying sub=<user> and act=<pep>, so subject
+        identity and PEP identity are both independently verifiable from
+        the one token; or a plain client-credentials token, in which case
+        the policy has only the PEP's own identity to decide on for that
+        request. See ADR-XXX.
       flows:
         clientCredentials:
           tokenUrl: https://auth.example.org/protocol/openid-connect/token
@@ -408,8 +426,12 @@ components:
     Subject:
       type: object
       description: |
-        The principal the decision is about. Its claims are asserted by the
-        authenticated PEP; the service does not re-validate the token (design-005).
+        The principal the decision is about. type/id name the subject for
+        logging, and are the only source of identity for credentials that
+        carry no bearer token at all (e.g. the root bootstrap). Where a
+        token is present, the claims the policy actually reads
+        (entitlements, acr) come from that validated token, not from this
+        object — there is no claims payload here to assert.
       required: [type, id]
       properties:
         type:
@@ -419,34 +441,6 @@ components:
           type: string
           description: Account name for rucio_account; "<sub>@<iss>" for oidc_subject.
           examples: [randomaccount]
-        properties:
-          $ref: '#/components/schemas/SubjectProperties'
-
-    SubjectProperties:
-      type: object
-      properties:
-        token:
-          $ref: '#/components/schemas/Token'
-
-    Token:
-      type: object
-      description: |
-        The token presented by the subject: identifiers for audit, plus the
-        claims the policy reads. Absent for non-token credentials, such as the
-        root bootstrap.
-      required: [iss, sub]
-      properties:
-        iss: { type: string, format: uri }
-        sub: { type: string }
-        jti: { type: string }
-        aud:
-          type: array
-          items: { type: string }
-        entitlements:
-          type: array
-          items: { type: string }
-        acr:
-          type: string
 
     Context:
       type: object
@@ -466,7 +460,11 @@ components:
         name: { type: string }
         owner:
           type: string
-          description: Owning account, resolved by the PEP from its own state.
+          description: |
+            Owning account, resolved by the PEP from its own state. Unlike
+            Subject claims, this is never derivable from a token — the
+            service has no database of its own (design-005, "Assign
+            responsibility for resource facts").
 
     Did:
       type: object

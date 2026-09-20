@@ -140,28 +140,33 @@ instead:
 
 ### Request model
 
-**Subject.** `{type, id, properties: {token}}`. `type` is `rucio_account`
-(where `id` is the resolved account) or `oidc_subject` (where `id` is
-`sub@iss`, reserved for IAM). `token` carries the audit identifiers the ADR
-requires (`iss`, `sub`, `jti`, `aud`) and the claims the policy reads
-(`entitlements`, `acr`), which is the phase 6 allowlist. Phase 4's `groups` is
-not part of the contract. Root has no token.
+**Subject.** `{type, id}`. `type` is `rucio_account` (where `id` is the resolved
+account) or `oidc_subject` (where `id` is `sub@iss`, reserved for IAM). `id` and
+`type` name the subject for logging and are the only identity available for
+credentials that carry no bearer token at all (the root bootstrap). Where a
+token is present, the claims the policy reads (`entitlements`, `acr`) come from
+that validated token — see Trust model — not from this object; there is no
+claims payload in the request body.
 
-**Trust model.** PEPs authenticate as OAuth2 clients using client credentials,
-and subject claims are *asserted by the authenticated PEP*. The service does not
-re-validate the user's token. The `pep:rucio` scope grants access to every
-endpoint. IAM gets its own scope when it gets endpoints. Every decision records
-which PEP asserted which claims.
-
-Forwarding the raw token for the service to validate was not chosen for v1. It
-spreads bearer tokens to one more component and duplicates validation Rucio
-already performs. It remains open if a regulatory context requires independent
-verification.
+**Trust model.** PEPs authenticate with an OAuth2 bearer token, validated
+offline by this service (JWKS signature check, `exp`, `aud` scoped to this
+service). Subject claims the policy reads are extracted from this validated
+token, not taken from the request body. In user-token mode ([ADR-006](../adrs/adr-006-token-exchange-delegated-transfers.md)), the
+token is one exchanged (RFC 8693) for this service's audience, carrying
+`sub=<user>` and `act=<pep>`, so both subject and caller identity are
+independently verifiable. In service-token mode, the token is the PEP's own
+client-credentials token, and the policy has only the PEP's identity to decide
+on. The `pep:rucio` scope grants access to every endpoint. IAM gets its own
+scope when it gets endpoints. Every decision records which PEP presented which
+token and which claims were extracted from it.
 
 **Resource facts are supplied by the PEP, as owners.** Requests carry
 `scope: {name, owner}` and `rule: {id, owner, target}` rather than phase 6's
 `owned_scopes`, which answered "which of these does the caller own?" and so made
-half the decision inside the PEP. Sending owners lets the policy compare.
+half the decision inside the PEP. Sending owners lets the policy compare. Unlike
+subject claims, resource facts are never derivable from a token — the service
+has no database of its own (see amendment 4) — so they remain PEP-asserted
+regardless of token mode.
 
 **Multiple resources.** A request naming several resources (`dids`,
 `attachments`) is permitted only if every one is permitted. The contract fixes
@@ -203,6 +208,10 @@ or retyping a field, or changing multi-resource semantics, needs v2.
 Promoting an operation off the privileged-operations endpoint adds an endpoint
 and is additive. A PEP still sending the old route gets a 400 and fails closed,
 so a promotion must ship in the same release as the updated adapter.
+
+Removing `Subject.properties.token` (see Request model) is a v1→v2 break under
+this rule; it ships as v2, or `Token` stays present-but-unused for one
+deprecation cycle if a hard break is not wanted yet.
 
 ## Phase 7 policy package
 
@@ -308,9 +317,12 @@ first:
 
 ## Security
 
-- TLS everywhere, and PEPs authenticate with client credentials.
-- Asserted claims are trusted, so the list of registered PEP clients is part of
-  the security boundary and is reviewed like policy.
+- TLS everywhere, and PEPs authenticate with a bearer token, validated offline
+  against the issuer's JWKS on every request.
+- Subject claims are extracted from that validated token, not asserted in the
+  request body; the list of registered PEP clients (and, in user-token mode,
+  the token-exchange audience) is part of the security boundary and is
+  reviewed like policy.
 - Decision logs record the PEP client, subject, token identifiers, operation,
   resources, decision, policy version and `decision_id`. Claim values are logged;
   raw tokens never are.
