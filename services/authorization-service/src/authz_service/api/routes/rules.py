@@ -71,6 +71,7 @@ async def authorize_rule_create(body: RuleCreateRequest) -> Decision | Problem:
 @router.post(
     "/v1/decisions/rules/delete",
     response_model=Decision,
+    response_model_exclude_none=True,
     responses={
         "400": {"model": Problem},
         "401": {"model": Problem},

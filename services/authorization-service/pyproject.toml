@@ -31,10 +31,9 @@ dev = [
     "import-linter>=2.0",
     "openapi-spec-validator>=0.7",
     "pyyaml>=6.0",
-    # Pinned: the Rucio policy package runs on Python 3.9 and only this
-    # version still targets it (design-006, "Code generation"). The pin
-    # changes only when Rucio's image moves past 3.9.
     "datamodel-code-generator==0.26.5",
+    "attrs>=23.1.0",
+    "python-dateutil>=2.8.0",
 ]
 
 # Route/client generators. Kept out of `dev`: fastapi-code-generator pulls
@@ -67,6 +66,10 @@ packages = ["authz_service"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Makes the generated client importable as `python.client`, `python.models...`
+# — the parent dir, not clients/python itself, since clients/python/types.py
+# would otherwise shadow the stdlib `types` module for the whole session.
+pythonpath = ["clients"]
 markers = [
     "auth_interop: runs against a real Keycloak (slow)",
     "failure_modes: needs the toxiproxy fixture",
