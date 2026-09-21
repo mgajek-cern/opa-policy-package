@@ -24,6 +24,9 @@ import pytest
 from python.api.dids.authorize_did_attach import asyncio_detailed as attach_did_detailed
 from python.api.dids.authorize_did_create import asyncio_detailed as create_did_detailed
 from python.api.dids.authorize_did_detach import asyncio_detailed as detach_did_detailed
+from python.api.privileged.authorize_privileged_operation import (
+    asyncio_detailed as create_privileged_operation_detailed,
+)
 from python.api.protocols.authorize_protocol_create import (
     asyncio_detailed as create_protocol_detailed,
 )
@@ -33,6 +36,7 @@ from python.api.protocols.authorize_protocol_delete import (
 from python.api.protocols.authorize_protocol_update import (
     asyncio_detailed as update_protocol_detailed,
 )
+from python.api.replicas.authorize_replica_delete import asyncio_detailed as delete_replica_detailed
 from python.api.replicas.authorize_replica_register import (
     asyncio_detailed as register_replica_detailed,
 )
@@ -55,10 +59,12 @@ from python.models.did_attach_request import DidAttachRequest
 from python.models.did_attach_request_attachments_item import DidAttachRequestAttachmentsItem
 from python.models.did_create_request import DidCreateRequest
 from python.models.did_detach_request import DidDetachRequest
+from python.models.privileged_operation_request import PrivilegedOperationRequest
 from python.models.protocol import Protocol
 from python.models.protocol_create_request import ProtocolCreateRequest
 from python.models.protocol_delete_request import ProtocolDeleteRequest
 from python.models.protocol_update_request import ProtocolUpdateRequest
+from python.models.replica_delete_request import ReplicaDeleteRequest
 from python.models.replica_register_request import ReplicaRegisterRequest
 from python.models.rse import Rse
 from python.models.rse_attribute_delete_request import RseAttributeDeleteRequest
@@ -693,10 +699,30 @@ async def test_root_may_delete_protocol_without_scheme_via_generated_client(
     assert response.parsed.decision is True
 
 
-# still parked (replicas/register)
+# replicas/register, delete
+#
+# No positive non-root vector exists yet: _perm_add_replicas'/
+# _perm_delete_replicas' user-tier paths need input.token.entitlements,
+# which claims={} always empties (_pdp.subject_from's TODO). Only
+# root's unconditional bootstrap is reachable until api/auth.py lands.
 
 
-async def test_parked_operation_via_generated_client_is_501_problem(
+async def test_root_may_register_replicas_via_generated_client(generated_client: Client) -> None:
+    body = ReplicaRegisterRequest(
+        subject=_root(),
+        rse=Rse(name="CERN_DATADISK"),
+        files=[Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="file1")],
+        context=Context(vo="def"),
+    )
+
+    response = await register_replica_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+async def test_non_root_denied_register_replicas_via_generated_client(
     generated_client: Client,
 ) -> None:
     body = ReplicaRegisterRequest(
@@ -707,6 +733,55 @@ async def test_parked_operation_via_generated_client_is_501_problem(
     )
 
     response = await register_replica_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is False
+
+
+async def test_root_may_delete_replicas_via_generated_client(generated_client: Client) -> None:
+    body = ReplicaDeleteRequest(
+        subject=_root(),
+        rse=Rse(name="CERN_DATADISK"),
+        files=[Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="file1")],
+        context=Context(vo="def"),
+    )
+
+    response = await delete_replica_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+async def test_non_root_denied_delete_replicas_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = ReplicaDeleteRequest(
+        subject=_subject("randomaccount"),
+        rse=Rse(name="CERN_DATADISK"),
+        files=[Did(scope=Scope(name="test", owner="randomaccount"), name="file1")],
+        context=Context(vo="def"),
+    )
+
+    response = await delete_replica_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is False
+
+
+# still parked (privileged-operations — the last route)
+
+
+async def test_parked_operation_via_generated_client_is_501_problem(
+    generated_client: Client,
+) -> None:
+    body = PrivilegedOperationRequest(
+        subject=_subject("randomaccount"), operation="add_account", context=Context(vo="def")
+    )
+
+    response = await create_privileged_operation_detailed(client=generated_client, body=body)
 
     assert response.status_code == 501
     assert response.headers["content-type"] == "application/problem+json"

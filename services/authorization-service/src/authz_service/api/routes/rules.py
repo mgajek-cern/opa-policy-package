@@ -1,4 +1,4 @@
-"""Rules operations."""
+"""Rules operations. Started from the fastapi-codegen stub."""
 
 from __future__ import annotations
 

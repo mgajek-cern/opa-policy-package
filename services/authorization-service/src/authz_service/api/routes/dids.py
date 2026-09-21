@@ -1,4 +1,4 @@
-"""DID operations."""
+"""DID operations. Started from the fastapi-codegen stub."""
 
 from __future__ import annotations
 

@@ -1,17 +1,4 @@
-"""RSE operations.
-
-Started from the fastapi-codegen stub (api/generated/rses.py), moved
-here per rules.py. All five operations are real (design-006 step 2);
-protocols, replicas and privileged-operations remain parked.
-
-RSEs are privilege-only in authz.rego — the rses table has no account
-column, so no ownership check exists to model here, unlike
-rules/dids. Every route still inherits the claims={} gap from
-_pdp.subject_from: until api/auth.py lands, only root's unconditional
-bootstrap (input.issuer == "root") can pass the privilege check; any
-other subject is denied regardless of what a real admin token would
-say.
-"""
+"""RSE operations. Started from the fastapi-codegen stub (api/generated/rses.py)."""
 
 from __future__ import annotations
 

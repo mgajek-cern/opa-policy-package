@@ -6,13 +6,11 @@ sent, so the unchanged vo.authz.v6 Rego keeps deciding the same way
 covers every operation.
 
 kwargs are action-specific, so they land one operation at a time
-(design-006, "Migration"). del_rule, add_rule, update_rule, add_dids,
-attach_dids_to_dids, detach_dids, add_rse, update_rse, del_rse,
-add_rse_attribute, del_rse_attribute, add_protocol, update_protocol
-and del_protocol are registered; everything else (replicas,
-privileged-operations) is still parked, and to_opa_input() raises for
-any unregistered action rather than guessing a shape that could
-silently flip a decision.
+(design-006, "Migration"). Every operation with a typed endpoint is
+now registered except privileged-operations (design-005's catch-all,
+which needs no kwargs at all — see its own route once built).
+to_opa_input() still raises for any unregistered action rather than
+guessing a shape that could silently flip a decision.
 
 DID operations always dispatch to their list-capable Rego action
 (add_dids, attach_dids_to_dids) regardless of how many DIDs the
@@ -28,6 +26,16 @@ scheme (del_protocol, and some update_protocol calls) always passes
 that check; a present scheme must be in the allowlist. Name/scheme
 validity in both cases is data-driven and lives entirely in the Rego —
 this module forwards the values without validating them itself.
+
+Replica operations need _has_privilege_level("user") specifically —
+the only place in authz.rego where the user tier, not just admin/
+privileged, is load-bearing — plus every file's scope owned.
+add_replicas additionally requires a valid RSE name; delete_replicas
+does not. design-006's gateway-level prerequisite (phase 7's Rucio
+gateway not yet forwarding `files` to has_permission) doesn't apply
+here: this contract's ReplicaRegisterRequest/ReplicaDeleteRequest
+already require files (minItems: 1), so both builders below always
+have file data to work with.
 """
 
 from __future__ import annotations
@@ -234,6 +242,42 @@ def _kwargs_protocol(evaluation: Evaluation) -> dict[str, Any]:
     return kwargs
 
 
+def _kwargs_add_replicas(evaluation: Evaluation) -> dict[str, Any]:
+    """add_replicas (authz.rego _perm_add_replicas): privilege, or
+    _has_privilege_level("user") AND _rse_name_valid(kwargs.rse) AND
+    every file's scope owned. The only Rego path keyed on the "user"
+    tier specifically rather than admin/privileged — unreachable until
+    api/auth.py extracts real entitlement claims (see _pdp.subject_from's
+    claims={} TODO)."""
+    files = [
+        {"scope": resource.attributes.get("scope"), "name": resource.id}
+        for resource in evaluation.resources
+    ]
+    rse = evaluation.context.get("rse")
+    return {
+        "rse": rse,
+        "files": files,
+        "owned_scopes": _owned_scopes(evaluation.subject.id, evaluation.resources),
+    }
+
+
+def _kwargs_delete_replicas(evaluation: Evaluation) -> dict[str, Any]:
+    """delete_replicas (authz.rego _perm_delete_replicas): privilege,
+    or _has_privilege_level("user") AND every file's scope owned. No
+    RSE-name check on delete, unlike add_replicas — rse is still
+    forwarded for audit even though the Rego doesn't read it here."""
+    files = [
+        {"scope": resource.attributes.get("scope"), "name": resource.id}
+        for resource in evaluation.resources
+    ]
+    rse = evaluation.context.get("rse")
+    return {
+        "rse": rse,
+        "files": files,
+        "owned_scopes": _owned_scopes(evaluation.subject.id, evaluation.resources),
+    }
+
+
 _KWARGS_BUILDERS: dict[str, Callable[[Evaluation], dict[str, Any]]] = {
     "del_rule": _kwargs_del_rule,
     "add_rule": _kwargs_add_rule,
@@ -249,6 +293,8 @@ _KWARGS_BUILDERS: dict[str, Callable[[Evaluation], dict[str, Any]]] = {
     "add_protocol": _kwargs_protocol,
     "update_protocol": _kwargs_protocol,
     "del_protocol": _kwargs_protocol,
+    "add_replicas": _kwargs_add_replicas,
+    "delete_replicas": _kwargs_delete_replicas,
 }
 
 

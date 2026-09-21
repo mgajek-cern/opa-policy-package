@@ -1,4 +1,4 @@
-"""Privileged operations"""
+"""Privileged operations. Started from the fastapi-codegen stub."""
 
 from __future__ import annotations
 

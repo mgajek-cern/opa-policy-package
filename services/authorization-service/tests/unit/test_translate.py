@@ -293,10 +293,53 @@ class TestProtocolKwargs:
             assert kwargs == {"rse": "CERN_DATADISK", "scheme": "davs"}
 
 
+class TestAddReplicasKwargs:
+    def test_owned_files_reported(self) -> None:
+        evaluation = Evaluation(
+            operation="add_replicas",
+            subject=_subject(),
+            resources=(
+                Resource(type="did", id="f1", owner="randomaccount", attributes={"scope": "test"}),
+                Resource(type="did", id="f2", owner="ddmlab", attributes={"scope": "ddmlab"}),
+            ),
+            context={"rse": "CERN_DATADISK"},
+        )
+        kwargs = translate.to_opa_input(evaluation)["kwargs"]
+        assert kwargs["rse"] == "CERN_DATADISK"
+        assert kwargs["files"] == [
+            {"scope": "test", "name": "f1"},
+            {"scope": "ddmlab", "name": "f2"},
+        ]
+        assert kwargs["owned_scopes"] == ["test"]
+
+
+class TestDeleteReplicasKwargs:
+    def test_owned_files_reported_no_name_check_distinction(self) -> None:
+        """Same shape as add_replicas — the Rego's own omission of a
+        name check on delete_replicas doesn't change what this module
+        forwards; the Rego is what applies or ignores rse."""
+        evaluation = Evaluation(
+            operation="delete_replicas",
+            subject=_subject(),
+            resources=(
+                Resource(type="did", id="f1", owner="randomaccount", attributes={"scope": "test"}),
+            ),
+            context={"rse": "cern_bad"},
+        )
+        kwargs = translate.to_opa_input(evaluation)["kwargs"]
+        assert kwargs == {
+            "rse": "cern_bad",
+            "files": [{"scope": "test", "name": "f1"}],
+            "owned_scopes": ["test"],
+        }
+
+
 class TestUnsupportedOperation:
     def test_raises_for_unregistered_action(self) -> None:
-        evaluation = Evaluation(operation="add_replicas", subject=_subject(), resources=())
-        with pytest.raises(ValueError, match="add_replicas"):
+        evaluation = Evaluation(
+            operation="update_replicas_states", subject=_subject(), resources=()
+        )
+        with pytest.raises(ValueError, match="update_replicas_states"):
             translate.to_opa_input(evaluation)
 
 

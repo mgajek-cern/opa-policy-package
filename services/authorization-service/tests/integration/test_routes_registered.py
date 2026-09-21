@@ -34,18 +34,6 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 # make a "returns 501" assertion pass for the wrong reason). rules/*
 # and dids/* are wired now — see WIRED_ROUTES below instead.
 PARKED_OPERATIONS: dict[str, dict[str, object]] = {
-    "/v1/decisions/replicas/register": {
-        "subject": _SUBJECT,
-        "rse": _RSE,
-        "files": [_DID],
-        "context": _CONTEXT,
-    },
-    "/v1/decisions/replicas/delete": {
-        "subject": _SUBJECT,
-        "rse": _RSE,
-        "files": [_DID],
-        "context": _CONTEXT,
-    },
     "/v1/decisions/privileged-operations": {
         "subject": _SUBJECT,
         "operation": "add_account",
@@ -133,6 +121,18 @@ WIRED_ROUTES: dict[str, dict[str, object]] = {
         "subject": _SUBJECT,
         "rse": _RSE,
         "protocol": {},
+        "context": _CONTEXT,
+    },
+    "/v1/decisions/replicas/register": {
+        "subject": _SUBJECT,
+        "rse": _RSE,
+        "files": [_DID],
+        "context": _CONTEXT,
+    },
+    "/v1/decisions/replicas/delete": {
+        "subject": _SUBJECT,
+        "rse": _RSE,
+        "files": [_DID],
         "context": _CONTEXT,
     },
 }
