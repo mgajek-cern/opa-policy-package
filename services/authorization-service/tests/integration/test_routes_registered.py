@@ -34,26 +34,6 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 # make a "returns 501" assertion pass for the wrong reason). rules/*
 # and dids/* are wired now — see WIRED_ROUTES below instead.
 PARKED_OPERATIONS: dict[str, dict[str, object]] = {
-    "/v1/decisions/rses/create": {"subject": _SUBJECT, "rse": _RSE, "context": _CONTEXT},
-    "/v1/decisions/rses/update": {
-        "subject": _SUBJECT,
-        "rse": _RSE,
-        "changes": {},
-        "context": _CONTEXT,
-    },
-    "/v1/decisions/rses/delete": {"subject": _SUBJECT, "rse": _RSE, "context": _CONTEXT},
-    "/v1/decisions/rses/attributes/set": {
-        "subject": _SUBJECT,
-        "rse": _RSE,
-        "attribute": {"key": "fts"},
-        "context": _CONTEXT,
-    },
-    "/v1/decisions/rses/attributes/delete": {
-        "subject": _SUBJECT,
-        "rse": _RSE,
-        "attribute": {"key": "fts"},
-        "context": _CONTEXT,
-    },
     "/v1/decisions/protocols/create": {
         "subject": _SUBJECT,
         "rse": _RSE,
@@ -133,6 +113,26 @@ WIRED_ROUTES: dict[str, dict[str, object]] = {
         "subject": _SUBJECT,
         "parent": _DID,
         "children": [],
+        "context": _CONTEXT,
+    },
+    "/v1/decisions/rses/create": {"subject": _SUBJECT, "rse": _RSE, "context": _CONTEXT},
+    "/v1/decisions/rses/update": {
+        "subject": _SUBJECT,
+        "rse": _RSE,
+        "changes": {},
+        "context": _CONTEXT,
+    },
+    "/v1/decisions/rses/delete": {"subject": _SUBJECT, "rse": _RSE, "context": _CONTEXT},
+    "/v1/decisions/rses/attributes/set": {
+        "subject": _SUBJECT,
+        "rse": _RSE,
+        "attribute": {"key": "fts"},
+        "context": _CONTEXT,
+    },
+    "/v1/decisions/rses/attributes/delete": {
+        "subject": _SUBJECT,
+        "rse": _RSE,
+        "attribute": {"key": "fts"},
         "context": _CONTEXT,
     },
 }

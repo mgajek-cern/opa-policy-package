@@ -192,10 +192,84 @@ class TestDetachDidsKwargs:
         assert kwargs == {"scope": "ddmlab", "owned_scopes": []}
 
 
+class TestAddRseKwargs:
+    def test_kwargs_carry_only_the_name(self) -> None:
+        evaluation = Evaluation(
+            operation="add_rse",
+            subject=_subject(),
+            resources=(Resource(type="rse", id="CERN_DATADISK", owner=None),),
+        )
+        kwargs = translate.to_opa_input(evaluation)["kwargs"]
+        assert kwargs == {"rse": "CERN_DATADISK"}
+
+
+class TestUpdateRseKwargs:
+    def _evaluation(self, **context: object) -> Evaluation:
+        return Evaluation(
+            operation="update_rse",
+            subject=_subject(),
+            resources=(Resource(type="rse", id="CERN_DATADISK", owner=None),),
+            context=context,
+        )
+
+    def test_no_rename_sends_empty_parameters(self) -> None:
+        kwargs = translate.to_opa_input(self._evaluation())["kwargs"]
+        assert kwargs == {"rse": "CERN_DATADISK", "parameters": {}}
+
+    def test_rename_sends_new_name(self) -> None:
+        kwargs = translate.to_opa_input(self._evaluation(new_name="CERN_TAPE"))["kwargs"]
+        assert kwargs == {"rse": "CERN_DATADISK", "parameters": {"rse": "CERN_TAPE"}}
+
+
+class TestDelRseKwargs:
+    def test_kwargs_carry_only_the_name(self) -> None:
+        evaluation = Evaluation(
+            operation="del_rse",
+            subject=_subject(),
+            resources=(Resource(type="rse", id="CERN_DATADISK", owner=None),),
+        )
+        kwargs = translate.to_opa_input(evaluation)["kwargs"]
+        assert kwargs == {"rse": "CERN_DATADISK"}
+
+
+class TestAddRseAttributeKwargs:
+    def test_value_included_when_present(self) -> None:
+        evaluation = Evaluation(
+            operation="add_rse_attribute",
+            subject=_subject(),
+            resources=(Resource(type="rse", id="CERN_DATADISK", owner=None),),
+            context={"key": "fts", "value": "https://fts:8446"},
+        )
+        kwargs = translate.to_opa_input(evaluation)["kwargs"]
+        assert kwargs == {"rse": "CERN_DATADISK", "key": "fts", "value": "https://fts:8446"}
+
+    def test_value_omitted_when_absent(self) -> None:
+        evaluation = Evaluation(
+            operation="add_rse_attribute",
+            subject=_subject(),
+            resources=(Resource(type="rse", id="CERN_DATADISK", owner=None),),
+            context={"key": "fts"},
+        )
+        kwargs = translate.to_opa_input(evaluation)["kwargs"]
+        assert kwargs == {"rse": "CERN_DATADISK", "key": "fts"}
+
+
+class TestDelRseAttributeKwargs:
+    def test_kwargs_carry_rse_and_key(self) -> None:
+        evaluation = Evaluation(
+            operation="del_rse_attribute",
+            subject=_subject(),
+            resources=(Resource(type="rse", id="CERN_DATADISK", owner=None),),
+            context={"key": "fts"},
+        )
+        kwargs = translate.to_opa_input(evaluation)["kwargs"]
+        assert kwargs == {"rse": "CERN_DATADISK", "key": "fts"}
+
+
 class TestUnsupportedOperation:
     def test_raises_for_unregistered_action(self) -> None:
-        evaluation = Evaluation(operation="del_rse", subject=_subject(), resources=())
-        with pytest.raises(ValueError, match="del_rse"):
+        evaluation = Evaluation(operation="add_protocol", subject=_subject(), resources=())
+        with pytest.raises(ValueError, match="add_protocol"):
             translate.to_opa_input(evaluation)
 
 
