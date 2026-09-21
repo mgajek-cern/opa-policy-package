@@ -1,7 +1,4 @@
-"""Replica operations, parked until their turn in the migration
-sequencing table (design-006). Started from the fastapi-codegen stub
-(api/generated/replicas.py).
-"""
+"""Replica operations"""
 
 from __future__ import annotations
 

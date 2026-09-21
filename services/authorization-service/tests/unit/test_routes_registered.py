@@ -1,16 +1,5 @@
 """Every contract router is registered on the app (design-006,
-"Alignment", partial coverage).
-
-Full per-outcome behavior of the rules/* routes is covered by
-tests/integration/test_evaluate.py and test_client_e2e.py against a
-real OPA; this only checks that every router is wired into main.py's
-create_app(), that parked operations answer honestly (501,
-application/problem+json) rather than 404ing, and that the real rules
-routes reach the PDP rather than 404ing. A complete test_alignment
-(spec operationIds vs. registered routes vs. the OPA adapter's
-dispatch table) is still open, per the design doc's own Testing
-section.
-"""
+"Alignment", partial coverage)."""
 
 from __future__ import annotations
 
@@ -42,26 +31,9 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 
 # One minimal, schema-valid body per parked operation, so each request
 # actually reaches the handler (422 on an invalid body would otherwise
-# make a "returns 501" assertion pass for the wrong reason). rules/create
-# and rules/update are wired now — see
-# test_rules_routes_are_registered_and_reach_the_pdp below instead.
+# make a "returns 501" assertion pass for the wrong reason). rules/*
+# and dids/* are wired now — see WIRED_ROUTES below instead.
 PARKED_OPERATIONS: dict[str, dict[str, object]] = {
-    "/v1/decisions/dids/create": {
-        "subject": _SUBJECT,
-        "dids": [_DID],
-        "context": _CONTEXT,
-    },
-    "/v1/decisions/dids/attach": {
-        "subject": _SUBJECT,
-        "attachments": [{"parent": _DID, "children": []}],
-        "context": _CONTEXT,
-    },
-    "/v1/decisions/dids/detach": {
-        "subject": _SUBJECT,
-        "parent": _DID,
-        "children": [],
-        "context": _CONTEXT,
-    },
     "/v1/decisions/rses/create": {"subject": _SUBJECT, "rse": _RSE, "context": _CONTEXT},
     "/v1/decisions/rses/update": {
         "subject": _SUBJECT,
@@ -127,10 +99,10 @@ def test_parked_operation_answers_501_problem(client: TestClient, path: str) -> 
     assert response.headers["content-type"] == PROBLEM_MEDIA_TYPE
 
 
-# Every rules/* route now reaches the PDP; none of them 404, and each
-# 503s against an unreachable PDP rather than falling back to a stale
-# 501. Doesn't assert outcomes (that's test_evaluate.py/test_client_e2e.py).
-RULES_ROUTES: dict[str, dict[str, object]] = {
+# Every wired route reaches the PDP; none of them 404, and each 503s
+# against an unreachable PDP rather than falling back to a stale 501.
+# Doesn't assert outcomes (that's test_evaluate.py/test_client_e2e.py).
+WIRED_ROUTES: dict[str, dict[str, object]] = {
     "/v1/decisions/rules/create": {
         "subject": _SUBJECT,
         "rule": {"owner": "randomaccount", "locked": False, "dids": [_DID]},
@@ -147,12 +119,28 @@ RULES_ROUTES: dict[str, dict[str, object]] = {
         "changes": {},
         "context": _CONTEXT,
     },
+    "/v1/decisions/dids/create": {
+        "subject": _SUBJECT,
+        "dids": [_DID],
+        "context": _CONTEXT,
+    },
+    "/v1/decisions/dids/attach": {
+        "subject": _SUBJECT,
+        "attachments": [{"parent": _DID, "children": []}],
+        "context": _CONTEXT,
+    },
+    "/v1/decisions/dids/detach": {
+        "subject": _SUBJECT,
+        "parent": _DID,
+        "children": [],
+        "context": _CONTEXT,
+    },
 }
 
 
-@pytest.mark.parametrize("path", RULES_ROUTES)
-def test_rules_routes_are_registered_and_reach_the_pdp(client: TestClient, path: str) -> None:
-    response = client.post(path, json=RULES_ROUTES[path])
+@pytest.mark.parametrize("path", WIRED_ROUTES)
+def test_wired_routes_are_registered_and_reach_the_pdp(client: TestClient, path: str) -> None:
+    response = client.post(path, json=WIRED_ROUTES[path])
     assert response.status_code == 503
     assert response.headers["content-type"] == PROBLEM_MEDIA_TYPE
 

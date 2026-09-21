@@ -1,9 +1,4 @@
-"""Shared helper for parked operations (design-006 'Migration').
-
-Raises rather than returns, so a route's success path stays a plain
-Decision and response_model=Decision stays accurate — see
-api/errors.ProblemError.
-"""
+"""Shared helper for parked operations"""
 
 from __future__ import annotations
 

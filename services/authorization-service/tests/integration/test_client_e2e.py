@@ -10,7 +10,7 @@ Root-privileged vectors (subject id "root") are the only privilege-path
 coverage available here: authz.rego's _is_privileged grants root
 unconditionally (input.issuer == "root"), needing no token claims —
 every other privilege path is unreachable until api/auth.py lands
-(rules.py's claims={} TODO).
+(rules.py's/dids.py's claims={} TODO, in api/routes/_pdp.py).
 
 Fixture name is `generated_client` (not `client`) to avoid colliding
 with conftest.py's existing httpx.Client fixture used by test_health.py.
@@ -21,6 +21,9 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
+from python.api.dids.authorize_did_attach import asyncio_detailed as attach_did_detailed
+from python.api.dids.authorize_did_create import asyncio_detailed as create_did_detailed
+from python.api.dids.authorize_did_detach import asyncio_detailed as detach_did_detailed
 from python.api.rses.authorize_rse_create import asyncio_detailed as create_rse_detailed
 from python.api.rules.authorize_rule_create import asyncio_detailed as create_rule_detailed
 from python.api.rules.authorize_rule_delete import asyncio_detailed as delete_rule_detailed
@@ -28,6 +31,10 @@ from python.api.rules.authorize_rule_update import asyncio_detailed as update_ru
 from python.client import Client
 from python.models.context import Context
 from python.models.did import Did
+from python.models.did_attach_request import DidAttachRequest
+from python.models.did_attach_request_attachments_item import DidAttachRequestAttachmentsItem
+from python.models.did_create_request import DidCreateRequest
+from python.models.did_detach_request import DidDetachRequest
 from python.models.rse import Rse
 from python.models.rse_create_request import RseCreateRequest
 from python.models.rule import Rule
@@ -247,8 +254,178 @@ async def test_root_may_reassign_any_rule_via_generated_client(generated_client:
     assert response.parsed.decision is True
 
 
-# still parked (rses/create — rules/* is now real, so this checks a
-# different router than the earlier version of this test)
+# dids/create
+
+
+async def test_owner_may_create_dids_in_owned_scope_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = DidCreateRequest(
+        subject=_subject("randomaccount"),
+        dids=[Did(scope=Scope(name="test", owner="randomaccount"), name="file1")],
+        context=Context(vo="def"),
+    )
+
+    response = await create_did_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+async def test_owner_denied_creating_dids_in_foreign_scope_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = DidCreateRequest(
+        subject=_subject("randomaccount"),
+        dids=[Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="file1")],
+        context=Context(vo="def"),
+    )
+
+    response = await create_did_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is False
+
+
+async def test_root_may_create_dids_in_any_scope_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = DidCreateRequest(
+        subject=_root(),
+        dids=[Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="file1")],
+        context=Context(vo="def"),
+    )
+
+    response = await create_did_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+# dids/attach
+
+
+async def test_owner_may_attach_to_owned_parent_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = DidAttachRequest(
+        subject=_subject("randomaccount"),
+        attachments=[
+            DidAttachRequestAttachmentsItem(
+                parent=Did(scope=Scope(name="test", owner="randomaccount"), name="container1"),
+                children=[Did(scope=Scope(name="test", owner="randomaccount"), name="file1")],
+            )
+        ],
+        context=Context(vo="def"),
+    )
+
+    response = await attach_did_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+async def test_owner_denied_attach_to_foreign_parent_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = DidAttachRequest(
+        subject=_subject("randomaccount"),
+        attachments=[
+            DidAttachRequestAttachmentsItem(
+                parent=Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="container1"),
+                children=[Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="file1")],
+            )
+        ],
+        context=Context(vo="def"),
+    )
+
+    response = await attach_did_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is False
+
+
+async def test_root_may_attach_to_any_parent_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = DidAttachRequest(
+        subject=_root(),
+        attachments=[
+            DidAttachRequestAttachmentsItem(
+                parent=Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="container1"),
+                children=[Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="file1")],
+            )
+        ],
+        context=Context(vo="def"),
+    )
+
+    response = await attach_did_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+# dids/detach
+
+
+async def test_owner_may_detach_from_owned_parent_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = DidDetachRequest(
+        subject=_subject("randomaccount"),
+        parent=Did(scope=Scope(name="test", owner="randomaccount"), name="container1"),
+        children=[Did(scope=Scope(name="test", owner="randomaccount"), name="file1")],
+        context=Context(vo="def"),
+    )
+
+    response = await detach_did_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+async def test_owner_denied_detach_from_foreign_parent_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = DidDetachRequest(
+        subject=_subject("randomaccount"),
+        parent=Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="container1"),
+        children=[Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="file1")],
+        context=Context(vo="def"),
+    )
+
+    response = await detach_did_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is False
+
+
+async def test_root_may_detach_from_any_parent_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = DidDetachRequest(
+        subject=_root(),
+        parent=Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="container1"),
+        children=[Did(scope=Scope(name="ddmlab", owner="ddmlab"), name="file1")],
+        context=Context(vo="def"),
+    )
+
+    response = await detach_did_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+# still parked (rses/create)
 
 
 async def test_parked_operation_via_generated_client_is_501_problem(

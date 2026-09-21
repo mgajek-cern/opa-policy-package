@@ -124,6 +124,74 @@ class TestUpdateRuleKwargs:
         assert "options" not in kwargs
 
 
+class TestAddDidsKwargs:
+    def test_only_owned_scope_is_reported(self) -> None:
+        evaluation = Evaluation(
+            operation="add_dids",
+            subject=_subject(),
+            resources=(
+                Resource(type="did", id="f1", owner="randomaccount", attributes={"scope": "test"}),
+                Resource(type="did", id="f2", owner="ddmlab", attributes={"scope": "ddmlab"}),
+            ),
+        )
+        kwargs = translate.to_opa_input(evaluation)["kwargs"]
+        assert kwargs["dids"] == [
+            {"scope": "test", "name": "f1"},
+            {"scope": "ddmlab", "name": "f2"},
+        ]
+        assert kwargs["owned_scopes"] == ["test"]
+
+
+class TestAttachDidsToDidsKwargs:
+    def test_owned_and_unowned_parent_scopes(self) -> None:
+        evaluation = Evaluation(
+            operation="attach_dids_to_dids",
+            subject=_subject(),
+            resources=(
+                Resource(
+                    type="did", id="container1", owner="randomaccount", attributes={"scope": "test"}
+                ),
+                Resource(
+                    type="did", id="container2", owner="ddmlab", attributes={"scope": "ddmlab"}
+                ),
+            ),
+        )
+        kwargs = translate.to_opa_input(evaluation)["kwargs"]
+        assert kwargs["attachments"] == [
+            {"scope": "test", "name": "container1"},
+            {"scope": "ddmlab", "name": "container2"},
+        ]
+        assert kwargs["owned_scopes"] == ["test"]
+
+
+class TestDetachDidsKwargs:
+    def test_owned_parent_scope(self) -> None:
+        evaluation = Evaluation(
+            operation="detach_dids",
+            subject=_subject(),
+            resources=(
+                Resource(
+                    type="did", id="container1", owner="randomaccount", attributes={"scope": "test"}
+                ),
+            ),
+        )
+        kwargs = translate.to_opa_input(evaluation)["kwargs"]
+        assert kwargs == {"scope": "test", "owned_scopes": ["test"]}
+
+    def test_unowned_parent_scope(self) -> None:
+        evaluation = Evaluation(
+            operation="detach_dids",
+            subject=_subject(),
+            resources=(
+                Resource(
+                    type="did", id="container1", owner="ddmlab", attributes={"scope": "ddmlab"}
+                ),
+            ),
+        )
+        kwargs = translate.to_opa_input(evaluation)["kwargs"]
+        assert kwargs == {"scope": "ddmlab", "owned_scopes": []}
+
+
 class TestUnsupportedOperation:
     def test_raises_for_unregistered_action(self) -> None:
         evaluation = Evaluation(operation="del_rse", subject=_subject(), resources=())

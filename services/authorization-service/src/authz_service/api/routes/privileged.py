@@ -1,7 +1,4 @@
-"""Privileged operations: the catch-all for every consumer action
-without its own typed endpoint (design-006). Started from the
-fastapi-codegen stub (api/generated/privileged.py).
-"""
+"""Privileged operations"""
 
 from __future__ import annotations
 
