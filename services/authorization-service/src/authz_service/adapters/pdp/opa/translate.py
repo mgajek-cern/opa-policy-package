@@ -6,10 +6,11 @@ sent, so the unchanged vo.authz.v6 Rego keeps deciding the same way
 covers every operation.
 
 kwargs are action-specific, so they land one operation at a time
-(design-006, "Migration"): only actions in _KWARGS_BUILDERS are
-supported. Anything else is a deployment gap, not a PDP decision, so
-to_opa_input() raises and evaluate() maps that to NOT_APPLICABLE rather
-than guessing a shape that could silently flip a decision.
+(design-006, "Migration"). del_rule, add_rule and update_rule are
+registered; everything else (dids, rses, protocols, replicas,
+privileged-operations) is still parked, and to_opa_input() raises for
+any unregistered action rather than guessing a shape that could
+silently flip a decision.
 """
 
 from __future__ import annotations
@@ -33,39 +34,75 @@ def _token(evaluation: Evaluation) -> dict[str, Any]:
     return token
 
 
-def _owned_scopes(evaluation: Evaluation) -> list[str]:
-    """Scopes this request names that the subject owns.
-
-    Phase 7 computed this with a DB lookup (_owned_scopes ->
-    is_scope_owner). The contract now carries the resolved owner on the
-    wire (Scope.owner), so the same comparison happens here against
-    evaluation data — no DB access from the core (invariant 3).
-    """
-    subject_id = evaluation.subject.id
-    owned: list[str] = []
-    for resource in evaluation.resources:
-        scope = resource.attributes.get("scope")
-        owner = resource.attributes.get("scope_owner")
-        if scope and owner == subject_id and scope not in owned:
-            owned.append(scope)
-    return owned
-
-
 def _kwargs_del_rule(evaluation: Evaluation) -> dict[str, Any]:
-    # Provisional: assumes the route handler builds one Resource for the
-    # rule, with "scope" and "scope_owner" attributes — settle this
-    # alongside api/routes/rules.py.
+    """del_rule (authz.rego): rule_owner alone, or privilege. No scope
+    ownership check — that's update_rule's rule, not this one."""
     rule = evaluation.resources[0]
-    return {
+    return {"rule_id": rule.id, "rule_owner": rule.owner}
+
+
+def _kwargs_add_rule(evaluation: Evaluation) -> dict[str, Any]:
+    """add_rule (authz.rego _perm_add_rule): kwargs.account == issuer,
+    locked == false, every DID's scope owned — or privilege. Resources
+    are the rule's DIDs; account/locked/rse_expression/
+    source_rse_expression ride in evaluation.context, since they
+    describe the rule being created, not a resource being acted on."""
+    subject_id = evaluation.subject.id
+    dids = [
+        {"scope": resource.attributes.get("scope"), "name": resource.id}
+        for resource in evaluation.resources
+    ]
+    owned_scopes = sorted(
+        {
+            resource.attributes.get("scope")
+            for resource in evaluation.resources
+            if resource.owner == subject_id and resource.attributes.get("scope")
+        }
+    )
+    kwargs: dict[str, Any] = {
+        "account": evaluation.context.get("account"),
+        "locked": evaluation.context.get("locked", False),
+        "dids": dids,
+        "owned_scopes": owned_scopes,
+    }
+    rse_expression = evaluation.context.get("rse_expression")
+    if rse_expression:
+        kwargs["rse_expression"] = rse_expression
+    source_rse_expression = evaluation.context.get("source_rse_expression")
+    if source_rse_expression:
+        kwargs["source_rse_expression"] = source_rse_expression
+    return kwargs
+
+
+def _kwargs_update_rule(evaluation: Evaluation) -> dict[str, Any]:
+    """update_rule (authz.rego _perm_update_rule): privilege, or
+    (no reassignment requested AND rule_owner == issuer AND rule_scope
+    owned). Reassignment is any non-null changes.owner, including
+    reassignment to the current owner — options.account is only sent
+    when that's the case, matching _rule_reassignment_requested's
+    object.get(..., null) != null check."""
+    subject_id = evaluation.subject.id
+    rule = evaluation.resources[0]
+    scope = rule.attributes.get("scope")
+    scope_owner = rule.attributes.get("scope_owner")
+    owned_scopes = [scope] if scope and scope_owner == subject_id else []
+
+    kwargs: dict[str, Any] = {
         "rule_id": rule.id,
         "rule_owner": rule.owner,
-        "rule_scope": rule.attributes.get("scope"),
-        "owned_scopes": _owned_scopes(evaluation),
+        "rule_scope": scope,
+        "owned_scopes": owned_scopes,
     }
+    changes = evaluation.context.get("changes") or {}
+    if changes.get("owner") is not None:
+        kwargs["options"] = {"account": changes["owner"]}
+    return kwargs
 
 
 _KWARGS_BUILDERS: dict[str, Callable[[Evaluation], dict[str, Any]]] = {
     "del_rule": _kwargs_del_rule,
+    "add_rule": _kwargs_add_rule,
+    "update_rule": _kwargs_update_rule,
 }
 
 
@@ -91,7 +128,6 @@ def outcome_from_response(status_code: int, body: Any) -> Outcome:
     if not isinstance(body, dict):
         return Outcome.INDETERMINATE
     if "result" not in body:
-        # OPA's convention for an undefined rule.
         return Outcome.NOT_APPLICABLE
     result = body["result"]
     if not isinstance(result, bool):
