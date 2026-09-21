@@ -112,3 +112,12 @@ forbidden_modules = [
     "authz_service.settings",
     "authz_service.telemetry",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Layered architecture: api -> adapters -> core, never upward"
+type = "layers"
+layers = [
+    "authz_service.api",
+    "authz_service.adapters",
+    "authz_service.core",
+]

@@ -1,8 +1,11 @@
-"""Invariant 3, for the one case import-linter cannot express.
-
-It rejects subpackages of external packages, so the ban on the OTel SDK in
-the core is checked here instead. The rest of the dependency direction is an
-import-linter contract (design-006, "Conformance checks").
+"""The one check import-linter can't express: core must not import the
+OTel SDK specifically, as opposed to the OTel API (design-006, "The PDP
+port" / ADR-004 invariant 3). import-linter's forbidden contract can
+target the top-level opentelemetry package but not one of its
+submodules, so this stays a plain AST check. Everything else about
+invariant 3 — core has no upward dependency on api/adapters, and no
+direct fastapi/pydantic/httpx import — is enforced by .importlinter
+instead (see `make lint`, which runs lint-imports).
 """
 
 from __future__ import annotations
