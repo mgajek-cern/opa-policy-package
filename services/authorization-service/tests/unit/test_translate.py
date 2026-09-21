@@ -266,10 +266,37 @@ class TestDelRseAttributeKwargs:
         assert kwargs == {"rse": "CERN_DATADISK", "key": "fts"}
 
 
+class TestProtocolKwargs:
+    def _evaluation(self, operation: str, **context: object) -> Evaluation:
+        return Evaluation(
+            operation=operation,
+            subject=_subject(),
+            resources=(Resource(type="rse", id="CERN_DATADISK", owner=None),),
+            context=context,
+        )
+
+    def test_scheme_included_when_present(self) -> None:
+        kwargs = translate.to_opa_input(self._evaluation("add_protocol", scheme="davs"))["kwargs"]
+        assert kwargs == {"rse": "CERN_DATADISK", "scheme": "davs"}
+
+    def test_scheme_omitted_when_absent(self) -> None:
+        kwargs = translate.to_opa_input(self._evaluation("del_protocol"))["kwargs"]
+        assert kwargs == {"rse": "CERN_DATADISK"}
+
+    def test_scheme_omitted_when_none(self) -> None:
+        kwargs = translate.to_opa_input(self._evaluation("update_protocol", scheme=None))["kwargs"]
+        assert kwargs == {"rse": "CERN_DATADISK"}
+
+    def test_all_three_actions_share_the_same_builder(self) -> None:
+        for operation in ("add_protocol", "update_protocol", "del_protocol"):
+            kwargs = translate.to_opa_input(self._evaluation(operation, scheme="davs"))["kwargs"]
+            assert kwargs == {"rse": "CERN_DATADISK", "scheme": "davs"}
+
+
 class TestUnsupportedOperation:
     def test_raises_for_unregistered_action(self) -> None:
-        evaluation = Evaluation(operation="add_protocol", subject=_subject(), resources=())
-        with pytest.raises(ValueError, match="add_protocol"):
+        evaluation = Evaluation(operation="add_replicas", subject=_subject(), resources=())
+        with pytest.raises(ValueError, match="add_replicas"):
             translate.to_opa_input(evaluation)
 
 

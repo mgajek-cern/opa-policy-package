@@ -8,10 +8,11 @@ covers every operation.
 kwargs are action-specific, so they land one operation at a time
 (design-006, "Migration"). del_rule, add_rule, update_rule, add_dids,
 attach_dids_to_dids, detach_dids, add_rse, update_rse, del_rse,
-add_rse_attribute and del_rse_attribute are registered; everything
-else (protocols, replicas, privileged-operations) is still parked,
-and to_opa_input() raises for any unregistered action rather than
-guessing a shape that could silently flip a decision.
+add_rse_attribute, del_rse_attribute, add_protocol, update_protocol
+and del_protocol are registered; everything else (replicas,
+privileged-operations) is still parked, and to_opa_input() raises for
+any unregistered action rather than guessing a shape that could
+silently flip a decision.
 
 DID operations always dispatch to their list-capable Rego action
 (add_dids, attach_dids_to_dids) regardless of how many DIDs the
@@ -19,11 +20,14 @@ request names, per design-005's "Operations sharing a Rucio action
 share an endpoint" — the singular add_did/attach_dids actions are
 Rucio-internal and never reached from this contract.
 
-RSE operations are privilege-only in authz.rego — the rses table has
-no account column, so there's no ownership check to translate. Name
-validity (_rse_name_valid: the NAME_TYPE convention or a bundle
-allowlist) is data-driven and lives entirely in the Rego; this module
-just passes rse names through, never validates them itself.
+RSE and protocol operations are privilege-only in authz.rego — neither
+table has an account column, so there's no ownership check to
+translate for either. Protocols carry one extra gate on top of
+privilege: _protocol_scheme_allowed, checked even for root. An absent
+scheme (del_protocol, and some update_protocol calls) always passes
+that check; a present scheme must be in the allowlist. Name/scheme
+validity in both cases is data-driven and lives entirely in the Rego —
+this module forwards the values without validating them itself.
 """
 
 from __future__ import annotations
@@ -52,8 +56,8 @@ def _owned_scopes(subject_id: str, resources: Iterable[Resource]) -> list[str]:
     and sorted. Each resource must carry its scope name in
     attributes["scope"]; ownership is resource.owner == subject_id.
 
-    Not used by RSE builders below — RSEs have no owner to compare
-    against, only privilege."""
+    Not used by RSE or protocol builders — neither has an owner to
+    compare against, only privilege (and, for protocols, scheme)."""
     return sorted(
         {
             resource.attributes.get("scope")
@@ -213,6 +217,23 @@ def _kwargs_del_rse_attribute(evaluation: Evaluation) -> dict[str, Any]:
     return {"rse": rse.id, "key": evaluation.context.get("key")}
 
 
+def _kwargs_protocol(evaluation: Evaluation) -> dict[str, Any]:
+    """Shared by add_protocol/update_protocol/del_protocol (authz.rego
+    _perm_add_protocol / _perm_update_protocol / _perm_del_protocol):
+    privilege AND _protocol_scheme_allowed(kwargs.scheme). Absent
+    scheme (rse.attributes has no "scheme" key, or the contract's
+    Protocol.scheme was itself absent from the request) always passes
+    that check in the Rego — `not input.kwargs.scheme` — so kwargs.scheme
+    is simply omitted rather than sent as null, matching how every
+    other builder here treats "no value" for an optional field."""
+    rse = evaluation.resources[0]
+    kwargs: dict[str, Any] = {"rse": rse.id}
+    scheme = evaluation.context.get("scheme")
+    if scheme:
+        kwargs["scheme"] = scheme
+    return kwargs
+
+
 _KWARGS_BUILDERS: dict[str, Callable[[Evaluation], dict[str, Any]]] = {
     "del_rule": _kwargs_del_rule,
     "add_rule": _kwargs_add_rule,
@@ -225,6 +246,9 @@ _KWARGS_BUILDERS: dict[str, Callable[[Evaluation], dict[str, Any]]] = {
     "del_rse": _kwargs_del_rse,
     "add_rse_attribute": _kwargs_add_rse_attribute,
     "del_rse_attribute": _kwargs_del_rse_attribute,
+    "add_protocol": _kwargs_protocol,
+    "update_protocol": _kwargs_protocol,
+    "del_protocol": _kwargs_protocol,
 }
 
 

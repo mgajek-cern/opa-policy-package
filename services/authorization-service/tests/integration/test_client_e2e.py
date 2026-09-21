@@ -27,6 +27,15 @@ from python.api.dids.authorize_did_detach import asyncio_detailed as detach_did_
 from python.api.protocols.authorize_protocol_create import (
     asyncio_detailed as create_protocol_detailed,
 )
+from python.api.protocols.authorize_protocol_delete import (
+    asyncio_detailed as delete_protocol_detailed,
+)
+from python.api.protocols.authorize_protocol_update import (
+    asyncio_detailed as update_protocol_detailed,
+)
+from python.api.replicas.authorize_replica_register import (
+    asyncio_detailed as register_replica_detailed,
+)
 from python.api.rses.authorize_rse_attribute_delete import (
     asyncio_detailed as delete_rse_attribute_detailed,
 )
@@ -48,6 +57,9 @@ from python.models.did_create_request import DidCreateRequest
 from python.models.did_detach_request import DidDetachRequest
 from python.models.protocol import Protocol
 from python.models.protocol_create_request import ProtocolCreateRequest
+from python.models.protocol_delete_request import ProtocolDeleteRequest
+from python.models.protocol_update_request import ProtocolUpdateRequest
+from python.models.replica_register_request import ReplicaRegisterRequest
 from python.models.rse import Rse
 from python.models.rse_attribute_delete_request import RseAttributeDeleteRequest
 from python.models.rse_attribute_delete_request_attribute import RseAttributeDeleteRequestAttribute
@@ -589,20 +601,112 @@ async def test_root_may_delete_rse_attribute_via_generated_client(generated_clie
     assert response.parsed.decision is True
 
 
-# still parked (protocols/create)
+# protocols/create, update, delete
 
 
-async def test_parked_operation_via_generated_client_is_501_problem(
+async def test_root_may_add_protocol_with_allowed_scheme_via_generated_client(
     generated_client: Client,
 ) -> None:
     body = ProtocolCreateRequest(
+        subject=_root(),
+        rse=Rse(name="CERN_DATADISK"),
+        protocol=Protocol(scheme="davs"),
+        context=Context(vo="def"),
+    )
+
+    response = await create_protocol_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+async def test_root_denied_add_protocol_with_disallowed_scheme_via_generated_client(
+    generated_client: Client,
+) -> None:
+    """Privilege alone isn't enough: _protocol_scheme_allowed applies
+    even to root."""
+    body = ProtocolCreateRequest(
+        subject=_root(),
+        rse=Rse(name="CERN_DATADISK"),
+        protocol=Protocol(scheme="ftp"),
+        context=Context(vo="def"),
+    )
+
+    response = await create_protocol_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is False
+
+
+async def test_non_root_denied_add_protocol_via_generated_client(generated_client: Client) -> None:
+    """No entitlement claims are extracted yet (claims={} TODO), so
+    only root's unconditional bootstrap can pass _is_privileged."""
+    body = ProtocolCreateRequest(
         subject=_subject("randomaccount"),
+        rse=Rse(name="CERN_DATADISK"),
+        protocol=Protocol(scheme="davs"),
+        context=Context(vo="def"),
+    )
+
+    response = await create_protocol_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is False
+
+
+async def test_root_may_update_protocol_without_scheme_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = ProtocolUpdateRequest(
+        subject=_root(),
         rse=Rse(name="CERN_DATADISK"),
         protocol=Protocol(),
         context=Context(vo="def"),
     )
 
-    response = await create_protocol_detailed(client=generated_client, body=body)
+    response = await update_protocol_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+async def test_root_may_delete_protocol_without_scheme_via_generated_client(
+    generated_client: Client,
+) -> None:
+    """del_protocol commonly carries no scheme; absent scheme always
+    passes _protocol_scheme_allowed."""
+    body = ProtocolDeleteRequest(
+        subject=_root(),
+        rse=Rse(name="CERN_DATADISK"),
+        protocol=Protocol(),
+        context=Context(vo="def"),
+    )
+
+    response = await delete_protocol_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+# still parked (replicas/register)
+
+
+async def test_parked_operation_via_generated_client_is_501_problem(
+    generated_client: Client,
+) -> None:
+    body = ReplicaRegisterRequest(
+        subject=_subject("randomaccount"),
+        rse=Rse(name="CERN_DATADISK"),
+        files=[Did(scope=Scope(name="test", owner="randomaccount"), name="file1")],
+        context=Context(vo="def"),
+    )
+
+    response = await register_replica_detailed(client=generated_client, body=body)
 
     assert response.status_code == 501
     assert response.headers["content-type"] == "application/problem+json"
