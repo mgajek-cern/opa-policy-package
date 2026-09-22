@@ -72,6 +72,9 @@ typecheck: ## mypy
 test: ## Unit tests, then integration tests (needs Docker)
 	$(BIN)/pytest tests/unit tests/integration
 
+demo-client:  ## poke a running instance via the generated client (needs `make run` up)
+	python scripts/demo_client.py
+
 run: ## Run locally
 	$(BIN)/uvicorn authz_service.main:create_app --factory --reload --port 8000
 
