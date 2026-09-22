@@ -1,47 +1,34 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-if TYPE_CHECKING:
-    from ..models.did import Did
+from ..models.health_status_status import HealthStatusStatus
 
-
-T = TypeVar("T", bound="Rule")
+T = TypeVar("T", bound="HealthStatus")
 
 
 @_attrs_define
-class Rule:
-    """An existing rule, with the facts the PEP resolved for it.
-
+class HealthStatus:
+    """
     Attributes:
-        id (str):
-        owner (str): Account that owns the rule.
-        target (Did):
+        status (HealthStatusStatus):
     """
 
-    id: str
-    owner: str
-    target: Did
+    status: HealthStatusStatus
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        id = self.id
-
-        owner = self.owner
-
-        target = self.target.to_dict()
+        status = self.status.value
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "id": id,
-                "owner": owner,
-                "target": target,
+                "status": status,
             }
         )
 
@@ -49,23 +36,15 @@ class Rule:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.did import Did  # noqa: PLC0415
-
         d = dict(src_dict)
-        id = d.pop("id")
+        status = HealthStatusStatus(d.pop("status"))
 
-        owner = d.pop("owner")
-
-        target = Did.from_dict(d.pop("target"))
-
-        rule = cls(
-            id=id,
-            owner=owner,
-            target=target,
+        health_status = cls(
+            status=status,
         )
 
-        rule.additional_properties = d
-        return rule
+        health_status.additional_properties = d
+        return health_status
 
     @property
     def additional_keys(self) -> list[str]:

@@ -8,9 +8,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from authz_service.adapters.pdp.opa import OpaPolicyDecisionPoint
-from authz_service.api import health
 from authz_service.api.errors import install_handlers
-from authz_service.api.routes import dids, privileged, protocols, replicas, rses, rules
+from authz_service.api.routes import dids, operations, privileged, protocols, replicas, rses, rules
 from authz_service.core.ports import PolicyDecisionPoint
 from authz_service.settings import OpaSettings, Settings
 from authz_service.telemetry import setup as telemetry
@@ -51,7 +50,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         docs_url="/docs",
     )
     install_handlers(app)
-    app.include_router(health.router)
+    app.include_router(operations.router)
     app.include_router(dids.router)
     app.include_router(privileged.router)
     app.include_router(protocols.router)

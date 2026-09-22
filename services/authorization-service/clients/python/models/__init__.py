@@ -1,4 +1,4 @@
-""" Contains all the data models used in inputs/outputs """
+"""Contains all the data models used in inputs/outputs"""
 
 from .context import Context
 from .decision import Decision
@@ -10,6 +10,8 @@ from .did_attach_request_attachments_item import DidAttachRequestAttachmentsItem
 from .did_create_request import DidCreateRequest
 from .did_detach_request import DidDetachRequest
 from .did_type import DidType
+from .health_status import HealthStatus
+from .health_status_status import HealthStatusStatus
 from .privileged_operation_request import PrivilegedOperationRequest
 from .problem import Problem
 from .protocol import Protocol
@@ -48,6 +50,8 @@ __all__ = (
     "DidCreateRequest",
     "DidDetachRequest",
     "DidType",
+    "HealthStatus",
+    "HealthStatusStatus",
     "PrivilegedOperationRequest",
     "Problem",
     "Protocol",

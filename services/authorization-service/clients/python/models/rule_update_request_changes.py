@@ -1,44 +1,31 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="RuleUpdateRequestChanges")
-
 
 
 @_attrs_define
 class RuleUpdateRequestChanges:
-    """ Requested changes. `owner` present with any non-null value is a
+    """Requested changes. `owner` present with any non-null value is a
     reassignment, including reassignment to the current owner.
 
         Attributes:
             owner (str | Unset):
             lifetime (int | None | Unset):
             rse_expression (str | Unset):
-     """
+    """
 
     owner: str | Unset = UNSET
     lifetime: int | None | Unset = UNSET
     rse_expression: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         owner = self.owner
@@ -51,11 +38,9 @@ class RuleUpdateRequestChanges:
 
         rse_expression = self.rse_expression
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if owner is not UNSET:
             field_dict["owner"] = owner
         if lifetime is not UNSET:
@@ -64,8 +49,6 @@ class RuleUpdateRequestChanges:
             field_dict["rse_expression"] = rse_expression
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -81,7 +64,6 @@ class RuleUpdateRequestChanges:
 
         lifetime = _parse_lifetime(d.pop("lifetime", UNSET))
 
-
         rse_expression = d.pop("rse_expression", UNSET)
 
         rule_update_request_changes = cls(
@@ -89,7 +71,6 @@ class RuleUpdateRequestChanges:
             lifetime=lifetime,
             rse_expression=rse_expression,
         )
-
 
         rule_update_request_changes.additional_properties = d
         return rule_update_request_changes

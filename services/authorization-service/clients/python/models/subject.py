@@ -1,27 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.subject_type import SubjectType
-
-
-
-
-
 
 T = TypeVar("T", bound="Subject")
 
 
-
 @_attrs_define
 class Subject:
-    """ The principal the decision is about. type/id name the subject for
+    """The principal the decision is about. type/id name the subject for
     logging, and are the only source of identity for credentials that
     carry no bearer token at all (e.g. the root bootstrap). Where a
     token is present, the claims the policy actually reads
@@ -31,40 +23,32 @@ class Subject:
         Attributes:
             type_ (SubjectType):
             id (str): Account name for rucio_account; "<sub>@<iss>" for oidc_subject.
-     """
+    """
 
     type_: SubjectType
     id: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         type_ = self.type_.value
 
         id = self.id
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "type": type_,
-            "id": id,
-        })
+        field_dict.update(
+            {
+                "type": type_,
+                "id": id,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
         type_ = SubjectType(d.pop("type"))
-
-
-
 
         id = d.pop("id")
 
@@ -72,7 +56,6 @@ class Subject:
             type_=type_,
             id=id,
         )
-
 
         subject.additional_properties = d
         return subject

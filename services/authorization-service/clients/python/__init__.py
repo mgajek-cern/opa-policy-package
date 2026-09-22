@@ -1,5 +1,5 @@
+"""A client library for accessing DEP Authorization Service"""
 
-""" A client library for accessing DEP Authorization Service """
 from .client import AuthenticatedClient, Client
 
 __all__ = (

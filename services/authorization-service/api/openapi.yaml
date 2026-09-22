@@ -379,10 +379,8 @@ paths:
       summary: Liveness and PDP reachability
       security: []
       responses:
-        '200':
-          description: Healthy
-        '503':
-          description: The service or its PDP is unavailable
+        '200': { $ref: '#/components/responses/HealthStatus' }
+        '503': { $ref: '#/components/responses/Problem' }
 
 components:
   securitySchemes:
@@ -419,6 +417,11 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
+    HealthStatus:
+      description: Healthy
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/HealthStatus' }
 
   schemas:
     # Shared building blocks
@@ -731,6 +734,14 @@ components:
             arguments: the policy decides on the subject alone.
           examples: [add_account, add_scope, approve_rule]
         context: { $ref: '#/components/schemas/Context' }
+
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
 
     # Decision
 

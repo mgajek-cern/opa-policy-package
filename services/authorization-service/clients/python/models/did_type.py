@@ -1,5 +1,6 @@
 from enum import StrEnum
 
+
 class DidType(StrEnum):
     CONTAINER = "container"
     DATASET = "dataset"
