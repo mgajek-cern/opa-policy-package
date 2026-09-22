@@ -57,6 +57,23 @@ make generate-server-stubs  # -> src/authz_service/api/generated/
 make generate-client        # -> clients/python/
 ```
 
+## Make Targets
+
+```bash
+ help             List targets
+  venv             Create the dev environment
+  tools            Create the isolated env for the route/client generators
+  spec-validate    Validate the OpenAPI contract
+  generate-server-stubs Scaffold per-tag server stubs from the contract (reference only, not wired in)
+  generate-client  Generate a standalone typed Python client from the contract
+  lint             ruff and the import contracts
+  typecheck        mypy
+  test             Unit tests, then integration tests (needs Docker)
+  demo-client      poke a running instance via the generated client (needs `make run` up)
+  run              Run locally
+  image            Build the container image
+```
+
 ## Configuration
 
 | Variable | Default | Notes |
