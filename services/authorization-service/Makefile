@@ -75,6 +75,9 @@ test: ## Unit tests, then integration tests (needs Docker)
 demo-client:  ## poke a running instance via the generated client (needs `make run` up)
 	python scripts/demo_client.py
 
+test-token-exchange:  ## exercise the realm.json exchange flow and check required claims
+	bash scripts/test_token_exchange.sh
+
 run: ## Run locally
 	$(BIN)/uvicorn authz_service.main:create_app --factory --reload --port 8000
 

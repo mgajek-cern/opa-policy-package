@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,8 +26,13 @@ class Settings(BaseSettings):
 
     # Required from the step where PEP authentication lands; until then the
     # service exposes only the health endpoint, which is unauthenticated.
-    oidc_issuer: str | None = None
-    oidc_audience: str | None = None
+    oidc_issuer: str
+    oidc_audience: str
     required_scope: str = "pep:rucio"
 
     service_name: str = "authz-service"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
