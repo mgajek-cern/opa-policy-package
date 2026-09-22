@@ -31,6 +31,8 @@ make venv      # create .venv and install the package with dev extras
 make lint      # ruff and the import contracts
 make typecheck # mypy
 make test      # unit tests, then integration tests (needs Docker)
+docker compose up -d opa opa-init   # start OPA for manual `make run`; `make test`
+                                     # provisions its own via testcontainers
 export AUTHZ_OPA_URL=http://localhost:8181
 make run       # local server on :8000
 ```
@@ -38,6 +40,12 @@ make run       # local server on :8000
 `make test` starts an OPA container through testcontainers, loads
 `policies/rego/phase7/authz.rego` and the phase 7 data from
 `scripts/ingest_policies.py`, and runs the service in-process against it.
+
+`opa-init` is a one-shot container that waits for OPA's health endpoint,
+loads the same policy bundle, then exits — `docker compose up -d` returns
+before it finishes, so if `make run` starts against an unindexed OPA,
+`pdp.evaluate()` fails closed (`NOT_APPLICABLE`) rather than erroring;
+check `docker compose logs opa-init` if that happens.
 
 To regenerate server stubs or the typed client from `api/openapi.yaml`:
 
@@ -68,7 +76,12 @@ produced from `api/openapi.yaml` and committed as-is — treat it as a build
 artifact, not hand-edited source (it's excluded from `ruff`/formatting for
 the same reason). `make generate-server-stubs` and `make generate-client` need
 `fastapi-code-generator` and `openapi-python-client`, which live in their own
-venv (`.venv-codegen`, via `make tools`) rather than `[dev]`: both generators
-carry their own, newer `datamodel-code-generator` requirement than the
-`==0.26.5` pin `[dev]` needs for the Rucio policy package's Python 3.9
-target, and a single venv can't hold two versions of the same package.
+venv (`.venv-codegen`, via `make tools`) rather than `[dev]`.
+
+## Debugging in VS Code
+
+`.vscode/launch.json` has a "Python: FastAPI (authz-service)" config that
+runs `uvicorn authz_service.main:create_app --factory --reload` (the app is
+built by a factory, not a module-level `app`). Start `docker compose up -d opa opa-init`
+first, then optionally set a breakpoint in [src/authz_service/main.py](src/authz_service/main.py)
+and launch it from the Run and Debug dropdown.

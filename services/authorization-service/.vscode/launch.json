@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: FastAPI (authz-service)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "authz_service.main:create_app",
+                "--factory",
+                "--reload",
+                "--port", "8000"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "AUTHZ_OPA_URL": "http://localhost:8181"
+            },
+            "jinja": true
+        }
+    ]
+}
