@@ -72,13 +72,20 @@ async def validated_claims(
     except jwt.PyJWTError as exc:
         raise ProblemError(401, f"Invalid token: {exc}") from exc
 
-    if settings.required_scope not in payload.get("scope", "").split():
+    required_scopes = set(settings.required_scopes)
+    token_scopes = set(payload.get("scope", "").split())
+
+    if not required_scopes.issubset(token_scopes):
         raise ProblemError(403, "Token lacks required scope")
 
     act = payload.get("act")
     actor_sub = act.get("sub") if isinstance(act, dict) else None
+
     if actor_sub is None:
         actor_sub = payload.get("azp")
+
+    if actor_sub is None:
+        raise ProblemError(403, "Token lacks required azp or act claim")
 
     return TokenClaims(
         sub=payload["sub"],

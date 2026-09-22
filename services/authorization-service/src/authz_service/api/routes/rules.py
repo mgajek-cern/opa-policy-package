@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
+from authz_service.api.auth import TokenClaims, validated_claims
 from authz_service.api.generated.models import (
     Decision,
     Problem,
@@ -30,13 +31,15 @@ router = APIRouter(tags=["rules"])
     },
     tags=["rules"],
 )
-async def authorize_rule_create(body: RuleCreateRequest, request: Request) -> Decision | Problem:
+async def authorize_rule_create(
+    body: RuleCreateRequest, request: Request, token: TokenClaims = Depends(validated_claims)
+) -> Decision | Problem:
     """May the subject create a replication rule over these DIDs?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="add_rule",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=tuple(
             Resource(
                 type="did",
@@ -69,13 +72,15 @@ async def authorize_rule_create(body: RuleCreateRequest, request: Request) -> De
     },
     tags=["rules"],
 )
-async def authorize_rule_delete(body: RuleDeleteRequest, request: Request) -> Decision | Problem:
+async def authorize_rule_delete(
+    body: RuleDeleteRequest, request: Request, token: TokenClaims = Depends(validated_claims)
+) -> Decision | Problem:
     """May the subject delete an existing rule?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="del_rule",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=(Resource(type="rule", id=body.rule.id, owner=body.rule.owner),),
         context={"vo": body.context.vo},
     )
@@ -94,13 +99,15 @@ async def authorize_rule_delete(body: RuleDeleteRequest, request: Request) -> De
     },
     tags=["rules"],
 )
-async def authorize_rule_update(body: RuleUpdateRequest, request: Request) -> Decision | Problem:
+async def authorize_rule_update(
+    body: RuleUpdateRequest, request: Request, token: TokenClaims = Depends(validated_claims)
+) -> Decision | Problem:
     """May the subject change an existing rule?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="update_rule",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=(
             Resource(
                 type="rule",

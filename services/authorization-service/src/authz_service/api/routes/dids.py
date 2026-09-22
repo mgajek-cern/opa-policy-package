@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
+from authz_service.api.auth import TokenClaims, validated_claims
 from authz_service.api.generated.models import (
     Decision,
     DidAttachRequest,
@@ -30,13 +31,15 @@ router = APIRouter(tags=["dids"])
     },
     tags=["dids"],
 )
-async def authorize_did_create(body: DidCreateRequest, request: Request) -> Decision | Problem:
+async def authorize_did_create(
+    body: DidCreateRequest, request: Request, token: TokenClaims = Depends(validated_claims)
+) -> Decision | Problem:
     """May the subject create these DIDs?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="add_dids",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=tuple(
             Resource(
                 type="did",
@@ -63,13 +66,15 @@ async def authorize_did_create(body: DidCreateRequest, request: Request) -> Deci
     },
     tags=["dids"],
 )
-async def authorize_did_attach(body: DidAttachRequest, request: Request) -> Decision | Problem:
+async def authorize_did_attach(
+    body: DidAttachRequest, request: Request, token: TokenClaims = Depends(validated_claims)
+) -> Decision | Problem:
     """May the subject attach children to these parent DIDs?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="attach_dids_to_dids",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=tuple(
             Resource(
                 type="did",
@@ -96,13 +101,15 @@ async def authorize_did_attach(body: DidAttachRequest, request: Request) -> Deci
     },
     tags=["dids"],
 )
-async def authorize_did_detach(body: DidDetachRequest, request: Request) -> Decision | Problem:
+async def authorize_did_detach(
+    body: DidDetachRequest, request: Request, token: TokenClaims = Depends(validated_claims)
+) -> Decision | Problem:
     """May the subject detach children from a parent DID?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="detach_dids",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=(
             Resource(
                 type="did",

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
+from authz_service.api.auth import TokenClaims, validated_claims
 from authz_service.api.generated.models import (
     Decision,
     Problem,
@@ -32,13 +33,15 @@ router = APIRouter(tags=["rses"])
     },
     tags=["rses"],
 )
-async def authorize_rse_create(body: RseCreateRequest, request: Request) -> Decision | Problem:
+async def authorize_rse_create(
+    body: RseCreateRequest, request: Request, token: TokenClaims = Depends(validated_claims)
+) -> Decision | Problem:
     """May the subject create an RSE with this name?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="add_rse",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=(Resource(type="rse", id=body.rse.name, owner=None),),
         context={"vo": body.context.vo},
     )
@@ -57,13 +60,15 @@ async def authorize_rse_create(body: RseCreateRequest, request: Request) -> Deci
     },
     tags=["rses"],
 )
-async def authorize_rse_update(body: RseUpdateRequest, request: Request) -> Decision | Problem:
+async def authorize_rse_update(
+    body: RseUpdateRequest, request: Request, token: TokenClaims = Depends(validated_claims)
+) -> Decision | Problem:
     """May the subject update this RSE, including a rename?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="update_rse",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=(Resource(type="rse", id=body.rse.name, owner=None),),
         context={"vo": body.context.vo, "new_name": body.changes.name},
     )
@@ -82,13 +87,15 @@ async def authorize_rse_update(body: RseUpdateRequest, request: Request) -> Deci
     },
     tags=["rses"],
 )
-async def authorize_rse_delete(body: RseDeleteRequest, request: Request) -> Decision | Problem:
+async def authorize_rse_delete(
+    body: RseDeleteRequest, request: Request, token: TokenClaims = Depends(validated_claims)
+) -> Decision | Problem:
     """May the subject delete this RSE?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="del_rse",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=(Resource(type="rse", id=body.rse.name, owner=None),),
         context={"vo": body.context.vo},
     )
@@ -108,14 +115,14 @@ async def authorize_rse_delete(body: RseDeleteRequest, request: Request) -> Deci
     tags=["rses"],
 )
 async def authorize_rse_attribute_set(
-    body: RseAttributeSetRequest, request: Request
+    body: RseAttributeSetRequest, request: Request, token: TokenClaims = Depends(validated_claims)
 ) -> Decision | Problem:
     """May the subject set an attribute on this RSE?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="add_rse_attribute",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=(Resource(type="rse", id=body.rse.name, owner=None),),
         context={
             "vo": body.context.vo,
@@ -139,14 +146,16 @@ async def authorize_rse_attribute_set(
     tags=["rses"],
 )
 async def authorize_rse_attribute_delete(
-    body: RseAttributeDeleteRequest, request: Request
+    body: RseAttributeDeleteRequest,
+    request: Request,
+    token: TokenClaims = Depends(validated_claims),
 ) -> Decision | Problem:
     """May the subject delete an attribute from this RSE?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="del_rse_attribute",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=(Resource(type="rse", id=body.rse.name, owner=None),),
         context={"vo": body.context.vo, "key": body.attribute.key},
     )

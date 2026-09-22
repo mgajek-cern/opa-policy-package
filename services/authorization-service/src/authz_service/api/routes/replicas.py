@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
+from authz_service.api.auth import TokenClaims, validated_claims
 from authz_service.api.generated.models import (
     Decision,
     Problem,
@@ -30,14 +31,14 @@ router = APIRouter(tags=["replicas"])
     tags=["replicas"],
 )
 async def authorize_replica_register(
-    body: ReplicaRegisterRequest, request: Request
+    body: ReplicaRegisterRequest, request: Request, token: TokenClaims = Depends(validated_claims)
 ) -> Decision | Problem:
     """May the subject register replicas of these files on this RSE?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="add_replicas",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=tuple(
             Resource(
                 type="did",
@@ -65,14 +66,14 @@ async def authorize_replica_register(
     tags=["replicas"],
 )
 async def authorize_replica_delete(
-    body: ReplicaDeleteRequest, request: Request
+    body: ReplicaDeleteRequest, request: Request, token: TokenClaims = Depends(validated_claims)
 ) -> Decision | Problem:
     """May the subject delete replicas of these files on this RSE?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="delete_replicas",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=tuple(
             Resource(
                 type="did",

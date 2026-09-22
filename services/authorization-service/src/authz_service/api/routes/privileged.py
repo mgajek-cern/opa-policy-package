@@ -25,8 +25,9 @@ covered.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
+from authz_service.api.auth import TokenClaims, validated_claims
 from authz_service.api.generated.models import Decision, PrivilegedOperationRequest, Problem
 from authz_service.api.routes._pdp import decide, subject_from
 from authz_service.core.model import Evaluation
@@ -48,14 +49,16 @@ router = APIRouter(tags=["privileged"])
     tags=["privileged"],
 )
 async def authorize_privileged_operation(
-    body: PrivilegedOperationRequest, request: Request
+    body: PrivilegedOperationRequest,
+    request: Request,
+    token: TokenClaims = Depends(validated_claims),
 ) -> Decision | Problem:
     """May the subject perform an operation reserved for privileged subjects?"""
     pdp: PolicyDecisionPoint = request.app.state.pdp
 
     evaluation = Evaluation(
         operation="privileged_operation",
-        subject=subject_from(body.subject),
+        subject=subject_from(body.subject, token),
         resources=(),
         context={"vo": body.context.vo, "operation": body.operation},
     )
