@@ -7,10 +7,11 @@ covers every operation.
 
 kwargs are action-specific, so they land one operation at a time
 (design-006, "Migration"). Every operation with a typed endpoint is
-now registered except privileged-operations (design-005's catch-all,
-which needs no kwargs at all — see its own route once built).
-to_opa_input() still raises for any unregistered action rather than
-guessing a shape that could silently flip a decision.
+registered, plus privileged-operations, the catch-all for everything
+without one. to_opa_input() still raises for any unregistered action
+rather than guessing a shape that could silently flip a decision —
+this now only happens for genuinely malformed input, since every
+contract-defined action has a builder.
 
 DID operations always dispatch to their list-capable Rego action
 (add_dids, attach_dids_to_dids) regardless of how many DIDs the
@@ -36,6 +37,20 @@ gateway not yet forwarding `files` to has_permission) doesn't apply
 here: this contract's ReplicaRegisterRequest/ReplicaDeleteRequest
 already require files (minItems: 1), so both builders below always
 have file data to work with.
+
+privileged-operations (authz.rego's catch-all, "Deliberately NOT
+listed" in _all_known_actions) is the one place where the OPA input's
+"action" is not a fixed internal name — it is the consumer-chosen
+operation string the request carries (e.g. "add_account"), forwarded
+verbatim. Unlike every other builder, evaluation.operation here IS
+the value the caller supplied, not something the route translated
+into a Rucio action name. This module has no visibility into which
+strings collide with real typed-endpoint actions (that list lives
+only in the Rego's _all_known_actions), so the contract's stated
+"rejected with 400" behavior for such a collision is NOT enforced
+here yet — a colliding operation name currently just gets whatever
+DENY/NOT_APPLICABLE the Rego's fallthrough produces, same as any
+other outcome. Flagged as an open gap, not silently assumed covered.
 """
 
 from __future__ import annotations
@@ -278,6 +293,14 @@ def _kwargs_delete_replicas(evaluation: Evaluation) -> dict[str, Any]:
     }
 
 
+def _kwargs_privileged_operation(evaluation: Evaluation) -> dict[str, Any]:
+    """privileged-operations (authz.rego catch-all): _is_privileged
+    alone. No resource, no kwargs beyond what the token itself
+    carries — the operation name lives in evaluation.operation, not
+    kwargs, since that's where the Rego reads input.action from."""
+    return {}
+
+
 _KWARGS_BUILDERS: dict[str, Callable[[Evaluation], dict[str, Any]]] = {
     "del_rule": _kwargs_del_rule,
     "add_rule": _kwargs_add_rule,
@@ -295,20 +318,42 @@ _KWARGS_BUILDERS: dict[str, Callable[[Evaluation], dict[str, Any]]] = {
     "del_protocol": _kwargs_protocol,
     "add_replicas": _kwargs_add_replicas,
     "delete_replicas": _kwargs_delete_replicas,
+    "privileged_operation": _kwargs_privileged_operation,
 }
+
+# Actions with their own typed endpoint (authz.rego's _all_known_actions).
+# Anything NOT in this set is a privileged-operations candidate — its
+# builder is chosen by name below rather than through _KWARGS_BUILDERS,
+# since arbitrary consumer-supplied operation strings can't be
+# enumerated as dict keys the way fixed internal actions are.
+_TYPED_ENDPOINT_ACTIONS = frozenset(_KWARGS_BUILDERS)
 
 
 def to_opa_input(evaluation: Evaluation) -> dict[str, Any]:
-    try:
+    if evaluation.operation in _TYPED_ENDPOINT_ACTIONS:
         build_kwargs = _KWARGS_BUILDERS[evaluation.operation]
-    except KeyError:
+    elif evaluation.operation == evaluation.context.get("_privileged_operation_marker"):
+        build_kwargs = _kwargs_privileged_operation
+    else:
         raise ValueError(
             f"no OPA input mapping registered for action {evaluation.operation!r}"
         ) from None
 
+    # privileged-operations is the one case where the OPA input's
+    # "action" is NOT evaluation.operation itself — evaluation.operation
+    # is the fixed internal marker "privileged_operation" (so
+    # _KWARGS_BUILDERS can dispatch on it like every other action); the
+    # actual consumer-chosen operation name the Rego must check against
+    # _all_known_actions lives in evaluation.context["operation"].
+    action = (
+        evaluation.context["operation"]
+        if evaluation.operation == "privileged_operation"
+        else evaluation.operation
+    )
+
     return {
         "issuer": evaluation.subject.id,
-        "action": evaluation.operation,
+        "action": action,
         "token": _token(evaluation),
         "kwargs": build_kwargs(evaluation),
     }

@@ -334,12 +334,36 @@ class TestDeleteReplicasKwargs:
         }
 
 
+class TestPrivilegedOperationKwargs:
+    def test_action_is_the_consumer_supplied_operation_not_the_marker(self) -> None:
+        evaluation = Evaluation(
+            operation="privileged_operation",
+            subject=_subject(),
+            resources=(),
+            context={"operation": "add_account"},
+        )
+        opa_input = translate.to_opa_input(evaluation)
+        assert opa_input["action"] == "add_account"
+        assert opa_input["kwargs"] == {}
+
+    def test_operation_naming_a_typed_action_is_forwarded_verbatim(self) -> None:
+        """translate.py doesn't intercept this collision (see
+        privileged.py's module docstring) — the Rego's own catch-all
+        fallthrough is what decides the outcome, not a 400 here."""
+        evaluation = Evaluation(
+            operation="privileged_operation",
+            subject=_subject(),
+            resources=(),
+            context={"operation": "add_rule"},
+        )
+        opa_input = translate.to_opa_input(evaluation)
+        assert opa_input["action"] == "add_rule"
+
+
 class TestUnsupportedOperation:
     def test_raises_for_unregistered_action(self) -> None:
-        evaluation = Evaluation(
-            operation="update_replicas_states", subject=_subject(), resources=()
-        )
-        with pytest.raises(ValueError, match="update_replicas_states"):
+        evaluation = Evaluation(operation="not_a_real_action", subject=_subject(), resources=())
+        with pytest.raises(ValueError, match="not_a_real_action"):
             translate.to_opa_input(evaluation)
 
 

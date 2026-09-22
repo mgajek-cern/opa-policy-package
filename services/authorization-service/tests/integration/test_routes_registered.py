@@ -29,26 +29,6 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
         yield test_client
 
 
-# One minimal, schema-valid body per parked operation, so each request
-# actually reaches the handler (422 on an invalid body would otherwise
-# make a "returns 501" assertion pass for the wrong reason). rules/*
-# and dids/* are wired now — see WIRED_ROUTES below instead.
-PARKED_OPERATIONS: dict[str, dict[str, object]] = {
-    "/v1/decisions/privileged-operations": {
-        "subject": _SUBJECT,
-        "operation": "add_account",
-        "context": _CONTEXT,
-    },
-}
-
-
-@pytest.mark.parametrize("path", PARKED_OPERATIONS)
-def test_parked_operation_answers_501_problem(client: TestClient, path: str) -> None:
-    response = client.post(path, json=PARKED_OPERATIONS[path])
-    assert response.status_code == 501
-    assert response.headers["content-type"] == PROBLEM_MEDIA_TYPE
-
-
 # Every wired route reaches the PDP; none of them 404, and each 503s
 # against an unreachable PDP rather than falling back to a stale 501.
 # Doesn't assert outcomes (that's test_evaluate.py/test_client_e2e.py).
@@ -133,6 +113,11 @@ WIRED_ROUTES: dict[str, dict[str, object]] = {
         "subject": _SUBJECT,
         "rse": _RSE,
         "files": [_DID],
+        "context": _CONTEXT,
+    },
+    "/v1/decisions/privileged-operations": {
+        "subject": _SUBJECT,
+        "operation": "add_account",
         "context": _CONTEXT,
     },
 }

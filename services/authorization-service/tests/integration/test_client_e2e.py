@@ -771,10 +771,24 @@ async def test_non_root_denied_delete_replicas_via_generated_client(
     assert response.parsed.decision is False
 
 
-# still parked (privileged-operations — the last route)
+# privileged-operations — the last route
 
 
-async def test_parked_operation_via_generated_client_is_501_problem(
+async def test_root_may_perform_any_privileged_operation_via_generated_client(
+    generated_client: Client,
+) -> None:
+    body = PrivilegedOperationRequest(
+        subject=_root(), operation="add_account", context=Context(vo="def")
+    )
+
+    response = await create_privileged_operation_detailed(client=generated_client, body=body)
+
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
+async def test_non_root_denied_privileged_operation_via_generated_client(
     generated_client: Client,
 ) -> None:
     body = PrivilegedOperationRequest(
@@ -783,5 +797,6 @@ async def test_parked_operation_via_generated_client_is_501_problem(
 
     response = await create_privileged_operation_detailed(client=generated_client, body=body)
 
-    assert response.status_code == 501
-    assert response.headers["content-type"] == "application/problem+json"
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is False
