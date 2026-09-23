@@ -47,7 +47,7 @@ spec-validate: ## Validate the OpenAPI contract
 	$(BIN)/python -c "import openapi_spec_validator, sys, yaml; \
 	openapi_spec_validator.validate(yaml.safe_load(open('$(SPEC)')))"
 
-generate-server-stubs: tools ## Scaffold per-tag server stubs from the contract (reference only, not wired in)
+generate-server-stubs: tools ## Scaffold per-tag server stubs from the contract (reference only, not wired in — see README)
 	rm -rf $(SERVER_STUBS_OUT)
 	@mkdir -p $(SERVER_STUBS_OUT)
 	$(FASTAPI_CODEGEN) --input $(SPEC) --output $(SERVER_STUBS_OUT) \

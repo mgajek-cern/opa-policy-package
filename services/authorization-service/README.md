@@ -16,7 +16,7 @@ time, starting with `rules/delete`.
 | `api/openapi.yaml` | The contract. Source of truth for routes and models. |
 | `src/authz_service/core/` | Decision model and the `PolicyDecisionPoint` port. No framework, no PDP, no OTel SDK. |
 | `src/authz_service/api/` | HTTP adapter: health and routes per contract. |
-| `src/authz_service/api/generated/` | Server stubs and models generated from the contract (`make generate-server-stubs`). Reference only — not wired into `api/routes/`/`main.py` yet. |
+| `src/authz_service/api/generated/` | Server stubs and models generated from the contract (`make generate-server-stubs`). Reference only, permanently — `models.py` is what `api/routes/` actually imports, but `main.py`/`routers/` here will never match the hand-written routers signature-for-signature: `fastapi-code-generator` has no way to know about `Depends(validated_claims)` or any other project-specific dependency, so every generated route takes only its request body where the real one also takes a validated token. That's expected drift, not staleness to fix. |
 | `src/authz_service/adapters/pdp/opa/` | Everything OPA-specific. |
 | `src/authz_service/telemetry/` | The only place the OTel SDK is configured. |
 | `src/authz_service/main.py` | Composition root; the only place a PDP adapter is chosen. |
@@ -66,7 +66,7 @@ make generate-client        # -> clients/python/
   venv             Create the dev environment
   tools            Create the isolated env for the route/client generators
   spec-validate    Validate the OpenAPI contract
-  generate-server-stubs Scaffold per-tag server stubs from the contract (reference only, not wired in)
+  generate-server-stubs Scaffold per-tag server stubs from the contract (reference only, not wired in — see README)
   generate-client  Generate a standalone typed Python client from the contract
   lint             ruff and the import contracts
   typecheck        mypy
