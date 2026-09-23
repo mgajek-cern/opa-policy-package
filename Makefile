@@ -23,7 +23,7 @@ PKG_7 := phase7-opa
 PKG := $(PKG_$(PHASE))
 
 ifeq ($(PKG),)
-$(error PHASE=$(PHASE) is not one of 1 2 3 4 5 6 7)
+	$(error PHASE=$(PHASE) is not one of 1 2 3 4 5 6 7)
 endif
 
 COMPOSE_FILE := deploy/compose/docker-compose.phase$(PHASE).yml
@@ -43,23 +43,20 @@ TRANSFER_TEST := $(wildcard tests/test_phase$(PHASE)_full_transfer.py)
 INIT_SCRIPT := $(wildcard scripts/init-phase$(PHASE).sh)
 
 ifeq ($(PHASE),1)
-UNIT_TESTS := tests/test_phase1_rules.py tests/test_phase1_permission.py
+	UNIT_TESTS := tests/test_phase1_rules.py tests/test_phase1_permission.py
 endif
 
 # Phase 6 drives Rucio from inside the client container: it needs the mounted
 # certs and in-network DNS to reach FTS and the storage endpoints.
 ifeq ($(PHASE),6)
-TEST_CONTAINER := rucio-client
+	TEST_CONTAINER := rucio-client
 endif
 
 ifdef TEST_CONTAINER
-run_tests = $(COMPOSE) exec -T $(TEST_CONTAINER) python3 -m pytest /tests/$(notdir $(1)) $(PYTEST_ARGS)
+	run_tests = $(COMPOSE) exec -T $(TEST_CONTAINER) python3 -m pytest /tests/$(notdir $(1)) $(PYTEST_ARGS)
 else
-run_tests = RUCIO_URL=$(RUCIO_URL) OPA_URL=$(OPA_URL) KEYCLOAK_URL=$(KEYCLOAK_URL) $(PYTEST) $(1) $(PYTEST_ARGS)
+	run_tests = RUCIO_URL=$(RUCIO_URL) OPA_URL=$(OPA_URL) KEYCLOAK_URL=$(KEYCLOAK_URL) $(PYTEST) $(1) $(PYTEST_ARGS)
 endif
-
-.PHONY: help install install-dev certs up init down clean ps logs shell \
-        test test-opa test-rucio test-transfer e2e lint
 
 help: ## List targets
 	@echo "PHASE=$(PHASE)  package=phases/$(PKG)"

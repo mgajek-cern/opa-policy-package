@@ -65,19 +65,20 @@ make generate-client        # -> clients/python/
 ## Make Targets
 
 ```bash
-  help             List targets
-  venv             Create the dev environment
-  tools            Create the isolated env for the route/client generators
-  spec-validate    Validate the OpenAPI contract
-  generate-server-stubs Scaffold per-tag server stubs from the contract (reference only, not wired in — see README)
-  generate-client  Generate a standalone typed Python client from the contract
-  lint             ruff and the import contracts
-  typecheck        mypy
-  test             Unit tests, then integration tests (needs Docker)
-  demo-client      poke a running instance via the generated client (needs `make run` up)
-  test-token-exchange exercise the realm.json exchange flow and check required claims
-  run              Run locally
-  image            Build the container image
+  help                     List targets
+  venv                     Create the dev environment
+  tools                    Create the isolated env for the route/client generators
+  spec-validate            Validate the OpenAPI contract
+  generate-server-stubs    Scaffold per-tag server stubs fromthe contract (reference only, not wired in — see README)
+  generate-client          Generate a standalone typed Pythonclient from the contract
+  generate-client-phase7   Generate phase7's client via openapi-generator python-legacy (3.9-safe)
+  lint                     ruff and the import contracts
+  typecheck                mypy
+  test                     Unit tests, then integration tests(needs Docker)
+  demo-client              poke a running instance via the generated client (needs `make run` up)
+  test-token-exchange      exercise the realm.json exchange flow and check required claims
+  run                      Run locally
+  image                    Build the container image
 ```
 
 ## Configuration

@@ -7,9 +7,6 @@ OIDC_ISSUER="${OIDC_ISSUER:-https://keycloak:8443/realms/rucio}"
 OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-rucio}"
 OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-rucio-secret}"
 
-# Keycloak's token endpoint lives under /protocol/openid-connect/token;
-# MITREid-based issuers (LS AAI) expose it at /token. Derive rather than
-# hardcode so both profiles work unchanged.
 if [[ -z "${OIDC_TOKEN_URL:-}" ]]; then
     if [[ "$OIDC_ISSUER" == *"/realms/"* ]]; then
         OIDC_TOKEN_URL="${OIDC_ISSUER%/}/protocol/openid-connect/token"
@@ -20,9 +17,6 @@ fi
 
 OIDC_SEED_SCOPE="${OIDC_SEED_SCOPE:-openid offline_access storage.read:/ storage.modify:/ aud:rucio}"
 OIDC_EXPECTED_AUDIENCE="${OIDC_EXPECTED_AUDIENCE:-rucio}"
-
-# Grant used to mint the subject token.
-
 OIDC_SEED_GRANT="${OIDC_SEED_GRANT:-}"
 OIDC_USERNAME="${OIDC_USERNAME:-seeduser}"
 OIDC_PASSWORD="${OIDC_PASSWORD:-secret}"
@@ -33,18 +27,14 @@ AUTHZ_TEST_USERS=(
 )
 
 OIDC_AUTHZ_SCOPE="${OIDC_AUTHZ_SCOPE:-$OIDC_SEED_SCOPE}"
-
-# Name registered in FTS's t_token_provider. Cosmetic, but keeping it
-# aligned with the issuer makes `SELECT * FROM t_token_provider` readable.
 FTS_PROVIDER_NAME="${FTS_PROVIDER_NAME:-keycloak-rucio}"
-
 FTS_OIDC="https://fts:8446"
 SEED_ACCOUNTS=( root ddmlab )
 
 KCADM="/opt/keycloak/bin/kcadm.sh"
 KC_REALM=rucio
 EXCHANGE_REQUESTERS=( fts rucio )
-EXCHANGE_TARGETS=( xrd3 xrd4 teapot1 teapot2 )
+EXCHANGE_TARGETS=( xrd3 xrd4 teapot1 teapot2 authz-service )
 
 IDPSECRETS_PATH_IN_CONTAINER="${IDPSECRETS_PATH_IN_CONTAINER:-/opt/rucio/etc/idpsecrets.json}"
 
@@ -67,8 +57,6 @@ _http_probe_local() {
     curl -s -o /dev/null -w '%{http_code}' "http://localhost:${port}${path}" || true
 }
 
-# Keycloak 23 images ship no curl, so probe it from rucio-server, which is
-# also the container whose view of the issuer actually matters.
 _kc_probe() {
     _exec rucio-server curl -sk -o /dev/null -w '%{http_code}' \
         "${OIDC_ISSUER%/}/.well-known/openid-configuration" 2>/dev/null || true
@@ -131,8 +119,6 @@ wait_for_infrastructure() {
         echo "  [$i] rucio HTTP $code — waiting..."; sleep 5
     done
 
-    # The old script printed "Waiting for ... Keycloak" but never probed it,
-    # so a half-started realm surfaced later as an opaque token failure.
     for i in $(seq 1 30); do
         code=$(_kc_probe)
         [[ "$code" == "200" ]] && { echo "  ✓ Keycloak realm discovery ready"; break; }
@@ -147,7 +133,90 @@ wait_for_infrastructure() {
     done
 }
 
-# ── Identity & Account Setup ─────────────────────────────────────
+verify_authz_service_exchange() {
+    echo "=== Verifying rucio -> authz-service token exchange ==="
+    local result
+    result=$(_exec rucio-server python3 -c "
+from rucio.core.oidc import get_token_for_account_operation
+from rucio.common.types import InternalAccount
+r = get_token_for_account_operation(
+    InternalAccount('randomaccount'), req_audience='authz-service',
+    req_scope='pep:rucio', admin=False,
+)
+print('OK' if r else 'FAILED — check grant_token_exchange targets/authz-service client scope config')
+")
+    echo "  $result"
+}
+
+# ── ddmlab bootstrap (direct DB — no rucio-admin/auth involved, so it
+# has no dependency on has_permission()/authz-service being reachable
+# yet) ─────────────────────────────────────────────────────────────
+
+bootstrap_ddmlab_identity() {
+    echo "=== Bootstrapping ddmlab account + userpass identity (direct DB) ==="
+    _exec rucio-server python3 -c "
+from rucio.core.account import add_account
+from rucio.core.identity import add_account_identity, add_identity
+from rucio.common.types import InternalAccount
+from rucio.db.sqla.constants import AccountType, IdentityType
+from rucio.common import exception
+from rucio.db.sqla.session import get_session
+
+def _is_duplicate(e):
+    msg = str(e).lower()
+    return 'duplicate key' in msg or 'unique constraint' in msg
+
+session = get_session()()
+try:
+    add_account(InternalAccount('ddmlab'), AccountType.SERVICE, 'ddmlab@rucio', session=session)
+    session.commit()
+    print('  ✓ ddmlab account created')
+except exception.Duplicate:
+    session.rollback()
+    print('  ✓ ddmlab account already exists')
+except exception.DatabaseException as e:
+    session.rollback()
+    if _is_duplicate(e):
+        print('  ✓ ddmlab account already exists')
+    else:
+        raise
+
+session = get_session()()
+try:
+    add_identity('ddmlab', IdentityType.USERPASS, 'ddmlab@rucio', password='secret', session=session)
+    session.commit()
+    print('  ✓ ddmlab userpass identity created')
+except exception.Duplicate:
+    session.rollback()
+    print('  ✓ ddmlab userpass identity already exists')
+except exception.DatabaseException as e:
+    session.rollback()
+    if _is_duplicate(e):
+        print('  ✓ ddmlab userpass identity already exists')
+    else:
+        raise
+
+session = get_session()()
+try:
+    add_account_identity('ddmlab', IdentityType.USERPASS, InternalAccount('ddmlab'), 'ddmlab@rucio', password='secret', session=session)
+    session.commit()
+    print('  ✓ ddmlab identity mapped to account')
+except exception.Duplicate:
+    session.rollback()
+    print('  ✓ ddmlab identity already mapped')
+except exception.DatabaseException as e:
+    session.rollback()
+    if _is_duplicate(e):
+        print('  ✓ ddmlab identity already mapped')
+    else:
+        raise
+"
+}
+
+# ── Identity & Account Setup — needs ra(), which needs ddmlab to be
+# able to authenticate, which needs has_permission() to succeed, which
+# needs ddmlab's OIDC subject token to exist. Must run after
+# seed_subject_tokens. ────────────────────────────────────────────
 
 setup_accounts_and_identities() {
     echo "=== Configuring Rucio Accounts ==="
@@ -158,22 +227,19 @@ setup_accounts_and_identities() {
     ra account add-attribute ddmlab --key admin --value True || true
     ra account update --account ddmlab --key type --value SERVICE || true
 
-    # randomaccount is the negative case for the authz tests, so it must NOT
-    # be admin. The phase 7 Rego is token-native and ignores account
-    # attributes, but leaving admin=True here would mislead anyone reading
-    # the setup and would matter under the generic policy module.
     ra account add --type USER --email randomaccount@rucio randomaccount || true
     ra account delete-attribute randomaccount --key admin || true
 
-    # Positive case for the authz tests: holds the rucio-admins entitlement
-    # in Keycloak. Privilege comes from the token, not from this account.
     ra account add --type USER --email adminuser@rucio adminuser || true
 
     echo "  OIDC identities: seeding subject mapped in seed_subject_tokens,"
     echo "  authz test users in setup_authz_test_identities."
 }
 
-# ── Subject-token seeding (managed-mode token exchange) ──────────
+# ── Subject-token seeding (managed-mode token exchange) — direct
+# rucio.core calls, no ra()/auth involved. Must run before
+# setup_accounts_and_identities so ddmlab has a usable subject token
+# by the time ra() (and has_permission()) needs one. ─────────────
 
 seed_subject_tokens() {
     local accounts_csv
@@ -225,9 +291,6 @@ PASSWORD      = os.environ['OIDC_PASSWORD']
 ACCOUNTS      = [a for a in os.environ['SEED_ACCOUNTS'].split(',') if a]
 EXPECTED_AUDIENCE = os.environ['OIDC_EXPECTED_AUDIENCE']
 
-# The testbed CA is not in the container trust store for every image
-# variant; the issuer is an in-network service, so verification is relaxed
-# here exactly as the FTS admin curls already do (-k).
 _SSL = ssl.create_default_context()
 _SSL.check_hostname = False
 _SSL.verify_mode = ssl.CERT_NONE
@@ -353,7 +416,7 @@ cleanup_session_tokens() {
     done
 }
 
-# ── Authz test identities (BACKLOG 3b) ───────────────────────────
+# ── Authz test identities ─────────────────────────────────────────
 
 setup_authz_test_identities() {
     if [[ "$OIDC_ISSUER" != *"/realms/"* ]]; then
@@ -412,7 +475,6 @@ except urllib.error.HTTPError as e:
 claims = json.loads(base64.urlsafe_b64decode(token.split('.')[1] + '=='))
 identity = oidc.oidc_identity_string(claims['sub'], claims['iss'])
 
-# Fail loudly at init rather than as an opaque 401 during the test run.
 granted = set(claims.get('scope', '').split())
 required = set(os.environ['AUTHZ_SCOPE'].split()) - {'aud:rucio'}
 missing = required - granted
@@ -536,10 +598,6 @@ setup_fts_oidc_provider() {
     iss_bare="${OIDC_ISSUER%/}"
     iss_slash="${iss_bare}/"
 
-    # Both slash and no-slash forms are genuinely required (not just belt-
-    # and-braces): submit-time lookup matches the raw JWT 'iss' claim
-    # verbatim (no slash), while t_token has an FK (fk_token_issuer)
-    # requiring the SLASHED form.
     _fts_admin -X POST -H "Content-Type: application/json" \
         -d "{\"name\":\"${FTS_PROVIDER_NAME}\",\"issuer\":\"${iss_bare}\",\"client_id\":\"${OIDC_CLIENT_ID}\",\"client_secret\":\"${OIDC_CLIENT_SECRET}\"}" \
         https://localhost:8446/config/token_providers
@@ -565,13 +623,7 @@ setup_scopes_and_quotas() {
     ra scope add --account root --scope test || true
     ra scope add --account ddmlab --scope ddmlab || true
     ra scope add --account randomaccount --scope randomaccount || true
-
-    # Scope not named after its owner. The prefix check denies this;
-    # is_scope_owner allows it — the under-permissive case design-003 fixes.
     ra scope add --account randomaccount --scope projectdata || true
-
-    # Owned by ddmlab, but its name has randomaccount's as a prefix. The
-    # prefix check allows it; is_scope_owner denies it.
     ra scope add --account ddmlab --scope randomaccountleak || true
 
     for rse in XRD3 XRD4 TEAPOT1 TEAPOT2; do
@@ -581,7 +633,6 @@ setup_scopes_and_quotas() {
         ra account set-limits adminuser "$rse" -1 || true
     done
 }
-
 
 # ── Token-exchange grant ─────────────────────────────────────────
 
@@ -670,18 +721,27 @@ grant_token_exchange() {
 }
 
 # ── Main ──────────────────────────────────────────────────────────
+#
+# Order matters: bootstrap_ddmlab_identity and seed_subject_tokens both
+# use direct rucio.core calls (no auth). Everything using ra() needs
+# ddmlab to (a) exist as an account/identity and (b) have an OIDC
+# subject token on file, since has_permission() now gates authentication
+# itself via authz-service — ra() calls made before both of those are
+# in place fail with CannotAuthenticate regardless of credentials.
 
 main() {
     wait_for_infrastructure
-    setup_accounts_and_identities
+    bootstrap_ddmlab_identity
     grant_token_exchange
     seed_subject_tokens
+    setup_accounts_and_identities
     setup_authz_test_identities
     configure_rses
     cleanup_session_tokens
     setup_scopes_and_quotas
     setup_fts_oidc_provider
     assert_identities_unambiguous
+    verify_authz_service_exchange
 
     echo -e "\n=== Initialization Complete ==="
 }

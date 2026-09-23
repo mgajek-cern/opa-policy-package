@@ -30,8 +30,8 @@ OPENAPI_PYTHON_CLIENT ?= $(TOOLS_BIN)/openapi-python-client
 .DEFAULT_GOAL := help
 
 help: ## List targets
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
-	  | awk -F':.*?## ' '{printf "  %-16s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
+	  | awk -F':.*?## ' '{printf "  %-24s %s\n", $$1, $$2}'
 
 venv: ## Create the dev environment
 	$(PY) -m venv $(VENV)
@@ -60,6 +60,20 @@ generate-client: tools ## Generate a standalone typed Python client from the con
 	@mkdir -p $(dir $(CLIENT_OUT))
 	$(OPENAPI_PYTHON_CLIENT) generate --path $(SPEC) \
 	  --output-path $(CLIENT_OUT) --meta none --overwrite
+
+generate-client-phase7: ## Generate phase7's client via openapi-generator python-legacy (3.9-safe)
+	rm -rf /tmp/phase7-spec && mkdir -p /tmp/phase7-spec
+	python3 scripts/prepare_phase7_spec.py api/openapi.yaml /tmp/phase7-spec/openapi.yaml
+	rm -rf ../../phases/phase7-opa/src/rucio_authz_client
+	docker run --rm -v /tmp/phase7-spec:/local \
+	  -v $(CURDIR)/../../phases/phase7-opa/src:/out \
+	  openapitools/openapi-generator-cli:v6.6.0 generate \
+	  -i /local/openapi.yaml -g python-legacy -o /out/rucio_authz_client-gen \
+	  --additional-properties=packageName=rucio_authz_client,compatibleWithPythonLegacy=true,library=urllib3
+	mv ../../phases/phase7-opa/src/rucio_authz_client-gen/rucio_authz_client \
+	   ../../phases/phase7-opa/src/rucio_authz_client
+	rm -rf ../../phases/phase7-opa/src/rucio_authz_client-gen
+	python3 scripts/patch_phase7_client.py ../../phases/phase7-opa/src/rucio_authz_client
 
 lint: ## ruff and the import contracts
 	$(BIN)/ruff check src tests

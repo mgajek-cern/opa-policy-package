@@ -180,6 +180,9 @@ services:
       - OPA_POLICY_PATH=vo/authz/v6/allow
       - OPA_TIMEOUT=2
       - RUCIO_OPA_DEBUG_INPUT=1
+      - AUTHZ_SERVICE_URL=http://authz-service:8000
+      - AUTHZ_OIDC_AUDIENCE=authz-service
+      - AUTHZ_REQUIRED_SCOPE=pep:rucio
     ports:
       - "8090:80"
     depends_on:
@@ -191,6 +194,8 @@ services:
         condition: service_started
       opa-init:
         condition: service_completed_successfully
+      authz-service:
+        condition: service_healthy
     networks:
       - dep-dlm-testbed
     entrypoint:
@@ -199,6 +204,7 @@ services:
       - |
         update-ca-trust extract &&
         cp -r /policy-package/phases/phase7-opa /tmp/rucio-opa-policy &&
+        pip install -q "urllib3>=1.25.3" "python-dateutil>=2.5.3" "six>=1.10" certifi &&
         pip install -q --force-reinstall --no-deps /tmp/rucio-opa-policy &&
         python3 /scripts/rucio/bootstrap-db.py &&
         dnf -y install yum-utils epel-release.noarch &&
@@ -386,6 +392,35 @@ services:
       timeout: 5s
       start_period: 30s
       retries: 10
+
+  authz-service:
+    build:
+      context: ../../services/authorization-service
+    hostname: authz-service
+    environment:
+      - AUTHZ_PDP=opa
+      - AUTHZ_OPA_URL=http://opa:8181
+      - AUTHZ_OPA_POLICY_PATH=vo/authz/v6/allow
+      - AUTHZ_OIDC_ISSUER=https://keycloak:8443/realms/rucio
+      - AUTHZ_OIDC_AUDIENCE=authz-service
+      - SSL_CERT_FILE=/certs/rucio_ca.pem
+    ports:
+      - "8000:8000"
+    depends_on:
+      opa-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_started
+    networks:
+      - dep-dlm-testbed
+    volumes:
+      - ../../certs/rucio_ca.pem:/certs/rucio_ca.pem:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 20
 
 networks:
   dep-dlm-testbed:
