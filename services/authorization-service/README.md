@@ -11,6 +11,8 @@ time, starting with `rules/delete`.
 
 ## Layout
 
+See [docs/adding-an-endpoint.md](docs/adding-an-endpoint.md) for the step-by-step for adding a new decision endpoint, contract through tests.
+
 | Path | Holds |
 |---|---|
 | `api/openapi.yaml` | The contract. Source of truth for routes and models. |
@@ -23,6 +25,7 @@ time, starting with `rules/delete`.
 | `clients/python/` | Standalone typed client for PEPs (e.g. Rucio), generated from the contract (`make generate-client`). |
 | `tests/unit/` | Pure logic only. |
 | `tests/integration/` | Authoritative. Fixtures own the containers. |
+| `../../tests/test_phase7_opa.py` (repo root, not under this service) | Contract/Rego alignment — `openapi.yaml` operationIds vs. `authz.rego`'s `_all_known_actions`. Not run by this service's own `make test`; see docs/adding-an-endpoint.md. |
 
 ## Getting started
 
