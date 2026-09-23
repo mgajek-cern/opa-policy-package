@@ -49,7 +49,7 @@
         "wlcg", "fts", "entitlements",
         "storage.read", "storage.modify",
         "storage.read:/data", "storage.modify:/data",
-        "storage.read:/", "storage.modify:/"
+        "storage.read:/", "storage.modify:/", "pep:rucio"
       ],
       "optionalClientScopes": [
         "offline_access",
@@ -182,7 +182,7 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "fullScopeAllowed": false,
-      "defaultClientScopes": [ "aud:authz-service" ],
+      "defaultClientScopes": [ "aud:authz-service", "pep:rucio", "entitlements" ],
       "optionalClientScopes": [],
       "attributes": { "token.exchange.standard.flow.enabled": "true" }
     }
@@ -359,6 +359,7 @@
       ]
     },
     { "name": "fts", "protocol": "openid-connect" },
+    { "name": "pep:rucio", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" } },
     { "name": "storage.read", "protocol": "openid-connect" },
     { "name": "storage.modify", "protocol": "openid-connect" },
     { "name": "storage.read:/data", "protocol": "openid-connect" },

@@ -20,7 +20,14 @@ def test_healthz_503_when_pdp_unreachable(monkeypatch: pytest.MonkeyPatch) -> No
     """A second app instance pointed at a dead port, so the session's PDP
     container stays up for the other tests."""
     monkeypatch.setenv("AUTHZ_OPA_URL", "http://127.0.0.1:1")
-    app = create_app(Settings(pdp="opa", pdp_timeout_seconds=0.5))
+    app = create_app(
+        Settings(
+            pdp="opa",
+            pdp_timeout_seconds=0.5,
+            oidc_issuer="http://unused.invalid",
+            oidc_audience="authz-service",
+        )
+    )
 
     # The context manager runs the lifespan, so app.state is populated.
     with TestClient(app) as test_client:

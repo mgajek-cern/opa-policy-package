@@ -14,6 +14,7 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -26,8 +27,10 @@ from testcontainers.core.waiting_utils import wait_for_logs
 REPO_ROOT = Path(__file__).resolve().parents[4]
 REGO_PATH = REPO_ROOT / "policies" / "rego" / "phase7" / "authz.rego"
 INGEST_SCRIPT = REPO_ROOT / "scripts" / "ingest_policies.py"
+REALM_JSON = REPO_ROOT / "configs" / "keycloak" / "phase7" / "realm.json"
 PHASE = "phase7"
 OPA_IMAGE = "openpolicyagent/opa:1.8.0"
+KEYCLOAK_IMAGE = "quay.io/keycloak/keycloak:23.0.1"
 
 
 def _put(url: str, body: bytes, content_type: str) -> None:
@@ -91,11 +94,208 @@ def pdp() -> Iterator[str]:
 
 
 @pytest.fixture(scope="session")
-def service(pdp: str, monkeypatch_session: pytest.MonkeyPatch) -> Iterator[str]:
+def keycloak() -> Iterator[tuple[str, DockerContainer]]:
+    """A Keycloak container with the phase 7 realm imported — issuer for
+    validated_claims (api/auth.py). Mirrors the `pdp` fixture's shape."""
+    container = (
+        DockerContainer(KEYCLOAK_IMAGE)
+        .with_env("KEYCLOAK_ADMIN", "admin")
+        .with_env("KEYCLOAK_ADMIN_PASSWORD", "admin")
+        .with_env("KC_HTTP_ENABLED", "true")
+        .with_env("KC_HOSTNAME_STRICT", "false")
+        .with_command(
+            "start-dev --features=token-exchange,admin-fine-grained-authz "
+            "--import-realm --health-enabled=true"
+        )
+        .with_exposed_ports(8080)
+        .with_volume_mapping(str(REALM_JSON), "/opt/keycloak/data/import/realm.json", mode="ro")
+    )
+    with container:
+        wait_for_logs(container, "Keycloak.*started", timeout=90)
+        host_ip = container.get_container_host_ip()
+        port = container.get_exposed_port(8080)
+        yield f"http://{host_ip}:{port}", container
+
+
+def _kc(container: DockerContainer, *args: str) -> str:
+    """Run kcadm.sh inside the Keycloak container via docker-py's
+    exec_run (the API testcontainers wraps DockerContainer around),
+    since DockerContainer itself doesn't expose .exec()."""
+    exec_result = container.get_wrapped_container().exec_run(["/opt/keycloak/bin/kcadm.sh", *args])
+    output = exec_result.output.decode().strip()
+    assert exec_result.exit_code == 0, f"kcadm.sh {' '.join(args)} failed: {output}"
+    return output
+
+
+def _kc_client_uuid(container: DockerContainer, client_id: str) -> str:
+    csv = _kc(
+        container,
+        "get",
+        "clients",
+        "-r",
+        "rucio",
+        "-q",
+        f"clientId={client_id}",
+        "--fields",
+        "id",
+        "--format",
+        "csv",
+        "--noquotes",
+    )
+    uuid = csv.strip()
+    assert uuid, f"client '{client_id}' not found — is realm.json imported?"
+    return uuid
+
+
+def _grant_token_exchange(container: DockerContainer, requester: str, target: str) -> None:
+    """Same three-step grant as scripts/test_token_exchange.sh's
+    grant_token_exchange(): Keycloak 23's legacy token exchange needs
+    this explicit Fine-Grained Admin Permission, it isn't implied by
+    token.exchange.standard.flow.enabled alone."""
+    _kc(
+        container,
+        "config",
+        "credentials",
+        "--server",
+        "http://localhost:8080",
+        "--realm",
+        "master",
+        "--user",
+        "admin",
+        "--password",
+        "admin",
+    )
+
+    requester_uuid = _kc_client_uuid(container, requester)
+    target_uuid = _kc_client_uuid(container, target)
+    rm_uuid = _kc_client_uuid(container, "realm-management")
+
+    _kc(
+        container,
+        "update",
+        f"clients/{target_uuid}/management/permissions",
+        "-r",
+        "rucio",
+        "-s",
+        "enabled=true",
+    )
+
+    policy_name = f"exchange-to-{target}".replace(":", "_")
+    requester_json = f'["{requester_uuid}"]'
+    with suppress(AssertionError):
+        _kc(
+            container,
+            "create",
+            f"clients/{rm_uuid}/authz/resource-server/policy/client",
+            "-r",
+            "rucio",
+            "-s",
+            f"name={policy_name}",
+            "-s",
+            f"clients={requester_json}",
+            "-s",
+            "logic=POSITIVE",
+        )
+
+    policy_id = _kc(
+        container,
+        "get",
+        f"clients/{rm_uuid}/authz/resource-server/policy?name={policy_name}",
+        "-r",
+        "rucio",
+        "--fields",
+        "id",
+        "--format",
+        "csv",
+        "--noquotes",
+    ).splitlines()[0]
+    _kc(
+        container,
+        "update",
+        f"clients/{rm_uuid}/authz/resource-server/policy/client/{policy_id}",
+        "-r",
+        "rucio",
+        "-s",
+        f"clients={requester_json}",
+    )
+
+    perm_name = f"token-exchange.permission.client.{target_uuid}"
+    perm_id = _kc(
+        container,
+        "get",
+        f"clients/{rm_uuid}/authz/resource-server/permission?name={perm_name}",
+        "-r",
+        "rucio",
+        "--fields",
+        "id",
+        "--format",
+        "csv",
+        "--noquotes",
+    ).splitlines()[0]
+    _kc(
+        container,
+        "update",
+        f"clients/{rm_uuid}/authz/resource-server/permission/scope/{perm_id}",
+        "-r",
+        "rucio",
+        "-s",
+        f'policies=["{policy_id}"]',
+    )
+
+
+@pytest.fixture(scope="session")
+def bearer_token(keycloak: tuple[str, DockerContainer]) -> str:
+    """A real, exchanged bearer token (randomaccount, audience=authz-service,
+    scope=pep:rucio) — same flow as scripts/test_token_exchange.sh's
+    grant_token_exchange + mint + exchange, run once per session."""
+
+    keycloak_url, container = keycloak
+    _grant_token_exchange(container, requester="rucio", target="authz-service")
+
+    token_url = f"{keycloak_url}/realms/rucio/protocol/openid-connect/token"
+    with httpx.Client() as http:
+        user_resp = http.post(
+            token_url,
+            data={
+                "grant_type": "password",
+                "client_id": "rucio",
+                "client_secret": "rucio-secret",
+                "username": "randomaccount",
+                "password": "secret",
+                "scope": "openid",
+            },
+        )
+        user_resp.raise_for_status()
+        user_token = user_resp.json()["access_token"]
+
+        exchange_resp = http.post(
+            token_url,
+            data={
+                "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+                "client_id": "rucio",
+                "client_secret": "rucio-secret",
+                "subject_token": user_token,
+                "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
+                "audience": "authz-service",
+                "scope": "pep:rucio",
+            },
+        )
+        exchange_resp.raise_for_status()
+        token = exchange_resp.json()["access_token"]
+        return token
+
+
+@pytest.fixture(scope="session")
+def service(
+    pdp: str, keycloak: tuple[str, DockerContainer], monkeypatch_session: pytest.MonkeyPatch
+) -> Iterator[str]:
     """The app, run in-process by uvicorn on a free port."""
+    keycloak_url, _container = keycloak
     monkeypatch_session.setenv("AUTHZ_PDP", "opa")
     monkeypatch_session.setenv("AUTHZ_OPA_URL", pdp)
     monkeypatch_session.setenv("AUTHZ_OPA_POLICY_PATH", "vo/authz/v6/allow")
+    monkeypatch_session.setenv("AUTHZ_OIDC_ISSUER", f"{keycloak_url}/realms/rucio")
+    monkeypatch_session.setenv("AUTHZ_OIDC_AUDIENCE", "authz-service")
 
     from authz_service.main import create_app
 

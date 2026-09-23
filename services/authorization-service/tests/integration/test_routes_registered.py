@@ -8,6 +8,7 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
+from authz_service.api.auth import TokenClaims, validated_claims
 from authz_service.main import create_app
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
@@ -25,7 +26,16 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     # not PDP behavior (that's test_evaluate.py, against a real OPA).
     monkeypatch.setenv("AUTHZ_PDP", "opa")
     monkeypatch.setenv("AUTHZ_OPA_URL", "http://127.0.0.1:1")
-    with TestClient(create_app()) as test_client:
+    monkeypatch.setenv("AUTHZ_OIDC_ISSUER", "http://unused.invalid")
+    monkeypatch.setenv("AUTHZ_OIDC_AUDIENCE", "authz-service")
+    app = create_app()
+    # Bypass token validation entirely — this test's job is routing and
+    # PDP-reachability wiring (per the module docstring), not auth. A real
+    # Keycloak container here would conflate two separate concerns.
+    app.dependency_overrides[validated_claims] = lambda: TokenClaims(
+        sub="test-subject", entitlements=[], acr=None, actor_sub="test-actor"
+    )
+    with TestClient(app) as test_client:
         yield test_client
 
 

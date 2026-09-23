@@ -28,17 +28,11 @@ class Settings(BaseSettings):
     # service exposes only the health endpoint, which is unauthenticated.
     oidc_issuer: str
     oidc_audience: str
-    required_scopes: list[str] = [
-        "entitlements",
-        "storage.read:/data",
-        "storage.read",
-        "storage.modify:/",
-        "wlcg",
-        "storage.modify:/data",
-        "fts",
-        "storage.modify",
-        "storage.read:/",
-    ]
+    # Only pep:rucio identifies a PEP calling this service (design-005,
+    # openapi.yaml's security scheme). The other scopes on a Rucio-minted
+    # token (entitlements, storage.*, wlcg, fts) are unrelated to whether
+    # the caller is authorized to reach authz-service at all.
+    required_scopes: list[str] = ["pep:rucio"]
 
     service_name: str = "authz-service"
 

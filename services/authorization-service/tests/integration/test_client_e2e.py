@@ -52,7 +52,7 @@ from python.api.rses.authorize_rse_update import asyncio_detailed as update_rse_
 from python.api.rules.authorize_rule_create import asyncio_detailed as create_rule_detailed
 from python.api.rules.authorize_rule_delete import asyncio_detailed as delete_rule_detailed
 from python.api.rules.authorize_rule_update import asyncio_detailed as update_rule_detailed
-from python.client import Client
+from python.client import AuthenticatedClient
 from python.models.context import Context
 from python.models.did import Did
 from python.models.did_attach_request import DidAttachRequest
@@ -89,8 +89,8 @@ RULE_ID = "1f0e3dad99908345f7439f8ffabdffc4"
 
 
 @pytest.fixture
-def generated_client(service: str) -> Iterator[Client]:
-    with Client(base_url=service) as generated_client:
+def generated_client(service: str, bearer_token: str) -> Iterator[AuthenticatedClient]:
+    with AuthenticatedClient(base_url=service, token=bearer_token) as generated_client:
         yield generated_client
 
 
@@ -105,7 +105,9 @@ def _root() -> Subject:
 # rules/delete
 
 
-async def test_owner_may_delete_own_rule_via_generated_client(generated_client: Client) -> None:
+async def test_owner_may_delete_own_rule_via_generated_client(
+    generated_client: AuthenticatedClient,
+) -> None:
     body = RuleDeleteRequest(
         subject=_subject("randomaccount"),
         rule=Rule(
@@ -123,7 +125,7 @@ async def test_owner_may_delete_own_rule_via_generated_client(generated_client: 
     assert response.parsed.decision is True
 
 
-async def test_non_owner_denied_via_generated_client(generated_client: Client) -> None:
+async def test_non_owner_denied_via_generated_client(generated_client: AuthenticatedClient) -> None:
     body = RuleDeleteRequest(
         subject=_subject("mallory"),
         rule=Rule(
@@ -145,7 +147,7 @@ async def test_non_owner_denied_via_generated_client(generated_client: Client) -
 
 
 async def test_owner_may_create_rule_over_owned_dids_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = RuleCreateRequest(
         subject=_subject("randomaccount"),
@@ -166,7 +168,7 @@ async def test_owner_may_create_rule_over_owned_dids_via_generated_client(
 
 
 async def test_owner_denied_rule_over_foreign_dids_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = RuleCreateRequest(
         subject=_subject("randomaccount"),
@@ -187,7 +189,7 @@ async def test_owner_denied_rule_over_foreign_dids_via_generated_client(
 
 
 async def test_root_may_create_rule_over_foreign_dids_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = RuleCreateRequest(
         subject=_root(),
@@ -211,7 +213,7 @@ async def test_root_may_create_rule_over_foreign_dids_via_generated_client(
 
 
 async def test_owner_may_update_own_rule_within_owned_scope_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = RuleUpdateRequest(
         subject=_subject("randomaccount"),
@@ -232,7 +234,7 @@ async def test_owner_may_update_own_rule_within_owned_scope_via_generated_client
 
 
 async def test_owner_denied_update_when_target_scope_unowned_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = RuleUpdateRequest(
         subject=_subject("randomaccount"),
@@ -253,7 +255,7 @@ async def test_owner_denied_update_when_target_scope_unowned_via_generated_clien
 
 
 async def test_reassignment_denied_for_owner_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = RuleUpdateRequest(
         subject=_subject("randomaccount"),
@@ -273,7 +275,9 @@ async def test_reassignment_denied_for_owner_via_generated_client(
     assert response.parsed.decision is False
 
 
-async def test_root_may_reassign_any_rule_via_generated_client(generated_client: Client) -> None:
+async def test_root_may_reassign_any_rule_via_generated_client(
+    generated_client: AuthenticatedClient,
+) -> None:
     body = RuleUpdateRequest(
         subject=_root(),
         rule=Rule(
@@ -296,7 +300,7 @@ async def test_root_may_reassign_any_rule_via_generated_client(generated_client:
 
 
 async def test_owner_may_create_dids_in_owned_scope_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = DidCreateRequest(
         subject=_subject("randomaccount"),
@@ -312,7 +316,7 @@ async def test_owner_may_create_dids_in_owned_scope_via_generated_client(
 
 
 async def test_owner_denied_creating_dids_in_foreign_scope_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = DidCreateRequest(
         subject=_subject("randomaccount"),
@@ -328,7 +332,7 @@ async def test_owner_denied_creating_dids_in_foreign_scope_via_generated_client(
 
 
 async def test_root_may_create_dids_in_any_scope_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = DidCreateRequest(
         subject=_root(),
@@ -347,7 +351,7 @@ async def test_root_may_create_dids_in_any_scope_via_generated_client(
 
 
 async def test_owner_may_attach_to_owned_parent_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = DidAttachRequest(
         subject=_subject("randomaccount"),
@@ -368,7 +372,7 @@ async def test_owner_may_attach_to_owned_parent_via_generated_client(
 
 
 async def test_owner_denied_attach_to_foreign_parent_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = DidAttachRequest(
         subject=_subject("randomaccount"),
@@ -389,7 +393,7 @@ async def test_owner_denied_attach_to_foreign_parent_via_generated_client(
 
 
 async def test_root_may_attach_to_any_parent_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = DidAttachRequest(
         subject=_root(),
@@ -413,7 +417,7 @@ async def test_root_may_attach_to_any_parent_via_generated_client(
 
 
 async def test_owner_may_detach_from_owned_parent_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = DidDetachRequest(
         subject=_subject("randomaccount"),
@@ -430,7 +434,7 @@ async def test_owner_may_detach_from_owned_parent_via_generated_client(
 
 
 async def test_owner_denied_detach_from_foreign_parent_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = DidDetachRequest(
         subject=_subject("randomaccount"),
@@ -447,7 +451,7 @@ async def test_owner_denied_detach_from_foreign_parent_via_generated_client(
 
 
 async def test_root_may_detach_from_any_parent_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = DidDetachRequest(
         subject=_root(),
@@ -467,7 +471,7 @@ async def test_root_may_detach_from_any_parent_via_generated_client(
 
 
 async def test_root_may_create_rse_with_valid_name_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = RseCreateRequest(
         subject=_root(), rse=Rse(name="CERN_DATADISK"), context=Context(vo="def")
@@ -481,7 +485,7 @@ async def test_root_may_create_rse_with_valid_name_via_generated_client(
 
 
 async def test_root_denied_create_rse_with_invalid_name_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     """Privilege alone isn't enough: _perm_add_rse also requires
     _rse_name_valid, checked inside the Rego regardless of caller."""
@@ -496,7 +500,9 @@ async def test_root_denied_create_rse_with_invalid_name_via_generated_client(
     assert response.parsed.decision is False
 
 
-async def test_non_root_denied_create_rse_via_generated_client(generated_client: Client) -> None:
+async def test_non_root_denied_create_rse_via_generated_client(
+    generated_client: AuthenticatedClient,
+) -> None:
     """No entitlement claims are extracted yet (claims={} TODO), so
     only root's unconditional bootstrap can pass _is_privileged."""
     body = RseCreateRequest(
@@ -514,7 +520,7 @@ async def test_non_root_denied_create_rse_via_generated_client(generated_client:
 
 
 async def test_root_may_update_rse_without_rename_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = RseUpdateRequest(
         subject=_root(),
@@ -531,7 +537,7 @@ async def test_root_may_update_rse_without_rename_via_generated_client(
 
 
 async def test_root_denied_rename_to_invalid_name_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = RseUpdateRequest(
         subject=_root(),
@@ -550,7 +556,9 @@ async def test_root_denied_rename_to_invalid_name_via_generated_client(
 # rses/delete
 
 
-async def test_root_may_delete_rse_via_generated_client(generated_client: Client) -> None:
+async def test_root_may_delete_rse_via_generated_client(
+    generated_client: AuthenticatedClient,
+) -> None:
     body = RseDeleteRequest(
         subject=_root(), rse=Rse(name="CERN_DATADISK"), context=Context(vo="def")
     )
@@ -562,7 +570,9 @@ async def test_root_may_delete_rse_via_generated_client(generated_client: Client
     assert response.parsed.decision is True
 
 
-async def test_non_root_denied_delete_rse_via_generated_client(generated_client: Client) -> None:
+async def test_non_root_denied_delete_rse_via_generated_client(
+    generated_client: AuthenticatedClient,
+) -> None:
     body = RseDeleteRequest(
         subject=_subject("randomaccount"), rse=Rse(name="CERN_DATADISK"), context=Context(vo="def")
     )
@@ -577,7 +587,9 @@ async def test_non_root_denied_delete_rse_via_generated_client(generated_client:
 # rses/attributes/set, rses/attributes/delete
 
 
-async def test_root_may_set_rse_attribute_via_generated_client(generated_client: Client) -> None:
+async def test_root_may_set_rse_attribute_via_generated_client(
+    generated_client: AuthenticatedClient,
+) -> None:
     body = RseAttributeSetRequest(
         subject=_root(),
         rse=Rse(name="CERN_DATADISK"),
@@ -592,7 +604,9 @@ async def test_root_may_set_rse_attribute_via_generated_client(generated_client:
     assert response.parsed.decision is True
 
 
-async def test_root_may_delete_rse_attribute_via_generated_client(generated_client: Client) -> None:
+async def test_root_may_delete_rse_attribute_via_generated_client(
+    generated_client: AuthenticatedClient,
+) -> None:
     body = RseAttributeDeleteRequest(
         subject=_root(),
         rse=Rse(name="CERN_DATADISK"),
@@ -611,7 +625,7 @@ async def test_root_may_delete_rse_attribute_via_generated_client(generated_clie
 
 
 async def test_root_may_add_protocol_with_allowed_scheme_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = ProtocolCreateRequest(
         subject=_root(),
@@ -628,7 +642,7 @@ async def test_root_may_add_protocol_with_allowed_scheme_via_generated_client(
 
 
 async def test_root_denied_add_protocol_with_disallowed_scheme_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     """Privilege alone isn't enough: _protocol_scheme_allowed applies
     even to root."""
@@ -646,7 +660,9 @@ async def test_root_denied_add_protocol_with_disallowed_scheme_via_generated_cli
     assert response.parsed.decision is False
 
 
-async def test_non_root_denied_add_protocol_via_generated_client(generated_client: Client) -> None:
+async def test_non_root_denied_add_protocol_via_generated_client(
+    generated_client: AuthenticatedClient,
+) -> None:
     """No entitlement claims are extracted yet (claims={} TODO), so
     only root's unconditional bootstrap can pass _is_privileged."""
     body = ProtocolCreateRequest(
@@ -664,7 +680,7 @@ async def test_non_root_denied_add_protocol_via_generated_client(generated_clien
 
 
 async def test_root_may_update_protocol_without_scheme_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = ProtocolUpdateRequest(
         subject=_root(),
@@ -681,7 +697,7 @@ async def test_root_may_update_protocol_without_scheme_via_generated_client(
 
 
 async def test_root_may_delete_protocol_without_scheme_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     """del_protocol commonly carries no scheme; absent scheme always
     passes _protocol_scheme_allowed."""
@@ -701,13 +717,19 @@ async def test_root_may_delete_protocol_without_scheme_via_generated_client(
 
 # replicas/register, delete
 #
-# No positive non-root vector exists yet: _perm_add_replicas'/
-# _perm_delete_replicas' user-tier paths need input.token.entitlements,
-# which claims={} always empties (_pdp.subject_from's TODO). Only
-# root's unconditional bootstrap is reachable until api/auth.py lands.
+# randomaccount holds the rucio-users entitlement (realm.json), which
+# authz.rego's hardcoded fallback maps to the "user" privilege level
+# (_entitlement_privilege). _perm_add_replicas'/_perm_delete_replicas'
+# user-tier branches grant on privilege level + valid RSE name (add
+# only) + ownership of every file's scope — all satisfied below, since
+# ReplicaRegisterRequest/ReplicaDeleteRequest carry `files` directly
+# per the contract (unlike the Rucio-gateway path this Rego's replicas
+# comment block separately warns about).
 
 
-async def test_root_may_register_replicas_via_generated_client(generated_client: Client) -> None:
+async def test_root_may_register_replicas_via_generated_client(
+    generated_client: AuthenticatedClient,
+) -> None:
     body = ReplicaRegisterRequest(
         subject=_root(),
         rse=Rse(name="CERN_DATADISK"),
@@ -722,8 +744,8 @@ async def test_root_may_register_replicas_via_generated_client(generated_client:
     assert response.parsed.decision is True
 
 
-async def test_non_root_denied_register_replicas_via_generated_client(
-    generated_client: Client,
+async def test_entitled_user_may_register_replicas_over_owned_scope_via_generated_client(
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = ReplicaRegisterRequest(
         subject=_subject("randomaccount"),
@@ -736,10 +758,12 @@ async def test_non_root_denied_register_replicas_via_generated_client(
 
     assert response.status_code == 200
     assert response.parsed is not None
-    assert response.parsed.decision is False
+    assert response.parsed.decision is True
 
 
-async def test_root_may_delete_replicas_via_generated_client(generated_client: Client) -> None:
+async def test_root_may_delete_replicas_via_generated_client(
+    generated_client: AuthenticatedClient,
+) -> None:
     body = ReplicaDeleteRequest(
         subject=_root(),
         rse=Rse(name="CERN_DATADISK"),
@@ -754,8 +778,8 @@ async def test_root_may_delete_replicas_via_generated_client(generated_client: C
     assert response.parsed.decision is True
 
 
-async def test_non_root_denied_delete_replicas_via_generated_client(
-    generated_client: Client,
+async def test_entitled_user_may_delete_replicas_over_owned_scope_via_generated_client(
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = ReplicaDeleteRequest(
         subject=_subject("randomaccount"),
@@ -768,14 +792,14 @@ async def test_non_root_denied_delete_replicas_via_generated_client(
 
     assert response.status_code == 200
     assert response.parsed is not None
-    assert response.parsed.decision is False
+    assert response.parsed.decision is True
 
 
 # privileged-operations — the last route
 
 
 async def test_root_may_perform_any_privileged_operation_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = PrivilegedOperationRequest(
         subject=_root(), operation="add_account", context=Context(vo="def")
@@ -789,7 +813,7 @@ async def test_root_may_perform_any_privileged_operation_via_generated_client(
 
 
 async def test_non_root_denied_privileged_operation_via_generated_client(
-    generated_client: Client,
+    generated_client: AuthenticatedClient,
 ) -> None:
     body = PrivilegedOperationRequest(
         subject=_subject("randomaccount"), operation="add_account", context=Context(vo="def")
