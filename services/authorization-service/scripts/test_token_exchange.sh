@@ -19,6 +19,41 @@ EXCHANGE_TARGET=authz-service
 
 _kc() { docker exec "$KEYCLOAK_CONTAINER" "$KCADM" "$@"; }
 
+# ── preflight ─────────────────────────────────────────────
+
+preflight() {
+    command -v jq >/dev/null || { echo "ERROR: jq is required but not on PATH" >&2; exit 1; }
+    command -v python3 >/dev/null || { echo "ERROR: python3 is required but not on PATH" >&2; exit 1; }
+
+    if ! docker inspect "$KEYCLOAK_CONTAINER" >/dev/null 2>&1; then
+        echo "ERROR: container '$KEYCLOAK_CONTAINER' does not exist." >&2
+        echo "  Start it with: docker compose up -d" >&2
+        echo "  Or point KEYCLOAK_CONTAINER at the right name if it differs." >&2
+        exit 1
+    fi
+
+    if [ "$(docker inspect -f '{{.State.Running}}' "$KEYCLOAK_CONTAINER")" != "true" ]; then
+        echo "ERROR: container '$KEYCLOAK_CONTAINER' exists but isn't running." >&2
+        echo "  Start it with: docker compose up -d" >&2
+        exit 1
+    fi
+
+    echo "Waiting for Keycloak to accept requests at $KEYCLOAK_URL..."
+    local attempt
+    for attempt in $(seq 1 30); do
+        if curl -sf -o /dev/null "$KEYCLOAK_URL/realms/master"; then
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo "ERROR: Keycloak never became reachable at $KEYCLOAK_URL after 30s." >&2
+    echo "  Container is running but the server inside it may still be" >&2
+    echo "  starting, or hasn't finished importing the realm — check:" >&2
+    echo "    docker logs $KEYCLOAK_CONTAINER" >&2
+    exit 1
+}
+
 # ── Step 0: permission grant ──────────────────────────────────────
 
 grant_token_exchange() {
@@ -151,6 +186,7 @@ print(json.dumps(json.loads(base64.urlsafe_b64decode(p)), indent=2))
 # ── Main ───────────────────────────────────────────────────────────
 
 main() {
+    preflight
     grant_token_exchange
     mint_user_token
     exchange_token
