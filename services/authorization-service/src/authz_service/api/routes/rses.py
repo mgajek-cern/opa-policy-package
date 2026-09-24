@@ -1,4 +1,5 @@
-"""RSE operations. Started from the fastapi-codegen stub (api/generated/rses.py)."""
+"""RSE operations. Initially referring to fastapi-codegen
+stub routers signatures (api/generated/rses.py)."""
 
 from __future__ import annotations
 

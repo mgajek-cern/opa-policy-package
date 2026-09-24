@@ -244,24 +244,54 @@ def _grant_token_exchange(container: DockerContainer, requester: str, target: st
 
 
 @pytest.fixture(scope="session")
-def bearer_token(keycloak: tuple[str, DockerContainer]) -> str:
+def _keycloak_token_exchange_granted(keycloak: tuple[str, DockerContainer]) -> None:
+    """Runs grant_token_exchange exactly once per session. Both
+    bearer_token and admin_bearer_token depend on this rather than
+    calling _grant_token_exchange themselves — kcadm's `config
+    credentials` step is not safe to invoke twice back-to-back (it
+    re-authenticates against Keycloak's admin API and can stall/rate-
+    limit on rapid repeat calls), which is what caused test collection
+    to hang here previously."""
+    _keycloak_url, container = keycloak
+    _grant_token_exchange(container, requester="rucio", target="authz-service")
+
+
+@pytest.fixture(scope="session")
+def bearer_token(
+    keycloak: tuple[str, DockerContainer],
+    _keycloak_token_exchange_granted: None,
+) -> str:
     """A real, exchanged bearer token (randomaccount, audience=authz-service,
     scope=pep:rucio) — same flow as scripts/test_token_exchange.sh's
     grant_token_exchange + mint + exchange, run once per session."""
+    return _exchanged_token(keycloak, username="randomaccount", password="secret")
 
-    keycloak_url, container = keycloak
-    _grant_token_exchange(container, requester="rucio", target="authz-service")
+
+@pytest.fixture(scope="session")
+def admin_bearer_token(
+    keycloak: tuple[str, DockerContainer],
+    _keycloak_token_exchange_granted: None,
+) -> str:
+    """Same flow as bearer_token, for adminuser — carries the
+    rucio-admins/atlas-production entitlements, so this is what
+    exercises _is_privileged's entitlement branch end-to-end now that
+    subject_from() forwards real claims (see api/routes/_pdp.py)."""
+    return _exchanged_token(keycloak, username="adminuser", password="admin123")
+
+
+def _exchanged_token(keycloak: tuple[str, DockerContainer], *, username: str, password: str) -> str:
+    keycloak_url, _container = keycloak
 
     token_url = f"{keycloak_url}/realms/rucio/protocol/openid-connect/token"
-    with httpx.Client() as http:
+    with httpx.Client(timeout=15.0) as http:
         user_resp = http.post(
             token_url,
             data={
                 "grant_type": "password",
                 "client_id": "rucio",
                 "client_secret": "rucio-secret",
-                "username": "randomaccount",
-                "password": "secret",
+                "username": username,
+                "password": password,
                 "scope": "openid",
             },
         )
@@ -281,8 +311,7 @@ def bearer_token(keycloak: tuple[str, DockerContainer]) -> str:
             },
         )
         exchange_resp.raise_for_status()
-        token = exchange_resp.json()["access_token"]
-        return token
+        return exchange_resp.json()["access_token"]
 
 
 @pytest.fixture(scope="session")

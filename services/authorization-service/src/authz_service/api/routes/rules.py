@@ -1,4 +1,4 @@
-"""Rules operations. Started from the fastapi-codegen stub."""
+"""Rules operations. Initially referring to fastapi-codegen stub routers signatures."""
 
 from __future__ import annotations
 

@@ -11,7 +11,7 @@ Worked example: rules/delete, followed for every operation group since.
    checks `openapi.yaml` against `authz.rego` directly and shares fixtures
    with the phase-6 policy suite. Also add the new `operationId` to
    `ACTIONS_BY_OPERATION_ID` there, or `test_every_contract_operation_is_mapped`
-   will fail on the next run.
+   will fail on the next run. (**TODO:** Move authz.rego and realm.json into `authz_service` dirs and recover removed opa test in into `authz_service` dirs)
 3. Route: hand-write api/routes/<tag>.py — NOT [api/generated/](../src/authz_service/api/generated/), which is
    reference only (see [README's](../README.md) Generated code section) and can't express
    `Depends(validated_claims)`. Call `subject_from(body.subject, token)` and
