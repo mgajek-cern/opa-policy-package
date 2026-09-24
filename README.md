@@ -1,6 +1,6 @@
 # opa-policy-package
 
-Rucio policy packages across six phases of increasing capability. Each phase is
+Rucio policy packages across seven phases of increasing capability. Each phase is
 a drop-in replacement — point Rucio at the package and restart; no data
 migration required.
 
@@ -12,6 +12,7 @@ migration required.
 | 4 | [`rucio-opa-v3-policy`](phases/phase4-opa/README.md) | OPA | `is_root`/`is_admin` DB lookup replaced by `wlcg.groups` from the token. |
 | 5 | [`rucio-opa-v4-policy`](phases/phase5-opa/README.md) | OPA | WLCG group paths replaced by URN `entitlements`. |
 | 6 | [`rucio-opa-v5-policy`](phases/phase6-opa/README.md) | OPA | Same entitlement model, proven end to end against real TPC transfers through FTS. |
+| 7 | [`rucio-opa-v6-policy`](phases/phase7-opa/README.md) | authz-service → OPA | `has_permission()` calls a standalone Authorization Service over HTTP instead of querying OPA directly; same entitlement/ownership model, relocated behind a typed REST contract. |
 
 > See [Policy package mechanism](docs/policy-package-mechanism.md) for how Rucio
 > loads a policy package, and [Action → Policy Mapping](docs/action-policy-mapping.md)
@@ -20,7 +21,7 @@ migration required.
 
 ## Quick start
 
-Every target takes `PHASE=1..6`; it defaults to 6. Nothing else needs naming —
+Every target takes `PHASE=1..7`; it defaults to 6. Nothing else needs naming —
 the compose file, the policy package, the init script and the test suites are
 all derived from it.
 
@@ -31,7 +32,7 @@ make e2e
 
 # Or step by step
 make install-dev   # test deps plus phases/phase5-opa in editable mode
-make up            # compose up --wait (generates certs first on phase 6)
+make up            # compose up --wait (generates certs first)
 make init          # accounts, OIDC identities, RSEs, token exchange
 make test          # whichever suites this phase has
 make clean         # down -v
@@ -55,12 +56,12 @@ have prints a line and exits clean.
 | Suite | Boundary | Phases |
 |---|---|---|
 | `tests/test_phaseN_opa.py` | OPA directly, with handcrafted input documents | 2–6 |
-| `tests/test_phaseN_rucio.py` | Rucio's REST API, with real tokens | 2–6 |
-| `tests/test_phase6_full_transfer.py` | Rucio → FTS → storage, end to end | 6 |
+| `tests/test_phaseN_rucio.py` | Rucio's REST API, with real tokens | 2–7 |
+| `tests/test_phase{6,7}_full_transfer.py` | Rucio → FTS → storage, end to end | 6, 7 |
 
-Phase 6's suites run inside the `rucio-client` container, which has the certs
-and in-network DNS; the rest run on the host against `localhost`. The Makefile
-picks per phase, so the command is the same either way.
+Phase 6 and 7's suites run inside the `rucio-client` container, which has the
+certs and in-network DNS; the rest run on the host against `localhost`. The
+Makefile picks per phase, so the command is the same either way.
 
 ## Make targets
 
