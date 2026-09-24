@@ -396,6 +396,7 @@ services:
   authz-service:
     build:
       context: ../../services/authorization-service
+      dockerfile: docker/Dockerfile
     hostname: authz-service
     environment:
       - AUTHZ_PDP=opa

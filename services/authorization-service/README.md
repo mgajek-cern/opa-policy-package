@@ -1,9 +1,9 @@
 # DEP Authorization Service
 
 Decisions for Policy Enforcement Points. Implemented per
-[design-006](../../docs/design/design-006-authorization-service-implementation.md);
+[design-006](https://github.com/mgajek-cern/opa-policy-package/tree/main/docs/design/design-006-authorization-service-implementation.md);
 the reasons and invariants are in
-[ADR-004](../../docs/adrs/adr-004-authorization-service-implementation.md).
+[ADR-004](https://github.com/mgajek-cern/opa-policy-package/tree/main/docs/adrs/adr-004-authorization-service-implementation.md).
 
 This is the skeleton: settings, health, telemetry, the PDP port and the OPA
 adapter's connectivity. Decision endpoints arrive one operation group at a
@@ -25,7 +25,8 @@ See [docs/adding-an-endpoint.md](docs/adding-an-endpoint.md) for the step-by-ste
 | `clients/python/` | Standalone typed client for PEPs (e.g. Rucio), generated from the contract (`make generate-client`). |
 | `tests/unit/` | Pure logic only. |
 | `tests/integration/` | Authoritative. Fixtures own the containers. |
-| `../../tests/test_phase7_opa.py` (repo root, not under this service) | Contract/Rego alignment — `openapi.yaml` operationIds vs. `authz.rego`'s `_all_known_actions`. Not run by this service's own `make test`; see docs/adding-an-endpoint.md. |
+| `docker/authz.rego`, `docker/realm.json` | The service's own copies for its dev/test OPA and Keycloak — duplicated from the root repo's `policies/rego/phase7/` and `configs/keycloak/phase7/`, not shared, so this service's tests and `make up` need no root-repo checkout. |
+
 
 ## Getting started
 
@@ -34,8 +35,8 @@ make venv      # create .venv and install the package with dev extras
 make lint      # ruff and the import contracts
 make typecheck # mypy
 make test      # unit tests, then integration tests (needs Docker)
-docker compose up -d                 # start OPA and Keycloak for manual `make run`;
-                                     #`make test` provisions its own via testcontainers
+make up        # start OPA and Keycloak for manual `make run`;
+               #`make test` provisions its own via testcontainers
 export AUTHZ_OIDC_ISSUER=http://keycloak:8080/realms/rucio
 export AUTHZ_OIDC_AUDIENCE=authz-service
 export AUTHZ_OPA_URL=http://localhost:8181
@@ -47,7 +48,7 @@ make run       # local server on :8000
 `scripts/ingest_policies.py`, and runs the service in-process against it.
 
 `opa-init` is a one-shot container that waits for OPA's health endpoint,
-loads the same policy bundle, then exits — `docker compose up -d` returns
+loads the same policy bundle, then exits — `make up` returns
 before it finishes, so if `make run` starts against an unindexed OPA,
 `pdp.evaluate()` fails closed (`NOT_APPLICABLE`) rather than erroring;
 check `docker compose logs opa-init` if that happens.
@@ -79,6 +80,9 @@ make generate-client        # -> clients/python/
   test-token-exchange      exercise the realm.json exchange flow and check required claims
   run                      Run locally
   image                    Build the container image
+  up                       Start the service's own dev/test compose stack (OPA + Keycloak)
+  down                     Stop the dev/test compose stack, keeping volumes
+  clean                    Stop the dev/test compose stack and wipe volumes
 ```
 
 ## Configuration
@@ -106,6 +110,6 @@ venv (`.venv-codegen`, via `make tools`) rather than `[dev]`.
 
 `.vscode/launch.json` has a "Python: FastAPI (authz-service)" config that
 runs `uvicorn authz_service.main:create_app --factory --reload` (the app is
-built by a factory, not a module-level `app`). Start `docker compose up -d opa opa-init`
+built by a factory, not a module-level `app`). Start `make up`
 first, then optionally set a breakpoint in [src/authz_service/main.py](src/authz_service/main.py)
 and launch it from the Run and Debug dropdown.

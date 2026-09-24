@@ -8,7 +8,7 @@
 set -euo pipefail
 
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080}"
-KEYCLOAK_CONTAINER="${KEYCLOAK_CONTAINER:-authorization-service-keycloak-1}"
+KEYCLOAK_CONTAINER="${KEYCLOAK_CONTAINER:-docker-keycloak-1}"
 TOKEN_URL="$KEYCLOAK_URL/realms/rucio/protocol/openid-connect/token"
 KC_REALM=rucio
 KC_ADMIN_USER="${KC_ADMIN_USER:-admin}"

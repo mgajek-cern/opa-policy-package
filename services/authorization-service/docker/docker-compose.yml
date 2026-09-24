@@ -23,23 +23,22 @@ services:
     depends_on:
       - opa
     volumes:
-      - ../../scripts/ingest_policies.py:/app/ingest_policies.py:ro
-      - ../../policies/rego/phase7:/app/rego/phase7:ro
+      - ../scripts/ingest_policies.py:/app/ingest_policies.py:ro
+      - ./authz.rego:/app/authz.rego:ro
     working_dir: /app
     command:
       - sh
       - -c
       - |
         until python -c "import urllib.request; urllib.request.urlopen('http://opa:8181/health')" 2>/dev/null; do sleep 1; done
-        python ingest_policies.py --phase phase7 --opa-url http://opa:8181 \
-          --rego-path /app/rego/phase7/authz.rego
+        python ingest_policies.py --opa-url http://opa:8181 --rego-path /app/authz.rego
     restart: "no"
 
   keycloak:
     image: quay.io/keycloak/keycloak:23.0.1
     hostname: keycloak
     volumes:
-      - ../../configs/keycloak/phase7/realm.json:/opt/keycloak/data/import/realm.json:ro
+      - ./realm.json:/opt/keycloak/data/import/realm.json:ro
     command:
       - start-dev
       - --features=token-exchange,admin-fine-grained-authz,dynamic-scopes
