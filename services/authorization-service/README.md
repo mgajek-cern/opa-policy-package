@@ -44,7 +44,7 @@ make run       # local server on :8000
 ```
 
 `make test` starts an OPA container through testcontainers, loads
-`policies/rego/phase7/authz.rego` and the phase 7 data from
+`docker/authz.rego` and the phase 7 data from
 `scripts/ingest_policies.py`, and runs the service in-process against it.
 
 `opa-init` is a one-shot container that waits for OPA's health endpoint,
