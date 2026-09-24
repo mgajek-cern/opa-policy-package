@@ -46,9 +46,9 @@ ifeq ($(PHASE),1)
 	UNIT_TESTS := tests/test_phase1_rules.py tests/test_phase1_permission.py
 endif
 
-# Phase 6 drives Rucio from inside the client container: it needs the mounted
+# Phases 6 and 7 drive Rucio from inside the client container: they need the mounted
 # certs and in-network DNS to reach FTS and the storage endpoints.
-ifeq ($(PHASE),6)
+ifeq ($(PHASE),$(filter $(PHASE),6 7))
 	TEST_CONTAINER := rucio-client
 endif
 
