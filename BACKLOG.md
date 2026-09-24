@@ -30,3 +30,5 @@ Per-RSE/per-scope ABAC and time constraints (rule expiry, maintenance windows), 
 Capture the relevant implementation details, configuration, integration steps
 and lessons learned in dep-dlm-testbed to make the setup reproducible and
 reusable.
+
+Open question: Does `dep-dlm-testbed` carry phase 7's authz-service, a phase-6-style direct integration or both via a flag on `has_permission()`'s dispatch (same `authz.rego` either way)? Decide before the testbed's docs/deployment definitions are written.
