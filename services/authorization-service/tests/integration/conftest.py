@@ -24,11 +24,11 @@ import uvicorn
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.waiting_utils import wait_for_logs
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
-REGO_PATH = REPO_ROOT / "policies" / "rego" / "phase7" / "authz.rego"
-INGEST_SCRIPT = REPO_ROOT / "scripts" / "ingest_policies.py"
-REALM_JSON = REPO_ROOT / "configs" / "keycloak" / "phase7" / "realm.json"
-PHASE = "phase7"
+SERVICE_ROOT = Path(__file__).resolve().parents[2]  # services/authorization-service
+REGO_PATH = SERVICE_ROOT / "docker" / "authz.rego"
+INGEST_SCRIPT = SERVICE_ROOT / "scripts" / "ingest_policies.py"
+REALM_JSON = SERVICE_ROOT / "docker" / "realm.json"
+COMPOSE_FILE = SERVICE_ROOT / "docker" / "docker-compose.yml"
 OPA_IMAGE = "openpolicyagent/opa:1.8.0"
 KEYCLOAK_IMAGE = "quay.io/keycloak/keycloak:23.0.1"
 
@@ -42,7 +42,7 @@ def _put(url: str, body: bytes, content_type: str) -> None:
 
 
 def _phase_data() -> dict[str, dict[str, Any]]:
-    """The phase's data bundle, read from the ingest script.
+    """The service's phase 7 data bundle, read from the ingest script.
 
     Importing it keeps one source for policy data, so the tests cannot drift
     from what the testbed loads.
@@ -51,7 +51,7 @@ def _phase_data() -> dict[str, dict[str, Any]]:
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return dict(module.PHASES[PHASE].data)
+    return dict(module.PHASE.data)
 
 
 def _wait_for_health(base_url: str, timeout_seconds: float = 30.0) -> None:

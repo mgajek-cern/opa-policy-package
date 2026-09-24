@@ -27,6 +27,8 @@ TOOLS_BIN ?= $(TOOLS_VENV)/bin
 FASTAPI_CODEGEN ?= $(TOOLS_BIN)/fastapi-codegen
 OPENAPI_PYTHON_CLIENT ?= $(TOOLS_BIN)/openapi-python-client
 
+COMPOSE := docker compose -f docker/docker-compose.yml
+
 .DEFAULT_GOAL := help
 
 help: ## List targets
@@ -87,7 +89,7 @@ test: ## Unit tests, then integration tests (needs Docker)
 	$(BIN)/pytest tests/unit tests/integration
 
 demo-client:  ## poke a running instance via the generated client (needs `make run` up)
-	python scripts/demo_client.py
+	$(BIN)/python scripts/demo_client.py
 
 test-token-exchange:  ## exercise the realm.json exchange flow and check required claims
 	bash scripts/test_token_exchange.sh
@@ -96,4 +98,13 @@ run: ## Run locally
 	$(BIN)/uvicorn authz_service.main:create_app --factory --reload --port 8000
 
 image: ## Build the container image
-	docker build -t authz-service:dev .
+	docker build -f docker/Dockerfile -t authz-service:dev .
+
+up: ## Start the service's own dev/test compose stack (OPA + Keycloak)
+	$(COMPOSE) up -d
+
+down: ## Stop the dev/test compose stack, keeping volumes
+	$(COMPOSE) down
+
+clean: ## Stop the dev/test compose stack and wipe volumes
+	$(COMPOSE) down -v

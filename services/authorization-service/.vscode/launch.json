@@ -14,7 +14,9 @@
             ],
             "cwd": "${workspaceFolder}",
             "env": {
-                "AUTHZ_OPA_URL": "http://localhost:8181"
+                "AUTHZ_OPA_URL": "http://localhost:8181",
+                "AUTHZ_OIDC_ISSUER": "http://keycloak:8080/realms/rucio",
+                "AUTHZ_OIDC_AUDIENCE": "authz-service"
             },
             "jinja": true
         }

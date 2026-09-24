@@ -12,8 +12,8 @@ does this), or the exchange step below will fail with "Client not allowed
 to exchange".
 
 Usage:
-    docker compose up -d opa opa-init keycloak
-    export AUTHZ_OPA_URL=http://localhost:8181
+    make up
+    make test-token-exchange
     make run &
     python scripts/demo_client.py [--base-url http://localhost:8000] [--keycloak-url http://localhost:8080]
 
