@@ -5,7 +5,7 @@ The two accounts come pre-created in the phase 4 Keycloak realm and are mapped
 to same-named Rucio accounts by scripts/init-phase4.sh:
 
     adminuser   wlcg.groups /rucio/admins, /atlas/production   acr REFEDS MFA
-    alice       wlcg.groups /rucio/users,  /atlas/users        acr REFEDS MFA
+    randomaccount  wlcg.groups /rucio/users,  /atlas/users        acr REFEDS MFA
 
 data.vo.group_policy maps /rucio/admins and /atlas/production to "admin" and
 /rucio/users to "user"; /atlas/users is deliberately unmapped.
@@ -25,15 +25,15 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-KEYCLOAK_CLIENT_ID = "rucio-oidc"
-KEYCLOAK_CLIENT_SECRET = "rucio-oidc-secret"
+KEYCLOAK_CLIENT_ID = "rucio"
+KEYCLOAK_CLIENT_SECRET = "rucio-secret"
 
 # Must match AUTHZ_TEST_USERS in scripts/init-phase4.sh, which in turn must
 # match the users in the phase 4 realm export.
 ADMIN_USERNAME = os.environ.get("OIDC_ADMIN_USERNAME", "adminuser")
 ADMIN_PASSWORD = os.environ.get("OIDC_ADMIN_PASSWORD", "admin123")
-USER_USERNAME = os.environ.get("OIDC_USER_USERNAME", "alice")
-USER_PASSWORD = os.environ.get("OIDC_USER_PASSWORD", "alice123")
+USER_USERNAME = os.environ.get("OIDC_USER_USERNAME", "randomaccount")
+USER_PASSWORD = os.environ.get("OIDC_USER_PASSWORD", "secret")
 
 # Superset of [oidc] expected_scope in configs/rucio/phase4/rucio.cfg, plus
 # aud:rucio to satisfy expected_audience. A token missing either is rejected
@@ -48,12 +48,12 @@ VALID_RSE = "CERN_DATADISK"
 BAD_NAME_RSE = "CERN_UNKNOWN"
 
 # Scopes created by the init script. The first is the ordinary case; the
-# other two are what make the ownership tests meaningful — one alice owns
-# but is not named after, one whose name starts with hers but belongs to
+# other two are what make the ownership tests meaningful — one randomaccount owns
+# but is not named after, one whose name starts with theirs but belongs to
 # adminuser.
 OWNED_SCOPE = USER_USERNAME
 OWNED_SCOPE_UNNAMED = "projectdata"
-FOREIGN_SCOPE_PREFIXED = "aliceleak"
+FOREIGN_SCOPE_PREFIXED = "randomaccountleak"
 
 
 @pytest.fixture(scope="module")
@@ -138,8 +138,8 @@ def _unique(prefix):
 # Group-driven privilege
 #
 # adminuser is in /rucio/admins, which data.vo.group_policy maps to "admin";
-# alice is in /rucio/users, which maps to "user" — and since _is_privileged
-# only ever compares against "admin", alice reaches the same clauses as an
+# randomaccount is in /rucio/users, which maps to "user" — and since _is_privileged
+# only ever compares against "admin", randomaccount reaches the same clauses as an
 # account with no groups at all.
 
 
@@ -210,7 +210,7 @@ class TestGroupAuthorisation:
 
 class TestSelfService:
     def test_user_can_create_did_in_own_scope(self, stack_urls, user_token):
-        """kwargs.scope in kwargs.owned_scopes → allow. alice owns scope 'alice'."""
+        """kwargs.scope in kwargs.owned_scopes → allow. randomaccount owns scope 'randomaccount'."""
         rucio_url, _ = stack_urls
         status, exc_cls, exc_msg = _call(
             rucio_url,

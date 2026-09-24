@@ -14,6 +14,12 @@ Phase 1 Rucio policy package — Rucio as PDP, permission logic inline in Python
 | `add_rse` | Privileged + RSE naming |
 | `update_rse` | Privileged + RSE naming on rename |
 
+## Installation
+
+```bash
+python3 -m pip install -e phases/phase1-no-opa/
+```
+
 ## Configuration
 
 ```ini

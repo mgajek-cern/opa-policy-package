@@ -12,8 +12,8 @@ set -euo pipefail
 # account attribute — see the realm notes on AUTHZ_TEST_USERS below.
 
 OIDC_ISSUER="${OIDC_ISSUER:-http://keycloak:8080/realms/rucio}"
-OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-rucio-oidc}"
-OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-rucio-oidc-secret}"
+OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-rucio}"
+OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-rucio-secret}"
 OIDC_TOKEN_URL="${OIDC_TOKEN_URL:-${OIDC_ISSUER%/}/protocol/openid-connect/token}"
 OIDC_EXPECTED_AUDIENCE="${OIDC_EXPECTED_AUDIENCE:-rucio}"
 
@@ -33,12 +33,12 @@ OIDC_AUTHZ_SCOPE="${OIDC_AUTHZ_SCOPE:-openid offline_access aud:rucio}"
 #   adminuser  entitlements  urn:example:aai.example.org:group:rucio-admins:role=member
 #                            urn:example:aai.example.org:group:atlas-production:role=member
 #              acr           REFEDS MFA
-#   alice      entitlements  urn:example:aai.example.org:group:rucio-users:role=member
+#   randomaccount entitlements  urn:example:aai.example.org:group:rucio-users:role=member
 #                            urn:example:aai.example.org:group:atlas-users:role=member
 #              acr           REFEDS MFA
 #
 # The realm still defines the /rucio/* and /atlas/* groups, but no group
-# mapper is attached to the rucio-oidc client here — the token carries
+# mapper is attached to the rucio client here — the token carries
 # entitlement URNs only, and data.vo.entitlement_policy is keyed on those.
 # Both users carry the *same* acr, deliberately: no real-token test can then
 # exercise the required_acr deny branch, and no test breaks because the claim
@@ -46,7 +46,7 @@ OIDC_AUTHZ_SCOPE="${OIDC_AUTHZ_SCOPE:-openid offline_access aud:rucio}"
 # tests/test_phase5_opa.py instead.
 AUTHZ_TEST_USERS=(
     "adminuser:admin123:adminuser"
-    "alice:alice123:alice"
+    "randomaccount:secret:randomaccount"
 )
 
 # The phase 5 compose file sets container_name, so address containers directly.
@@ -94,24 +94,24 @@ setup_accounts() {
 
     # Negative case: rucio-users only, which maps to "user" — enough for
     # add_replicas on a name-valid RSE, not enough for anything privileged.
-    ra account add --type USER --email alice@example.org alice || true
+    ra account add --type USER --email randomaccount@example.org randomaccount || true
 
-    # Scopes for the self-service tests. alice writes into her own; the
+    # Scopes for the self-service tests. randomaccount writes into their own; the
     # foreign-scope test writes into adminuser's, and that scope has to exist
     # for the resulting AccessDenied to be unambiguously a policy decision
     # rather than a missing resource.
-    ra scope add --account alice --scope alice || true
+    ra scope add --account randomaccount --scope randomaccount || true
     ra scope add --account adminuser --scope adminuser || true
 
     # The two cases design-003 turns on, mirroring init-phase6.sh. Without
     # them this phase has no REST-level evidence that the prefix check is
     # gone — only that it still allows what it always allowed.
     #
-    # Owned by alice, not named after her: the prefix check denied this.
-    ra scope add --account alice --scope projectdata || true
-    # Owned by adminuser, but prefixed with alice's name: the prefix check
+    # Owned by randomaccount, not named after them: the prefix check denied this.
+    ra scope add --account randomaccount --scope projectdata || true
+    # Owned by adminuser, but prefixed with randomaccount's name: the prefix check
     # allowed this.
-    ra scope add --account adminuser --scope aliceleak || true
+    ra scope add --account adminuser --scope randomaccountleak || true
 }
 
 # ── OIDC identity mapping ─────────────────────────────────────────
@@ -185,7 +185,7 @@ if os.environ['OIDC_EXPECTED_AUDIENCE'] not in aud:
 
 if claim_name not in claims:
     print(f'  ⚠ {username}: no {claim_name} claim — check the '
-          "'entitlements' client scope on the rucio-oidc client")
+          "'entitlements' client scope on the rucio client")
 
 # acr is only consulted when data.vo.policy.required_acr is set, so its
 # absence is not fatal here — but it silently turns every privileged action

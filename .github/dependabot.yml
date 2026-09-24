@@ -1,0 +1,6 @@
+  version: 2
+  updates:
+    - package-ecosystem: "pip"
+      directory: "/services/authorization-service"
+      schedule:
+        interval: "weekly"

@@ -12,8 +12,8 @@ set -euo pipefail
 # attribute — see the realm notes on AUTHZ_TEST_USERS below.
 
 OIDC_ISSUER="${OIDC_ISSUER:-http://keycloak:8080/realms/rucio}"
-OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-rucio-oidc}"
-OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-rucio-oidc-secret}"
+OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-rucio}"
+OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-rucio-secret}"
 OIDC_TOKEN_URL="${OIDC_TOKEN_URL:-${OIDC_ISSUER%/}/protocol/openid-connect/token}"
 OIDC_EXPECTED_AUDIENCE="${OIDC_EXPECTED_AUDIENCE:-rucio}"
 
@@ -31,7 +31,7 @@ OIDC_AUTHZ_SCOPE="${OIDC_AUTHZ_SCOPE:-openid offline_access aud:rucio}"
 # passwords here must match it. What that realm grants them:
 #
 #   adminuser  wlcg.groups /rucio/admins, /atlas/production   acr REFEDS MFA
-#   alice      wlcg.groups /rucio/users,  /atlas/users        acr REFEDS MFA
+#   randomaccount wlcg.groups /rucio/users,  /atlas/users        acr REFEDS MFA
 #
 # The group paths are minted by the `wlcg-groups` mapper on the `wlcg` client
 # scope with full.path=true, which is why data.vo.group_policy keys are full
@@ -41,7 +41,7 @@ OIDC_AUTHZ_SCOPE="${OIDC_AUTHZ_SCOPE:-openid offline_access aud:rucio}"
 # in tests/test_phase4_opa.py instead.
 AUTHZ_TEST_USERS=(
     "adminuser:admin123:adminuser"
-    "alice:alice123:alice"
+    "randomaccount:secret:randomaccount"
 )
 
 # The phase 4 compose file sets container_name, so address containers directly.
@@ -89,24 +89,24 @@ setup_accounts() {
 
     # Negative case: /rucio/users only, which maps to "user" — enough for
     # add_replicas on a name-valid RSE, not enough for anything privileged.
-    ra account add --type USER --email alice@example.org alice || true
+    ra account add --type USER --email randomaccount@example.org randomaccount || true
 
-    # Scopes for the self-service tests. alice writes into her own; the
+    # Scopes for the self-service tests. randomaccount writes into their own; the
     # foreign-scope test writes into adminuser's, and that scope has to exist
     # for the resulting AccessDenied to be unambiguously a policy decision
     # rather than a missing resource.
-    ra scope add --account alice --scope alice || true
+    ra scope add --account randomaccount --scope randomaccount || true
     ra scope add --account adminuser --scope adminuser || true
 
     # The two cases design-003 turns on, mirroring init-phase6.sh. Without
     # them this phase has no REST-level evidence that the prefix check is
     # gone — only that it still allows what it always allowed.
     #
-    # Owned by alice, not named after her: the prefix check denied this.
-    ra scope add --account alice --scope projectdata || true
-    # Owned by adminuser, but prefixed with alice's name: the prefix check
+    # Owned by randomaccount, not named after them: the prefix check denied this.
+    ra scope add --account randomaccount --scope projectdata || true
+    # Owned by adminuser, but prefixed with randomaccount's name: the prefix check
     # allowed this.
-    ra scope add --account adminuser --scope aliceleak || true
+    ra scope add --account adminuser --scope randomaccountleak || true
 }
 
 # ── OIDC identity mapping ─────────────────────────────────────────

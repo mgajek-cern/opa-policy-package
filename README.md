@@ -65,14 +65,14 @@ picks per phase, so the command is the same either way.
 ## Make targets
 
 ```sh
-PHASE=6  package=phases/phase6-opa
+PHASE=7  package=phases/phase7-opa
 
   help             List targets
   install          pip install -e the selected phase's package
-  install-dev      Install test dependencies plus the selectedphase
-  certs            Generate the CA and host certs (needed before phase 6 comes up)
+  install-dev      Install test dependencies plus the selected phase
+  certs            Generate the CA and host certs
   up               Start the phase's stack and wait for healthchecks
-  init             Register accounts, identities and (phase 6)RSEs and token exchange
+  init             Register accounts, identities and (phase 6/7) RSEs and token exchange
   down             Stop the stack, keeping volumes
   clean            Stop the stack and wipe volumes
   ps               Show container status, including exited ones

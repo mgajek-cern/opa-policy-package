@@ -1,0 +1,124 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "authz-service"
+version = "0.1.0"
+description = "DEP Authorization Service — decisions for Policy Enforcement Points (design-006)"
+requires-python = ">=3.12"
+readme = "README.md"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pyjwt[crypto]>=2.8",
+    "opentelemetry-api>=1.25",
+    "opentelemetry-sdk>=1.25",
+    "opentelemetry-exporter-otlp-proto-http>=1.25",
+    "opentelemetry-instrumentation-fastapi>=0.46b0",
+    "opentelemetry-instrumentation-httpx>=0.46b0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "testcontainers>=4.5",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "import-linter>=2.0",
+    "openapi-spec-validator>=0.7",
+    "pyyaml>=6.0",
+    "attrs>=23.1.0",
+    "python-dateutil>=2.8.0",
+]
+
+# Route/client generators. Kept out of `dev`: fastapi-code-generator pulls
+# in its own, newer datamodel-code-generator requirement, incompatible
+# with the ==0.26.5 pin `dev` needs — a single venv can't hold both, so
+# this group is installed into its own venv (`make tools`), never
+# resolved alongside `dev` in the same `pip install`.
+codegen = [
+    "fastapi-code-generator==0.8.1",
+    "openapi-python-client==0.29.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+extend-exclude = ["src/authz_service/api/generated", "clients"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+packages = ["authz_service"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# Makes the generated client importable as `python.client`, `python.models...`
+# — the parent dir, not clients/python itself, since clients/python/types.py
+# would otherwise shadow the stdlib `types` module for the whole session.
+pythonpath = ["clients"]
+markers = [
+    "auth_interop: runs against a real Keycloak (slow)",
+    "failure_modes: needs the toxiproxy fixture",
+]
+
+# Invariant 3 (dependency direction) and the unit-test restriction, both
+# from ADR-004. See design-006, "Conformance checks".
+[tool.importlinter]
+root_packages = ["authz_service", "tests"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Core depends on nothing but the standard library and the OTel API"
+type = "forbidden"
+source_modules = ["authz_service.core"]
+# opentelemetry.sdk is checked by tests/unit/test_architecture.py:
+# import-linter cannot name a subpackage of an external package.
+forbidden_modules = [
+    "fastapi",
+    "pydantic",
+    "pydantic_settings",
+    "httpx",
+    "authz_service.api",
+    "authz_service.adapters",
+    "authz_service.telemetry",
+    "authz_service.settings",
+    "authz_service.main",
+]
+
+[[tool.importlinter.contracts]]
+name = "Unit tests cover pure logic only"
+type = "forbidden"
+source_modules = ["tests.unit"]
+forbidden_modules = [
+    "fastapi",
+    "httpx",
+    "testcontainers",
+    "authz_service.api",
+    "authz_service.main",
+    "authz_service.settings",
+    "authz_service.telemetry",
+]
+
+[[tool.importlinter.contracts]]
+name = "Layered architecture: api -> adapters -> core, never upward"
+type = "layers"
+layers = [
+    "authz_service.api",
+    "authz_service.adapters",
+    "authz_service.core",
+]

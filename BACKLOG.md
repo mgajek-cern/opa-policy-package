@@ -23,7 +23,7 @@ One source and one destination RSE supporting third-party copy (e.g. Teapot or X
 
 Per-RSE/per-scope ABAC and time constraints (rule expiry, maintenance windows), blocked on a use-case and persona overview rather than on implementation.
 
-## 6. [ ] Stand up the Authorization Service ([adr-001-authz-service.md](./docs/adrs/adr-001-authz-service.md))
+## 6. [x] Initial Authorization Service implementation based on ([adr-001-authz-service.md](./docs/adrs/adr-001-authz-service.md))
 
 ## 7. [ ] Consolidate knowledge in the [dep-dlm-testbed repository](https://github.com/RI-SCALE/dep-dlm-testbed.git)
 

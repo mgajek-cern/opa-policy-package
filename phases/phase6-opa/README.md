@@ -61,6 +61,12 @@ handled by `init-phase6.sh`:
   `randomaccount`. Audience comes from the `aud:<name>` client scopes rather
   than RFC 8707's `resource` parameter, which Keycloak 23 doesn't implement.
 
+## Installation
+
+```bash
+python3 -m pip install -e phases/phase6-opa/
+```
+
 ## Configuration
 
 ```ini

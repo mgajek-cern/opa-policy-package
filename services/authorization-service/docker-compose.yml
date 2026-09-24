@@ -1,0 +1,55 @@
+
+# Local dev dependencies for authz-service. Not the full DEP testbed —
+# just what this service's dev loop needs (see design-006). Xrootd,
+# FTS, Teapot, Rucio server/daemons live in the phase7 testbed compose
+# and are out of scope here.
+#
+# make run / the VS Code launch config expect AUTHZ_OPA_URL to point
+# at the OPA instance this file starts (see README.md "Local OPA").
+
+services:
+  opa:
+    image: openpolicyagent/opa:1.8.0
+    hostname: opa
+    ports:
+      - "8181:8181"
+    command: run --server --log-level info --addr=0.0.0.0:8181
+    # OPA's distroless image has no shell/wget/curl — healthcheck
+    # omitted here too; opa-init polls OPA directly instead.
+
+  opa-init:
+    image: python:3.11-slim
+    hostname: opa-init
+    depends_on:
+      - opa
+    volumes:
+      - ../../scripts/ingest_policies.py:/app/ingest_policies.py:ro
+      - ../../policies/rego/phase7:/app/rego/phase7:ro
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - |
+        until python -c "import urllib.request; urllib.request.urlopen('http://opa:8181/health')" 2>/dev/null; do sleep 1; done
+        python ingest_policies.py --phase phase7 --opa-url http://opa:8181 \
+          --rego-path /app/rego/phase7/authz.rego
+    restart: "no"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.1
+    hostname: keycloak
+    volumes:
+      - ../../configs/keycloak/phase7/realm.json:/opt/keycloak/data/import/realm.json:ro
+    command:
+      - start-dev
+      - --features=token-exchange,admin-fine-grained-authz,dynamic-scopes
+      - --health-enabled=true
+      - --import-realm
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_HOSTNAME=keycloak
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTP_ENABLED=true
+    ports:
+      - "8080:8080"

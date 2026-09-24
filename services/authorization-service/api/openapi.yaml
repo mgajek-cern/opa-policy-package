@@ -43,7 +43,7 @@ paths:
       operationId: authorizeRuleCreate
       summary: May the subject create a replication rule over these DIDs?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -62,7 +62,7 @@ paths:
       operationId: authorizeRuleUpdate
       summary: May the subject change an existing rule?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -81,7 +81,7 @@ paths:
       operationId: authorizeRuleDelete
       summary: May the subject delete an existing rule?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -101,7 +101,7 @@ paths:
       summary: May the subject create these DIDs?
       description: Permitted only if every DID is permitted.
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -121,7 +121,7 @@ paths:
       summary: May the subject attach children to these parent DIDs?
       description: Permitted only if every attachment is permitted.
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -140,7 +140,7 @@ paths:
       operationId: authorizeDidDetach
       summary: May the subject detach children from a parent DID?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -159,7 +159,7 @@ paths:
       operationId: authorizeRseCreate
       summary: May the subject create an RSE with this name?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -178,7 +178,7 @@ paths:
       operationId: authorizeRseUpdate
       summary: May the subject update this RSE, including a rename?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -197,7 +197,7 @@ paths:
       operationId: authorizeRseDelete
       summary: May the subject delete this RSE?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -216,7 +216,7 @@ paths:
       operationId: authorizeRseAttributeSet
       summary: May the subject set an attribute on this RSE?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -235,7 +235,7 @@ paths:
       operationId: authorizeRseAttributeDelete
       summary: May the subject delete an attribute from this RSE?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -254,7 +254,7 @@ paths:
       operationId: authorizeProtocolCreate
       summary: May the subject add a protocol to this RSE?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -273,7 +273,7 @@ paths:
       operationId: authorizeProtocolUpdate
       summary: May the subject update a protocol on this RSE?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -292,7 +292,7 @@ paths:
       operationId: authorizeProtocolDelete
       summary: May the subject delete a protocol from this RSE?
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -314,7 +314,7 @@ paths:
         Reached by uploads, which register replicas after writing files.
         Non-privileged subjects must own the scope of every file.
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -335,7 +335,7 @@ paths:
       summary: May the subject delete replicas of these files on this RSE?
       description: Non-privileged subjects must own the scope of every file.
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -359,7 +359,7 @@ paths:
         only. An operation that has its own endpoint is rejected with 400, so each
         operation has exactly one route.
       security:
-        - oauth2: [pep:rucio]
+        - oauth2: ["pep:rucio"]
       requestBody:
         required: true
         content:
@@ -379,10 +379,8 @@ paths:
       summary: Liveness and PDP reachability
       security: []
       responses:
-        '200':
-          description: Healthy
-        '503':
-          description: The service or its PDP is unavailable
+        '200': { $ref: '#/components/responses/HealthStatus' }
+        '503': { $ref: '#/components/responses/Problem' }
 
 components:
   securitySchemes:
@@ -419,6 +417,11 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
+    HealthStatus:
+      description: Healthy
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/HealthStatus' }
 
   schemas:
     # Shared building blocks
@@ -731,6 +734,14 @@ components:
             arguments: the policy decides on the subject alone.
           examples: [add_account, add_scope, approve_rule]
         context: { $ref: '#/components/schemas/Context' }
+
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
 
     # Decision
 
