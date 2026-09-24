@@ -6,11 +6,13 @@ checks routing with raw httpx bodies. This checks that the
 independently-generated client and server models actually agree on
 wire format, which neither of those can.
 
-Root-privileged vectors (subject id "root") are the only privilege-path
-coverage available here: authz.rego's _is_privileged grants root
-unconditionally (input.issuer == "root"), needing no token claims —
-every other privilege path is unreachable until api/auth.py lands
-(rules.py's/dids.py's claims={} TODO, in api/routes/_pdp.py).
+Two privilege paths are covered: root (subject id "root"), which
+authz.rego's _is_privileged grants unconditionally with no token
+claims required, and entitlement-driven privilege via a real adminuser
+bearer token (admin_bearer_token fixture) — subject_from() in
+api/routes/_pdp.py forwards entitlements/acr from the validated token
+into Subject.claims, so _is_privileged's admin-entitlement branch is
+exercised end to end, not just the root bootstrap.
 
 Fixture name is `generated_client` (not `client`) to avoid colliding
 with conftest.py's existing httpx.Client fixture used by test_health.py.
@@ -94,12 +96,22 @@ def generated_client(service: str, bearer_token: str) -> Iterator[AuthenticatedC
         yield generated_client
 
 
+@pytest.fixture
+def admin_generated_client(service: str, admin_bearer_token: str) -> Iterator[AuthenticatedClient]:
+    with AuthenticatedClient(base_url=service, token=admin_bearer_token) as generated_client:
+        yield generated_client
+
+
 def _subject(account: str) -> Subject:
     return Subject(type_=SubjectType.OIDC_SUBJECT, id=account)
 
 
 def _root() -> Subject:
     return Subject(type_=SubjectType.RUCIO_ACCOUNT, id="root")
+
+
+def _admin() -> Subject:
+    return Subject(type_=SubjectType.OIDC_SUBJECT, id="adminuser")
 
 
 # rules/delete
@@ -484,6 +496,21 @@ async def test_root_may_create_rse_with_valid_name_via_generated_client(
     assert response.parsed.decision is True
 
 
+async def test_entitled_admin_may_create_rse_with_valid_name_via_generated_client(
+    admin_generated_client: AuthenticatedClient,
+) -> None:
+    """Same as the root case above, but via a real adminuser token —
+    proves entitlement claims (not just root's unconditional bootstrap)
+    reach _is_privileged end to end through the HTTP path."""
+    body = RseCreateRequest(
+        subject=_admin(), rse=Rse(name="CERN_DATADISK"), context=Context(vo="def")
+    )
+    response = await create_rse_detailed(client=admin_generated_client, body=body)
+    assert response.status_code == 200
+    assert response.parsed is not None
+    assert response.parsed.decision is True
+
+
 async def test_root_denied_create_rse_with_invalid_name_via_generated_client(
     generated_client: AuthenticatedClient,
 ) -> None:
@@ -503,8 +530,9 @@ async def test_root_denied_create_rse_with_invalid_name_via_generated_client(
 async def test_non_root_denied_create_rse_via_generated_client(
     generated_client: AuthenticatedClient,
 ) -> None:
-    """No entitlement claims are extracted yet (claims={} TODO), so
-    only root's unconditional bootstrap can pass _is_privileged."""
+    """randomaccount holds only the rucio-users/atlas-users
+    entitlements, which _entitlement_privilege maps to "user", not
+    "admin" — denied on the merits, not because claims are unwired."""
     body = RseCreateRequest(
         subject=_subject("randomaccount"), rse=Rse(name="CERN_DATADISK"), context=Context(vo="def")
     )
@@ -663,8 +691,10 @@ async def test_root_denied_add_protocol_with_disallowed_scheme_via_generated_cli
 async def test_non_root_denied_add_protocol_via_generated_client(
     generated_client: AuthenticatedClient,
 ) -> None:
-    """No entitlement claims are extracted yet (claims={} TODO), so
-    only root's unconditional bootstrap can pass _is_privileged."""
+    """add_protocol is privilege-only in authz.rego (see translate.py's
+    module docstring) — randomaccount's entitlements reach the policy
+    fine, they just don't map to "admin", and there's no "user"-tier
+    branch for protocols the way there is for replicas."""
     body = ProtocolCreateRequest(
         subject=_subject("randomaccount"),
         rse=Rse(name="CERN_DATADISK"),
@@ -824,3 +854,15 @@ async def test_non_root_denied_privileged_operation_via_generated_client(
     assert response.status_code == 200
     assert response.parsed is not None
     assert response.parsed.decision is False
+
+
+async def test_privileged_operation_naming_a_typed_action_is_rejected_via_generated_client(
+    generated_client: AuthenticatedClient,
+) -> None:
+    """add_rule has its own endpoint (rules/create); naming it here must
+    400, not fall through to the Rego catch-all."""
+    body = PrivilegedOperationRequest(
+        subject=_subject("randomaccount"), operation="add_rule", context=Context(vo="def")
+    )
+    response = await create_privileged_operation_detailed(client=generated_client, body=body)
+    assert response.status_code == 400

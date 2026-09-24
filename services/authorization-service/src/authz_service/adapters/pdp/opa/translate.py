@@ -45,12 +45,11 @@ operation string the request carries (e.g. "add_account"), forwarded
 verbatim. Unlike every other builder, evaluation.operation here IS
 the value the caller supplied, not something the route translated
 into a Rucio action name. This module has no visibility into which
-strings collide with real typed-endpoint actions (that list lives
-only in the Rego's _all_known_actions), so the contract's stated
-"rejected with 400" behavior for such a collision is NOT enforced
-here yet — a colliding operation name currently just gets whatever
-DENY/NOT_APPLICABLE the Rego's fallthrough produces, same as any
-other outcome. Flagged as an open gap, not silently assumed covered.
+strings collide with real typed-endpoint actions — that check is done
+by api/routes/privileged.py, before this module is ever called, via
+PolicyDecisionPoint.known_actions() (backed by the Rego's
+_all_known_actions). By the time to_opa_input() runs, evaluation.operation
+is already known not to collide.
 """
 
 from __future__ import annotations
@@ -261,9 +260,7 @@ def _kwargs_add_replicas(evaluation: Evaluation) -> dict[str, Any]:
     """add_replicas (authz.rego _perm_add_replicas): privilege, or
     _has_privilege_level("user") AND _rse_name_valid(kwargs.rse) AND
     every file's scope owned. The only Rego path keyed on the "user"
-    tier specifically rather than admin/privileged — unreachable until
-    api/auth.py extracts real entitlement claims (see _pdp.subject_from's
-    claims={} TODO)."""
+    tier specifically rather than admin/privileged."""
     files = [
         {"scope": resource.attributes.get("scope"), "name": resource.id}
         for resource in evaluation.resources
