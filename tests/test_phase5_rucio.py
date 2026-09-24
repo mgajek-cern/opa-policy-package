@@ -5,7 +5,7 @@ The two accounts come pre-created in the phase 5 Keycloak realm and are mapped
 to same-named Rucio accounts by scripts/init-phase5.sh:
 
     adminuser   entitlements rucio-admins, atlas-production   acr REFEDS MFA
-    alice       entitlements rucio-users,  atlas-users        acr REFEDS MFA
+    randomaccount  entitlements rucio-users,  atlas-users        acr REFEDS MFA
 
 (full URNs of the form urn:example:aai.example.org:group:<name>:role=member).
 data.vo.entitlement_policy maps rucio-admins and atlas-production to "admin"
@@ -35,8 +35,8 @@ KEYCLOAK_CLIENT_SECRET = "rucio-secret"
 # match the users in the phase 5 realm export.
 ADMIN_USERNAME = os.environ.get("OIDC_ADMIN_USERNAME", "adminuser")
 ADMIN_PASSWORD = os.environ.get("OIDC_ADMIN_PASSWORD", "admin123")
-USER_USERNAME = os.environ.get("OIDC_USER_USERNAME", "alice")
-USER_PASSWORD = os.environ.get("OIDC_USER_PASSWORD", "alice123")
+USER_USERNAME = os.environ.get("OIDC_USER_USERNAME", "randomaccount")
+USER_PASSWORD = os.environ.get("OIDC_USER_PASSWORD", "secret")
 
 # Superset of [oidc] expected_scope in configs/rucio/phase5/rucio.cfg, plus
 # aud:rucio to satisfy expected_audience. A token missing either is rejected
@@ -51,12 +51,12 @@ VALID_RSE = "CERN_DATADISK"
 BAD_NAME_RSE = "CERN_UNKNOWN"
 
 # Scopes created by the init script. The first is the ordinary case; the
-# other two are what make the ownership tests meaningful — one alice owns
-# but is not named after, one whose name starts with hers but belongs to
+# other two are what make the ownership tests meaningful — one randomaccount owns
+# but is not named after, one whose name starts with theirs but belongs to
 # adminuser.
 OWNED_SCOPE = USER_USERNAME
 OWNED_SCOPE_UNNAMED = "projectdata"
-FOREIGN_SCOPE_PREFIXED = "aliceleak"
+FOREIGN_SCOPE_PREFIXED = "randomaccountleak"
 
 
 @pytest.fixture(scope="module")
@@ -137,8 +137,8 @@ def _unique(prefix):
 # Entitlement-driven privilege
 #
 # adminuser holds rucio-admins, which data.vo.entitlement_policy maps to
-# "admin"; alice holds rucio-users, which maps to "user" — and since
-# _is_privileged only ever compares against "admin", alice reaches the same
+# "admin"; randomaccount holds rucio-users, which maps to "user" — and since
+# _is_privileged only ever compares against "admin", randomaccount reaches the same
 # clauses as an account with no entitlements at all.
 
 
@@ -208,7 +208,7 @@ class TestEntitlementAuthorisation:
 
 class TestSelfService:
     def test_user_can_create_did_in_own_scope(self, stack_urls, user_token):
-        """kwargs.scope in kwargs.owned_scopes → allow. alice owns scope 'alice'."""
+        """kwargs.scope in kwargs.owned_scopes → allow. randomaccount owns scope 'randomaccount'."""
         rucio_url, _ = stack_urls
         status, exc_cls, exc_msg = _call(
             rucio_url,

@@ -20,7 +20,7 @@ Phase 4 — OPA as PDP, OIDC token-native authorisation via `wlcg.groups`. Keycl
 ```json
 {
   "input": {
-    "issuer": "alice",
+    "issuer": "randomaccount",
     "action": "add_rule",
     "token": {
       "groups": ["/rucio/users", "/atlas/users"],
@@ -30,11 +30,11 @@ Phase 4 — OPA as PDP, OIDC token-native authorisation via `wlcg.groups`. Keycl
       "sub": "8b14e07a-3f52-4d6c-91ab-2e70d5c48f93"
     },
     "kwargs": {
-      "account": "alice",
+      "account": "randomaccount",
       "locked": false,
       "rse_expression": "CERN_DATADISK",
-      "dids": [{"scope": "alice.data", "name": "file1"}],
-      "owned_scopes": ["alice.data"]
+      "dids": [{"scope": "randomaccount.data", "name": "file1"}],
+      "owned_scopes": ["randomaccount.data"]
     }
   }
 }
@@ -64,7 +64,7 @@ Single realm (`rucio`), no federation. Two test users:
 
 | User | Password | Groups | Privilege |
 |------|----------|--------|-----------|
-| `alice` | `alice123` | `/rucio/users`, `/atlas/users` | `user` |
+| `randomaccount` | `secret` | `/rucio/users`, `/atlas/users` | `user` |
 | `adminuser` | `admin123` | `/rucio/admins`, `/atlas/production` | `admin` |
 
 ## Installation
@@ -105,7 +105,7 @@ test fails with `CannotAuthenticate`.
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/realms/rucio/protocol/openid-connect/token \
   -d "grant_type=password&client_id=rucio&client_secret=rucio-secret" \
-  -d "username=alice&password=alice123&scope=openid wlcg" \
+  -d "username=randomaccount&password=secret&scope=openid wlcg" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
 echo $TOKEN | cut -d. -f2 | python3 -c "
@@ -114,5 +114,5 @@ print(base64.urlsafe_b64decode(sys.stdin.read() + '===').decode())
 " | python3 -m json.tool
 ```
 
-- Expected for `alice`: `"wlcg.groups": ["/rucio/users", "/atlas/users"]`
+- Expected for `randomaccount`: `"wlcg.groups": ["/rucio/users", "/atlas/users"]`
 - Expected for `adminuser`: `"wlcg.groups": ["/rucio/admins", "/atlas/production"]`

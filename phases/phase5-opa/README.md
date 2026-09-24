@@ -20,7 +20,7 @@ Phase 5 — OPA as PDP, OIDC token-native authorisation via URN entitlements. Ke
 ```json
 {
   "input": {
-    "issuer": "alice",
+    "issuer": "randomaccount",
     "action": "add_rule",
     "token": {
       "entitlements": [
@@ -33,11 +33,11 @@ Phase 5 — OPA as PDP, OIDC token-native authorisation via URN entitlements. Ke
       "sub": "2f61b40c-93d7-4e18-8a52-7c09e4d6ab31"
     },
     "kwargs": {
-      "account": "alice",
+      "account": "randomaccount",
       "locked": false,
       "rse_expression": "CERN_DATADISK",
-      "dids": [{"scope": "alice.data", "name": "file1"}],
-      "owned_scopes": ["alice.data"]
+      "dids": [{"scope": "randomaccount.data", "name": "file1"}],
+      "owned_scopes": ["randomaccount.data"]
     }
   }
 }
@@ -65,7 +65,7 @@ Single realm (`rucio`), no federation. Two test users:
 
 | User | Password | Entitlements | Privilege |
 |------|----------|--------------|-----------|
-| `alice` | `alice123` | `...group:rucio-users:role=member`, `...group:atlas-users:role=member` | `user` |
+| `randomaccount` | `secret` | `...group:rucio-users:role=member`, `...group:atlas-users:role=member` | `user` |
 | `adminuser` | `admin123` | `...group:rucio-admins:role=member`, `...group:atlas-production:role=member` | `admin` |
 
 The realm's group tree (`/rucio/admins`, `/atlas/production`, etc.) is kept for realm-admin bookkeeping only. The token claim itself is sourced from each user's `entitlements` attribute via the `entitlements` client scope, not derived from group membership at token time.
@@ -108,7 +108,7 @@ test fails with `CannotAuthenticate`.
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/realms/rucio/protocol/openid-connect/token \
   -d "grant_type=password&client_id=rucio&client_secret=rucio-secret" \
-  -d "username=alice&password=alice123&scope=openid entitlements" \
+  -d "username=randomaccount&password=secret&scope=openid entitlements" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
 echo $TOKEN | cut -d. -f2 | python3 -c "
@@ -117,5 +117,5 @@ print(base64.urlsafe_b64decode(sys.stdin.read() + '===').decode())
 " | python3 -m json.tool
 ```
 
-- Expected for `alice`: `"entitlements": ["urn:example:aai.example.org:group:rucio-users:role=member", "urn:example:aai.example.org:group:atlas-users:role=member"]`
+- Expected for `randomaccount`: `"entitlements": ["urn:example:aai.example.org:group:rucio-users:role=member", "urn:example:aai.example.org:group:atlas-users:role=member"]`
 - Expected for `adminuser`: `"entitlements": ["urn:example:aai.example.org:group:rucio-admins:role=member", "urn:example:aai.example.org:group:atlas-production:role=member"]`
