@@ -68,10 +68,10 @@
 
   "clients": [
     {
-      "clientId": "rucio-oidc",
+      "clientId": "rucio",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "secret": "rucio-oidc-secret",
+      "secret": "rucio-secret",
       "publicClient": false,
       "redirectUris": ["http://rucio/*", "http://localhost/*"],
       "standardFlowEnabled": true,

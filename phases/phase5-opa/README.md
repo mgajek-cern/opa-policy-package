@@ -107,7 +107,7 @@ test fails with `CannotAuthenticate`.
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/realms/rucio/protocol/openid-connect/token \
-  -d "grant_type=password&client_id=rucio-oidc&client_secret=rucio-oidc-secret" \
+  -d "grant_type=password&client_id=rucio&client_secret=rucio-secret" \
   -d "username=alice&password=alice123&scope=openid entitlements" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 

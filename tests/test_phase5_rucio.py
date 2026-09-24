@@ -11,7 +11,7 @@ to same-named Rucio accounts by scripts/init-phase5.sh:
 data.vo.entitlement_policy maps rucio-admins and atlas-production to "admin"
 and rucio-users to "user"; atlas-users is deliberately unmapped. The realm
 still defines the /rucio/* and /atlas/* groups, but no group mapper is on the
-rucio-oidc client here, so the token carries entitlement URNs only.
+rucio client here, so the token carries entitlement URNs only.
 
 Both users carry the same acr, so nothing here can exercise the
 data.vo.policy.required_acr deny branch — and nothing here breaks because the
@@ -28,8 +28,8 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-KEYCLOAK_CLIENT_ID = "rucio-oidc"
-KEYCLOAK_CLIENT_SECRET = "rucio-oidc-secret"
+KEYCLOAK_CLIENT_ID = "rucio"
+KEYCLOAK_CLIENT_SECRET = "rucio-secret"
 
 # Must match AUTHZ_TEST_USERS in scripts/init-phase5.sh, which in turn must
 # match the users in the phase 5 realm export.

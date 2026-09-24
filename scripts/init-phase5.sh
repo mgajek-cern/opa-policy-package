@@ -12,8 +12,8 @@ set -euo pipefail
 # account attribute — see the realm notes on AUTHZ_TEST_USERS below.
 
 OIDC_ISSUER="${OIDC_ISSUER:-http://keycloak:8080/realms/rucio}"
-OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-rucio-oidc}"
-OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-rucio-oidc-secret}"
+OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-rucio}"
+OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-rucio-secret}"
 OIDC_TOKEN_URL="${OIDC_TOKEN_URL:-${OIDC_ISSUER%/}/protocol/openid-connect/token}"
 OIDC_EXPECTED_AUDIENCE="${OIDC_EXPECTED_AUDIENCE:-rucio}"
 
@@ -38,7 +38,7 @@ OIDC_AUTHZ_SCOPE="${OIDC_AUTHZ_SCOPE:-openid offline_access aud:rucio}"
 #              acr           REFEDS MFA
 #
 # The realm still defines the /rucio/* and /atlas/* groups, but no group
-# mapper is attached to the rucio-oidc client here — the token carries
+# mapper is attached to the rucio client here — the token carries
 # entitlement URNs only, and data.vo.entitlement_policy is keyed on those.
 # Both users carry the *same* acr, deliberately: no real-token test can then
 # exercise the required_acr deny branch, and no test breaks because the claim
@@ -185,7 +185,7 @@ if os.environ['OIDC_EXPECTED_AUDIENCE'] not in aud:
 
 if claim_name not in claims:
     print(f'  ⚠ {username}: no {claim_name} claim — check the '
-          "'entitlements' client scope on the rucio-oidc client")
+          "'entitlements' client scope on the rucio client")
 
 # acr is only consulted when data.vo.policy.required_acr is set, so its
 # absence is not fatal here — but it silently turns every privileged action

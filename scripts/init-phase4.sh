@@ -12,8 +12,8 @@ set -euo pipefail
 # attribute — see the realm notes on AUTHZ_TEST_USERS below.
 
 OIDC_ISSUER="${OIDC_ISSUER:-http://keycloak:8080/realms/rucio}"
-OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-rucio-oidc}"
-OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-rucio-oidc-secret}"
+OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-rucio}"
+OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-rucio-secret}"
 OIDC_TOKEN_URL="${OIDC_TOKEN_URL:-${OIDC_ISSUER%/}/protocol/openid-connect/token}"
 OIDC_EXPECTED_AUDIENCE="${OIDC_EXPECTED_AUDIENCE:-rucio}"
 

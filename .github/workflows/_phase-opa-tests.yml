@@ -48,7 +48,7 @@ jobs:
           for i in $(seq 1 30); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               -X POST http://localhost:8080/realms/rucio/protocol/openid-connect/token \
-              -d "grant_type=password&client_id=rucio-oidc&client_secret=rucio-oidc-secret&username=alice&password=alice123" || echo "000")
+              -d "grant_type=password&client_id=rucio&client_secret=rucio-secret&username=randomaccount&password=secret&scope=openid" || echo "000")
             [ "$STATUS" = "200" ] && echo "Keycloak token endpoint ready." && exit 0
             echo "  attempt $i/30 — HTTP $STATUS"; sleep 5
           done

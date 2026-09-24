@@ -25,8 +25,8 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-KEYCLOAK_CLIENT_ID = "rucio-oidc"
-KEYCLOAK_CLIENT_SECRET = "rucio-oidc-secret"
+KEYCLOAK_CLIENT_ID = "rucio"
+KEYCLOAK_CLIENT_SECRET = "rucio-secret"
 
 # Must match AUTHZ_TEST_USERS in scripts/init-phase4.sh, which in turn must
 # match the users in the phase 4 realm export.
