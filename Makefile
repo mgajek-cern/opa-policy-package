@@ -58,12 +58,14 @@ else
 	run_tests = RUCIO_URL=$(RUCIO_URL) OPA_URL=$(OPA_URL) KEYCLOAK_URL=$(KEYCLOAK_URL) $(PYTEST) $(1) $(PYTEST_ARGS)
 endif
 
+.PHONY: help
 help: ## List targets
 	@echo "PHASE=$(PHASE)  package=phases/$(PKG)"
 	@echo
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
 	  | awk -F':.*?## ' '{printf "  %-16s %s\n", $$1, $$2}'
 
+.PHONY: install
 install: ## pip install -e the selected phase's package
 	@if [ ! -f "phases/$(PKG)/pyproject.toml" ] && [ ! -f "phases/$(PKG)/setup.py" ]; then \
 	  echo "phase $(PHASE): no package at phases/$(PKG)"; \
@@ -71,13 +73,16 @@ install: ## pip install -e the selected phase's package
 	  python3 -m pip install -e phases/$(PKG)/; \
 	fi
 
+.PHONY: install-dev
 install-dev: ## Install test dependencies plus the selected phase
 	python3 -m pip install pytest pytest-cov requests urllib3
 	$(MAKE) install PHASE=$(PHASE)
 
-certs: ## Generate the CA and host certs (needed before phase 6 comes up)
+.PHONY: certs
+certs: ## Generate the CA and host certs
 	cd scripts && ./generate-certs.sh
 
+.PHONY: up
 up: ## Start the phase's stack and wait for healthchecks
 ifeq ($(PHASE),1)
 	@echo "Phase 1 has no stack — run 'make test PHASE=1'."
@@ -88,32 +93,40 @@ endif
 	$(COMPOSE) up -d --wait
 endif
 
-init: ## Register accounts, identities and (phase 6) RSEs and token exchange
+.PHONY: init
+init: ## Register accounts, identities and (phase 6/7) RSEs and token exchange
 	@if [ -z "$(INIT_SCRIPT)" ]; then \
 	  echo "phase $(PHASE): no init script"; \
 	else \
 	  cd scripts && ./$(notdir $(INIT_SCRIPT)); \
 	fi
 
+.PHONY: down
 down: ## Stop the stack, keeping volumes
 	$(COMPOSE) down
 
+.PHONY: clean
 clean: ## Stop the stack and wipe volumes
 	$(COMPOSE) down -v
 
+.PHONY: ps
 ps: ## Show container status, including exited ones
 	$(COMPOSE) ps -a
 
+.PHONY: logs
 logs: ## Tail the stack's logs (SERVICE=rucio to narrow)
 	$(COMPOSE) logs -f --tail=200 $(SERVICE)
 
+.PHONY: dump
 dump: ## Print container status and recent logs (non-following; for CI)
 	-$(COMPOSE) ps -a
 	-$(COMPOSE) logs --tail=200
 
+.PHONY: shell
 shell: ## Open a shell in a container (SERVICE=rucio)
 	$(COMPOSE) exec $(or $(SERVICE),rucio) bash
 
+.PHONY: test-opa
 test-opa: ## Scenario tests against OPA directly
 	@if [ -z "$(OPA_TEST)" ]; then \
 	  echo "phase $(PHASE): no OPA suite"; \
@@ -121,6 +134,7 @@ test-opa: ## Scenario tests against OPA directly
 	  OPA_URL=$(OPA_URL) $(PYTEST) $(OPA_TEST) $(PYTEST_ARGS); \
 	fi
 
+.PHONY: test-rucio
 test-rucio: ## Authorisation tests against Rucio's REST API
 	@if [ -z "$(RUCIO_TEST)" ]; then \
 	  echo "phase $(PHASE): no Rucio suite"; \
@@ -128,6 +142,7 @@ test-rucio: ## Authorisation tests against Rucio's REST API
 	  $(call run_tests,$(RUCIO_TEST)); \
 	fi
 
+.PHONY: test-transfer
 test-transfer: ## End-to-end transfer tests (phase 6 only)
 	@if [ -z "$(TRANSFER_TEST)" ]; then \
 	  echo "phase $(PHASE): no transfer suite"; \
@@ -135,6 +150,7 @@ test-transfer: ## End-to-end transfer tests (phase 6 only)
 	  $(call run_tests,$(TRANSFER_TEST)); \
 	fi
 
+.PHONY: test
 test: ## Run every suite the phase has, except transfers
 ifeq ($(PHASE),1)
 	$(PYTEST) $(UNIT_TESTS) $(PYTEST_ARGS)
@@ -143,10 +159,12 @@ else
 	$(MAKE) test-rucio PHASE=$(PHASE)
 endif
 
+.PHONY: e2e
 e2e: ## up, init, test
 	$(MAKE) up PHASE=$(PHASE)
 	$(MAKE) init PHASE=$(PHASE)
 	$(MAKE) test PHASE=$(PHASE)
 
+.PHONY: lint
 lint: ## Run the pre-commit hooks over the whole tree
 	pre-commit run --all-files
