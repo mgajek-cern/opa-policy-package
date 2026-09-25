@@ -1,9 +1,13 @@
 """
 Phase 6 — e2e scenario tests against a live OPA server.
 
-Same entitlement model as Phase 5, plus the two things Phase 6 adds: the
-testbed RSE-name allowlist, and DID ownership resolved from
-`kwargs.owned_scopes` rather than a name prefix.
+Same entitlement model as Phase 5, plus the testbed RSE-name allowlist and
+DID ownership resolved from `kwargs.owned_scopes` rather than a name
+prefix. The Rego was later restructured (see design-007) to one rule per
+action instead of shared rules across an action family — e.g. `add_dids`
+and `attach_dids_to_dids` each check every item in their own list, rather
+than one shared `_perm_did_action` rule; and replica actions now require
+file-scope ownership, not just privilege level.
 
 The OPA this runs against may be the testbed's own — `make test-opa` passes
 OPA_URL and build_opa_server_fixture reuses it rather than spawning one — so
@@ -38,6 +42,9 @@ OWNED_UNNAMED = "projectdata"
 FOREIGN_PREFIXED = "randomaccountleak"
 
 RULE_ID = "1f0e3dad99908345f7439f8ffabdffc4"
+
+OWNED_FILES = [{"scope": OWNED, "name": "f1"}, {"scope": OWNED_UNNAMED, "name": "f2"}]
+BOTH_OWNED = [OWNED, OWNED_UNNAMED]
 
 
 @pytest.fixture(autouse=True)
@@ -654,21 +661,109 @@ class TestPrivilegedRuleActions:
         assert _q("adminuser", "move_rule", entitlements=[ADMIN], rule_id=RULE_ID) is True
 
 
-# add_replicas — privilege levels
+# add_replicas / delete_replicas — ownership of every file's scope, plus
+# privilege level (design-005, "Replica ownership"). Changed from the
+# original phase 6 model, which had no scope signal in kwargs at all —
+# the merged Rego now requires `files` and denies any non-privileged
+# request that doesn't supply it, or that names a scope the issuer
+# doesn't own.
 
 
-class TestAddReplicasPrivilegeLevels:
-    def test_admin_allowed(self):
+class TestReplicaRegister:
+    def test_admin_allowed_without_files(self):
         assert _q("adminuser", "add_replicas", entitlements=[ADMIN], rse="CERN_DATADISK") is True
 
-    def test_user_level_allowed_on_valid_rse_name(self):
-        assert _q("randomaccount", "add_replicas", entitlements=[USER], rse="CERN_DATADISK") is True
+    def test_root_allowed_without_files(self):
+        assert _root("add_replicas", rse="XRD3") is True
 
-    def test_user_level_denied_on_invalid_rse_name(self):
-        assert _q("randomaccount", "add_replicas", entitlements=[USER], rse="cern_bad") is False
+    def test_user_allowed_when_every_file_scope_owned(self):
+        assert (
+            _q(
+                "randomaccount",
+                "add_replicas",
+                entitlements=[USER],
+                rse="CERN_DATADISK",
+                files=OWNED_FILES,
+                owned_scopes=BOTH_OWNED,
+            )
+            is True
+        )
+
+    def test_user_denied_when_one_file_scope_foreign(self):
+        assert (
+            _q(
+                "randomaccount",
+                "add_replicas",
+                entitlements=[USER],
+                rse="CERN_DATADISK",
+                files=[{"scope": OWNED, "name": "f1"}, {"scope": "ddmlab", "name": "f2"}],
+                owned_scopes=[OWNED],
+            )
+            is False
+        )
+
+    def test_user_denied_without_files(self):
+        """The regression case this class replaces: no files at all now denies."""
+        assert (
+            _q("randomaccount", "add_replicas", entitlements=[USER], rse="CERN_DATADISK") is False
+        )
+
+    def test_user_denied_on_invalid_rse_name_even_when_owner(self):
+        assert (
+            _q(
+                "randomaccount",
+                "add_replicas",
+                entitlements=[USER],
+                rse="cern_bad",
+                files=OWNED_FILES,
+                owned_scopes=BOTH_OWNED,
+            )
+            is False
+        )
 
     def test_no_entitlements_denied(self):
-        assert _q("carol", "add_replicas", entitlements=[], rse="CERN_DATADISK") is False
+        assert (
+            _q(
+                "carol",
+                "add_replicas",
+                entitlements=[],
+                rse="CERN_DATADISK",
+                files=OWNED_FILES,
+                owned_scopes=BOTH_OWNED,
+            )
+            is False
+        )
+
+
+class TestReplicaDelete:
+    def test_admin_allowed_without_files(self):
+        assert _q("adminuser", "delete_replicas", entitlements=[ADMIN], rse="CERN_DATADISK") is True
+
+    def test_user_allowed_when_every_file_scope_owned(self):
+        assert (
+            _q(
+                "randomaccount",
+                "delete_replicas",
+                entitlements=[USER],
+                rse="CERN_DATADISK",
+                files=OWNED_FILES,
+                owned_scopes=BOTH_OWNED,
+            )
+            is True
+        )
+
+    def test_no_rse_name_check_on_delete(self):
+        assert (
+            _q(
+                "randomaccount",
+                "delete_replicas",
+                entitlements=[USER],
+                rse="cern_bad",
+                files=OWNED_FILES,
+                owned_scopes=BOTH_OWNED,
+            )
+            is True
+        )
 
 
 # Root bootstrap (no OIDC token)
@@ -726,11 +821,29 @@ class TestEntitlementPolicyBundle:
         assert _q("cmsuser", "del_rse", entitlements=[cms_prod]) is True
 
     def test_bundle_user_level_reaches_add_replicas(self, entitlement_policy):
-        """The bundle's second tier is policy, not documentation."""
+        """The bundle's second tier is policy, not documentation. Also now
+        requires file-scope ownership, not just the entitlement level."""
         entitlement_policy({ADMIN: "admin", USER: "user"})
-        assert _q("randomaccount", "add_replicas", entitlements=[USER], rse="CERN_DATADISK") is True
         assert (
-            _q("randomaccount", "add_replicas", entitlements=[ATLAS_USER], rse="CERN_DATADISK")
+            _q(
+                "randomaccount",
+                "add_replicas",
+                entitlements=[USER],
+                rse="CERN_DATADISK",
+                files=OWNED_FILES,
+                owned_scopes=BOTH_OWNED,
+            )
+            is True
+        )
+        assert (
+            _q(
+                "randomaccount",
+                "add_replicas",
+                entitlements=[ATLAS_USER],
+                rse="CERN_DATADISK",
+                files=OWNED_FILES,
+                owned_scopes=BOTH_OWNED,
+            )
             is False
         )
 

@@ -172,6 +172,7 @@ _PASSTHROUGH_KEYS: frozenset[str] = frozenset(
         "name",
         "dids",
         "attachments",
+        "files",
     }
 )
 
@@ -185,7 +186,7 @@ _NESTED_SCHEME_CONTAINERS = ("parameter", "parameters", "data")
 # each carry one. `rule_scope` is not a gateway kwarg — it is resolved by
 # _rule_facts() and merged in before ownership is computed.
 _SCOPE_KEYS: tuple[str, ...] = ("scope", "rule_scope")
-_SCOPE_CONTAINERS: tuple[str, ...] = ("dids", "attachments")
+_SCOPE_CONTAINERS: tuple[str, ...] = ("dids", "attachments", "files")
 
 
 def _has_permission_direct(

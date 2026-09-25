@@ -160,15 +160,15 @@ services:
       - dep-dlm-testbed
     volumes:
       - ../../scripts/ingest_policies.py:/app/ingest_policies.py:ro
-      - ../../policies/rego/phase7:/app/rego/phase7:ro
+      - ../../policies/rego/phase6:/app/rego/phase6:ro
     working_dir: /app
     command:
       - sh
       - -c
       - |
         until python -c "import urllib.request; urllib.request.urlopen('http://opa:8181/health')" 2>/dev/null; do sleep 1; done
-        python ingest_policies.py --phase phase7 --opa-url http://opa:8181 \
-          --rego-path /app/rego/phase7/authz.rego
+        python ingest_policies.py --phase phase6 --opa-url http://opa:8181 \
+          --rego-path /app/rego/phase6/authz.rego
     restart: "no"
 
   rucio-server:
@@ -177,12 +177,13 @@ services:
     environment:
       - REQUESTS_CA_BUNDLE=/etc/pki/tls/certs/ca-bundle.crt
       - OPA_URL=http://opa:8181
-      - OPA_POLICY_PATH=vo/authz/v6/allow
+      - OPA_POLICY_PATH=vo/authz/v5/allow
       - OPA_TIMEOUT=2
       - RUCIO_OPA_DEBUG_INPUT=1
       - AUTHZ_SERVICE_URL=http://authz-service:8000
       - AUTHZ_OIDC_AUDIENCE=authz-service
       - AUTHZ_REQUIRED_SCOPE=pep:rucio
+      - AUTHZ_MODE=service
     ports:
       - "8090:80"
     depends_on:
@@ -203,7 +204,7 @@ services:
       - -c
       - |
         update-ca-trust extract &&
-        cp -r /policy-package/phases/phase7-opa /tmp/rucio-opa-policy &&
+        cp -r /policy-package/phases/phase6-opa /tmp/rucio-opa-policy &&
         pip install -q "urllib3>=1.25.3" "python-dateutil>=2.5.3" "six>=1.10" certifi &&
         pip install -q --force-reinstall --no-deps /tmp/rucio-opa-policy &&
         python3 /scripts/rucio/bootstrap-db.py &&
@@ -212,9 +213,9 @@ services:
         exec /docker-entrypoint.sh httpd -DFOREGROUND
     volumes:
       - ../../:/policy-package:ro
-      - ../../configs/rucio/phase7/server.token-exchange.cfg:/opt/rucio/etc/rucio.cfg:ro
+      - ../../configs/rucio/phase6/server.token-exchange.cfg:/opt/rucio/etc/rucio.cfg:ro
       - ../../configs/rucio/alembic.ini:/opt/rucio/etc/alembic.ini:ro
-      - ../../configs/rucio/phase7/idpsecrets.json:/opt/rucio/etc/idpsecrets.json:ro
+      - ../../configs/rucio/phase6/idpsecrets.json:/opt/rucio/etc/idpsecrets.json:ro
       - ../../certs/hostcert.pem:/etc/grid-security/hostcert.pem:ro
       - ../../certs/hostkey.pem:/etc/grid-security/hostkey.pem:ro
       - ../../certs/tls_ca_bundle.pem:/etc/grid-security/certificates/tls_ca_bundle.pem:ro
@@ -261,7 +262,7 @@ services:
       - ../../certs/tls_ca_bundle.pem:/etc/grid-security/certificates/tls_ca_bundle.pem:ro
       - ../../certs/5fca1cb1.0:/etc/grid-security/certificates/5fca1cb1.0:ro
       - ../../certs/rucio_ca.pem:/etc/grid-security/certificates/rucio_ca.pem:ro
-      - ../../configs/rucio/phase7/userpass-client.cfg:/opt/rucio/etc/rucio.cfg:ro
+      - ../../configs/rucio/phase6/userpass-client.cfg:/opt/rucio/etc/rucio.cfg:ro
       - ../../tests:/tests:ro
     command:
       - /bin/bash
@@ -288,14 +289,19 @@ services:
       - REQUESTS_CA_BUNDLE=/etc/pki/tls/certs/ca-bundle.crt
       - RUCIO_ENABLE_LOGS=True
       - OPA_URL=http://opa:8181
-      - OPA_POLICY_PATH=vo/authz/v6/allow
+      - OPA_POLICY_PATH=vo/authz/v5/allow
       - OPA_TIMEOUT=2
+      - AUTHZ_MODE=service
+      - AUTHZ_SERVICE_URL=http://authz-service:8000
+      - AUTHZ_OIDC_AUDIENCE=authz-service
+      - AUTHZ_REQUIRED_SCOPE=pep:rucio
     entrypoint:
       - bash
       - -c
       - |
         update-ca-trust extract &&
-        cp -r /policy-package/phases/phase7-opa /tmp/rucio-opa-policy &&
+        cp -r /policy-package/phases/phase6-opa /tmp/rucio-opa-policy &&
+        pip install -q "urllib3>=1.25.3" "python-dateutil>=2.5.3" "six>=1.10" certifi &&
         pip install -q --force-reinstall --no-deps /tmp/rucio-opa-policy &&
         dnf -y install yum-utils epel-release.noarch &&
         dnf install -y gfal2-all python3-gfal2-util python3-gfal2 gfal2-plugin-http &&
@@ -308,8 +314,8 @@ services:
           wait; }
     volumes:
       - ../../:/policy-package:ro
-      - ../../configs/rucio/phase7/server.token-exchange.cfg:/opt/rucio/etc/rucio.cfg:ro
-      - ../../configs/rucio/phase7/idpsecrets.json:/opt/rucio/etc/idpsecrets.json:ro
+      - ../../configs/rucio/phase6/server.token-exchange.cfg:/opt/rucio/etc/rucio.cfg:ro
+      - ../../configs/rucio/phase6/idpsecrets.json:/opt/rucio/etc/idpsecrets.json:ro
       - ../../certs/hostcert.pem:/etc/grid-security/hostcert.pem:ro
       - ../../certs/hostkey.pem:/etc/grid-security/hostkey.pem:ro
       - ../../certs/tls_ca_bundle.pem:/etc/grid-security/certificates/tls_ca_bundle.pem:ro
@@ -401,7 +407,7 @@ services:
     environment:
       - AUTHZ_PDP=opa
       - AUTHZ_OPA_URL=http://opa:8181
-      - AUTHZ_OPA_POLICY_PATH=vo/authz/v6/allow
+      - AUTHZ_OPA_POLICY_PATH=vo/authz/v5/allow
       - AUTHZ_OIDC_ISSUER=https://keycloak:8443/realms/rucio
       - AUTHZ_OIDC_AUDIENCE=authz-service
       - SSL_CERT_FILE=/certs/rucio_ca.pem
