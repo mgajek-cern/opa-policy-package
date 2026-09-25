@@ -1,6 +1,6 @@
 # opa-policy-package
 
-Rucio policy packages across seven phases of increasing capability. Each phase is
+Rucio policy packages across six phases of increasing capability. Each phase is
 a drop-in replacement — point Rucio at the package and restart; no data
 migration required.
 
@@ -11,8 +11,7 @@ migration required.
 | 3 | [`rucio-opa-v2-policy`](phases/phase3-opa/README.md) | OPA | Data-driven configuration, self-service rule management, protocol scheme enforcement. |
 | 4 | [`rucio-opa-v3-policy`](phases/phase4-opa/README.md) | OPA | `is_root`/`is_admin` DB lookup replaced by `wlcg.groups` from the token. |
 | 5 | [`rucio-opa-v4-policy`](phases/phase5-opa/README.md) | OPA | WLCG group paths replaced by URN `entitlements`. |
-| 6 | [`rucio-opa-v5-policy`](phases/phase6-opa/README.md) | OPA | Same entitlement model, proven end to end against real TPC transfers through FTS. |
-| 7 | [`rucio-opa-v6-policy`](phases/phase7-opa/README.md) | authz-service → OPA | `has_permission()` calls a standalone Authorization Service over HTTP instead of querying OPA directly; same entitlement/ownership model, relocated behind a typed REST contract. |
+| 6 | [`rucio-opa-v5-policy`](phases/phase6-opa/README.md) | OPA or authz-service | Same entitlement model, proven end to end against real TPC transfers through FTS. `AUTHZ_MODE` selects the transport: `direct` (default) queries OPA directly; `service` calls a standalone Authorization Service over HTTP, which queries the same policy — see [design-007](docs/design/design-007-fold-phase6-phase7-authz-mode.md). |
 
 > See [Policy package mechanism](docs/policy-package-mechanism.md) for how Rucio
 > loads a policy package, and [Action → Policy Mapping](docs/action-policy-mapping.md)
@@ -21,12 +20,12 @@ migration required.
 
 ## Quick start
 
-Every target takes `PHASE=1..7`; it defaults to 6. Nothing else needs naming —
+Every target takes `PHASE=1..6`; it defaults to 6. Nothing else needs naming —
 the compose file, the policy package, the init script and the test suites are
 all derived from it.
 
 ```bash
-export PHASE=5
+export PHASE=6
 # Bring a phase up, initialise it, and run its suites
 make e2e
 
@@ -40,7 +39,7 @@ make clean         # down -v
 
 Phase 1 has no stack — `make test PHASE=1` runs standalone.
 
-Phase 6 additionally runs transfers, which take several minutes:
+Phase 6 additionally runs transfers, which take several minutes. Both `AUTHZ_MODE` paths use the same compose file selection today — see [design-007](docs/design/design-007-fold-phase6-phase7-authz-mode.md) for what's collapsed and what (the compose files themselves) hasn't yet:
 
 ```bash
 export PHASE=6
@@ -56,24 +55,22 @@ have prints a line and exits clean.
 | Suite | Boundary | Phases |
 |---|---|---|
 | `tests/test_phaseN_opa.py` | OPA directly, with handcrafted input documents | 2–6 |
-| `tests/test_phaseN_rucio.py` | Rucio's REST API, with real tokens | 2–7 |
-| `tests/test_phase{6,7}_full_transfer.py` | Rucio → FTS → storage, end to end | 6, 7 |
+| `tests/test_phaseN_rucio.py` | Rucio's REST API, with real tokens | 2–6 |
+| `tests/test_phase6_full_transfer.py` | Rucio → FTS → storage, end to end | 6 |
 
-Phase 6 and 7's suites run inside the `rucio-client` container, which has the
-certs and in-network DNS; the rest run on the host against `localhost`. The
-Makefile picks per phase, so the command is the same either way.
+Phase 6's suites run inside the `rucio-client` container, which has the certs and in-network DNS; the rest run on the host against `localhost`. The Makefile picks per phase, so the command is the same either way.
 
 ## Make targets
 
 ```sh
-PHASE=7  package=phases/phase7-opa
+PHASE=6  package=phases/phase6-opa
 
   help             List targets
   install          pip install -e the selected phase's package
   install-dev      Install test dependencies plus the selected phase
   certs            Generate the CA and host certs
   up               Start the phase's stack and wait for healthchecks
-  init             Register accounts, identities and (phase 6/7) RSEs and token exchange
+  init             Register accounts, identities and (phase 6) RSEs and token exchange
   down             Stop the stack, keeping volumes
   clean            Stop the stack and wipe volumes
   ps               Show container status, including exited ones

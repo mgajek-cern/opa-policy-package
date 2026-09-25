@@ -94,7 +94,7 @@ endif
 endif
 
 .PHONY: init
-init: ## Register accounts, identities and (phase 6/7) RSEs and token exchange
+init: ## Register accounts, identities and (phase 6) RSEs and token exchange
 	@if [ -z "$(INIT_SCRIPT)" ]; then \
 	  echo "phase $(PHASE): no init script"; \
 	else \
