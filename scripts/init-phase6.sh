@@ -24,6 +24,9 @@ OIDC_PASSWORD="${OIDC_PASSWORD:-secret}"
 AUTHZ_TEST_USERS=(
     "adminuser:admin123:adminuser"
     "randomaccount:secret:randomaccount"
+    "depoperator:secret:depoperator"
+    "dependuser:secret:dependuser"
+    "modeldeveloper:secret:modeldeveloper"
 )
 
 OIDC_AUTHZ_SCOPE="${OIDC_AUTHZ_SCOPE:-$OIDC_SEED_SCOPE}"
@@ -231,6 +234,13 @@ setup_accounts_and_identities() {
     ra account delete-attribute randomaccount --key admin || true
 
     ra account add --type USER --email adminuser@rucio adminuser || true
+
+    # DEP persona test accounts (design-008). Privilege comes from the
+    # token's entitlements claim, not from any account attribute here —
+    # mirrors adminuser/randomaccount, which set none either.
+    ra account add --type USER --email depoperator@rucio depoperator || true
+    ra account add --type USER --email dependuser@rucio dependuser || true
+    ra account add --type USER --email modeldeveloper@rucio modeldeveloper || true
 
     echo "  OIDC identities: seeding subject mapped in seed_subject_tokens,"
     echo "  authz test users in setup_authz_test_identities."
@@ -626,11 +636,19 @@ setup_scopes_and_quotas() {
     ra scope add --account randomaccount --scope projectdata || true
     ra scope add --account ddmlab --scope randomaccountleak || true
 
+    # DEP persona self-service scopes (design-008). depoperator needs none
+    # — it exercises the admin/privileged path only, same as adminuser.
+    ra scope add --account dependuser --scope dependuser || true
+    ra scope add --account modeldeveloper --scope modeldeveloper || true
+
     for rse in XRD3 XRD4 TEAPOT1 TEAPOT2; do
         ra account set-limits root "$rse" -1 || true
         ra account set-limits randomaccount "$rse" -1 || true
         ra account set-limits ddmlab "$rse" -1 || true
         ra account set-limits adminuser "$rse" -1 || true
+
+        ra account set-limits dependuser "$rse" -1 || true
+        ra account set-limits modeldeveloper "$rse" -1 || true
     done
 }
 

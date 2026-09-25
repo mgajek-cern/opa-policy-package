@@ -29,6 +29,11 @@ ADMIN_PASSWORD = os.environ.get("OIDC_ADMIN_PASSWORD", "admin123")
 USER_USERNAME = os.environ.get("OIDC_USER_USERNAME", "randomaccount")
 USER_PASSWORD = os.environ.get("OIDC_USER_PASSWORD", "secret")
 
+DEP_OPERATOR_USERNAME = os.environ.get("OIDC_DEP_OPERATOR_USERNAME", "depoperator")
+DEP_OPERATOR_PASSWORD = os.environ.get("OIDC_DEP_OPERATOR_PASSWORD", "secret")
+DEP_END_USER_USERNAME = os.environ.get("OIDC_DEP_END_USER_USERNAME", "dependuser")
+DEP_END_USER_PASSWORD = os.environ.get("OIDC_DEP_END_USER_PASSWORD", "secret")
+
 # Same scope requirement as phase 6 — this token authenticates the caller
 # to rucio-server. permission.py separately obtains its own authz-service-
 # scoped token per request (get_token_for_account_operation), which is
@@ -66,6 +71,16 @@ def admin_token():
 @pytest.fixture(scope="session")
 def user_token():
     return _token(USER_USERNAME, USER_PASSWORD)
+
+
+@pytest.fixture(scope="session")
+def dep_operator_token():
+    return _token(DEP_OPERATOR_USERNAME, DEP_OPERATOR_PASSWORD)
+
+
+@pytest.fixture(scope="session")
+def dep_end_user_token():
+    return _token(DEP_END_USER_USERNAME, DEP_END_USER_PASSWORD)
 
 
 def _did_name(prefix):
@@ -215,4 +230,27 @@ class TestAuthzServiceUnreachable:
         resp = rucio_rest(f"/dids/{OWNED_SCOPE}/{name}", user_token, "POST", {"type": "DATASET"})
         assert resp.status_code in (401, 403), (
             f"authz-service outage must deny, not silently permit: got {resp.status_code}"
+        )
+
+
+# DEP persona entitlements over the authz-service transport (design-008).
+# One representative test per persona — the policy itself is fully covered
+# in test_phase6_rucio.py and test_phase6_opa.py; this only confirms the
+# authz-service hop doesn't change the outcome for these two tiers.
+
+
+class TestDepPersonaAuthorisationOverAuthzService:
+    def test_dep_operator_privileged_action_allowed(self, dep_operator_token):
+        resp = rucio_rest(PRIVILEGED_PATH, dep_operator_token, "POST", PRIVILEGED_BODY)
+        assert resp.status_code in (200, 201), (
+            f"HTTP {resp.status_code} {deny_reason(resp)} — check authz-service "
+            "reachability and the rucio->authz-service token exchange grant"
+        )
+
+    def test_dep_end_user_privileged_action_denied(self, dep_end_user_token):
+        resp = rucio_rest(PRIVILEGED_PATH, dep_end_user_token, "POST", PRIVILEGED_BODY)
+        assert resp.status_code in (401, 403), f"HTTP {resp.status_code}"
+        exc_cls, exc_msg = deny_reason(resp)
+        assert exc_cls == "AccessDenied", (
+            f"{exc_cls}: {exc_msg} — AccessDenied means authz-service denied"
         )
