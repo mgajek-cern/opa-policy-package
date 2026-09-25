@@ -1,13 +1,19 @@
-# Design 006: Authorization Service implementation
+# Design-006: Authorization Service implementation
 
-**Status:** proposed (2026-09-17).
+**Status:** implemented.
 
 **Implements:** [design-005](design-005-authorization-service-api.md), the
 contract. [ADR-004](../adrs/adr-004-authorization-service-implementation.md)
 records the reasons behind the choices and the invariants. This document covers
 how they are carried out.
 
-**Starting point:** phase 7, the policy package calling OPA directly with the
+**Scope:** the v1 contract
+([openapi.yaml](../../services/authorization-service/api/openapi.yaml)), the
+OPA adapter, PEP authentication, telemetry, and migrating the phase 7 package.
+Out of scope: `transfer.authorize`, AuthZEN endpoints, caching, multi-VO, and
+PDPs other than OPA. The port allows other PDPs; this plan builds none.
+
+**Baseline:** phase 7, the policy package calling OPA directly with the
 `vo.authz.v6` Rego. Phase 7 is migrated in place.
 
 ## Summary
@@ -21,7 +27,7 @@ The phase 7 policy package hands its actions to the service one operation group
 at a time. When all groups are handed over, the package's direct OPA code is
 deleted.
 
-## Invariants
+### Invariants
 
 ADR-004 explains why these hold. "Conformance checks" lists how each is
 enforced.
@@ -37,16 +43,7 @@ enforced.
    audit records. Raw tokens appear nowhere.
 5. **No persistence.** No state beyond in-process caches.
 
-## Scope
-
-In scope: the v1 contract
-([openapi.yaml](../../services/authorization-service/api/openapi.yaml)), the
-OPA adapter, PEP authentication, telemetry, and migrating the phase 7 package.
-
-Out of scope: `transfer.authorize`, AuthZEN endpoints, caching, multi-VO, and
-PDPs other than OPA. The port allows other PDPs; this plan builds none.
-
-## Architecture
+## Implementation
 
 ### Layout
 
@@ -194,7 +191,7 @@ Authentication cannot be disabled.
 
 The package also holds `pep:rucio` client credentials and caches their token.
 
-## Telemetry
+### Telemetry
 
 Everything leaves through OTLP; the collector decides retention.
 
@@ -209,7 +206,7 @@ Everything leaves through OTLP; the collector decides retention.
 - **Audit records.** One OTel log record per decision, on the `authz.audit`
   logger, separate from application logs.
 
-### Audit record
+#### Audit record
 
 | Field | Classification |
 |---|---|
@@ -251,7 +248,7 @@ the PDP adapter, and outcome classification.
 | `test_telemetry` | The span, metrics and audit record exist; no personal or confidential field outside the audit record; no raw token |
 | `test_alignment` | Spec, routes, catalogue, transport and the PDP's known actions agree |
 
-## Conformance checks
+### Conformance checks
 
 ADR-004 is confirmed when these pass in CI:
 
@@ -273,7 +270,7 @@ make -C services/authorization-service check-generated lint typecheck test
 Makefile targets: `spec-validate`, `generate`, `check-generated`, `lint`
 (ruff and import-linter), `typecheck`, `test`, `run`, `image`.
 
-## Sequencing
+### Sequencing
 
 Steps 0 and 1 can run in parallel. Each step ends merged and green.
 
@@ -292,7 +289,13 @@ arrives already checked for personal data. The p99 budget is checked while the
 direct OPA path still exists to fall back to. `privileged-operations` goes last
 because the root bootstrap depends on it.
 
-## Risks
+## Non-goals
+
+`transfer.authorize`, AuthZEN endpoints, caching, multi-VO, and PDPs other
+than OPA — see Scope above. The port allows other PDPs; this plan builds
+none.
+
+## Open questions / Risks
 
 - **Python 3.9 in Rucio** keeps the package on a pinned generator. Contained by
   `check-generated` and the single upgrade trigger.

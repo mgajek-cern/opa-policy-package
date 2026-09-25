@@ -1,4 +1,4 @@
-# Design 004 — Ownership for rule actions
+# Design-004: Ownership for rule actions
 
 **Status:** implemented (2026-09-16) for phases 4, 5 and 6.
 
@@ -35,7 +35,7 @@ Upstream is no guide here. `generic.py`'s `perm_del_rule` and
 repo's self-service clause is its own policy choice — one made in the Rego
 and never implemented.
 
-## What ownership means for a rule
+### What ownership means for a rule
 
 Two facts, both on the `rules` row, both reachable from one
 `rucio.core.rule.get_rule(rule_id)`:
@@ -94,7 +94,7 @@ gains self-service here, and none regresses:
 | `approve_rule` | `_is_privileged`, explicitly dispatched | unchanged — approval is the admin workflow by definition |
 | `reduce_rule` | not in `_rule_actions` → catch-all → `_is_privileged` | unchanged |
 | `move_rule` | not in `_rule_actions` → catch-all → `_is_privileged` | unchanged |
-| `access_rule_vo` | not in `_rule_actions` → catch-all → `_is_privileged` | unchanged — see Open questions |
+| `access_rule_vo` | not in `_rule_actions` → catch-all → `_is_privileged` | unchanged |
 
 `reduce_rule` and `move_rule` are privileged-only by accident rather than by
 decision, but privileged-only is the safe direction and they have no REST
@@ -108,7 +108,7 @@ Do not simply add them to `_rule_actions` to "tidy up" — that set drives
 `_is_known_action`, and adding `access_rule_vo` in particular would expose a
 VO-boundary question this design does not answer.
 
-## Rego
+## Implementation
 
 `add_rule` — no Python change needed, `owned_scopes` is already forwarded
 because `_SCOPE_CONTAINERS` includes `dids`:
@@ -169,7 +169,7 @@ transfer. `object.get` with a path and an explicit default makes both cases
 explicit: reassignment is requested when the key is present and non-null,
 regardless of its value.
 
-## Python
+### Python
 
 **`options` must be added to `_PASSTHROUGH_KEYS`.** It is not there today, in
 any phase, so `input.kwargs.options` never reaches OPA and the reassignment
@@ -241,26 +241,6 @@ Not a blocker, and not a correctness problem for an ownership read. Worth
 either passing the session through in a local patch or measuring before
 deciding it doesn't matter.
 
-## Open questions
-
-1. **`access_rule_vo`.** Privileged-only today by catch-all, and left that
-   way here. It is a VO boundary check, not an ownership check, and it fires
-   only under `is_multi_vo()` — so in a multi-VO deployment it gates every
-   rule operation before the real check runs. Needs its own clause and its
-   own reasoning about what cross-VO rule access should require.
-
-2. **Scope ownership as a proxy for data ownership.** A group scope holds
-   DIDs recorded against several accounts; `is_scope_owner()` answers for the
-   namespace, not the individual DID. The `dids` table carries a per-DID
-   `account` column if a finer grain is ever needed. Out of scope here, but
-   the invariant above is stated in terms of scope ownership precisely
-   because that is the grain this design works at.
-
-3. **Tenancy is not solved by rule gating alone.** Listing replicas and
-   downloading by PFN are not ownership-gated anywhere in this Rego. The
-   fundamental tenancy boundary in Rucio's model is the VO; scope ownership
-   is the finer grain within one, not a substitute.
-
 ## Testing
 
 All three actions have REST routes the suites can already reach —
@@ -285,6 +265,6 @@ currently exercises, which is part of why they stay out of scope.
 - `reduce_rule`, `move_rule`, `approve_rule`, `access_rule_vo`. All stay
   privileged-only; the first two are noted above with the argument each
   would take.
-- Per-DID ownership via the `dids.account` column. Open question 2.
-- Read-path gating (list replicas, download). Open question 3.
+- Per-DID ownership via the `dids.account` column.
+- Read-path gating (list replicas, download).
 - Caching the `get_rule()` result. Revisit only with a number.

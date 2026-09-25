@@ -1,6 +1,6 @@
-# Design 001 — Getting token claims into the OPA input document
+# Design-001: Getting token claims into the OPA input document
 
-**Status:** implemented for phase 6 (2026-09-11)
+**Status:** implemented (2026-09-11) for phase 6.
 
 ## Problem
 
@@ -29,7 +29,7 @@ Consequence: `_is_privileged` is satisfied only by the bootstrap rule
 `input.issuer == "root"`. Every entitlement- and group-driven rule in
 rego/phase4, rego/phase5 and rego/phase6 is unreachable in a live stack.
 
-## Why the tests didn't catch it
+### Why the tests didn't catch it
 
 The coverage is real but the two halves never meet:
 
@@ -67,7 +67,7 @@ scope, so `has_permission()` reads it without a lookup.
 
 Hand OPA the raw token and let the Rego (or an OPA `http.send`/JWKS
 verifier) decode it. Largest change; parks the privilege question in OPA
-entirely. Out of scope here, noted so it isn't lost.
+entirely.
 
 ### D. Decode the header in permission.py
 
@@ -98,7 +98,9 @@ and decode the payload in the policy module:
   and it breaks if Rucio ever accepts tokens somewhere other than that
   header.
 
-**Decision: B**, with D as the documented fallback.
+## Decision
+
+Chosen: **B**, with D as the documented fallback.
 
 B is the more correct architecture and the one that could eventually be
 upstreamed; D is the more robust one against Rucio churn. The deciding
@@ -110,7 +112,7 @@ moving parts.
 
 A was ruled out on the DB round-trip and on identity ambiguity (this
 testbed maps one OIDC identity to `root`, `ddmlab` and `randomaccount` —
-see "Identity mapping" below). C remains open as a longer-term direction.
+see "Identity mapping" below).
 
 ## Implementation
 
@@ -153,7 +155,7 @@ reached through a REST request and `request.environ` is always available.
 The policy module still imports Flask defensively because unit tests
 construct input documents outside a request context.
 
-## Maintaining the patches
+### Maintaining the patches
 
 Each patch is a full file copy, not a diff. On a Rucio upgrade they do not
 conflict — they silently keep serving the old code, which is the failure
@@ -181,7 +183,7 @@ is worth attempting (the policy-package contract is exactly the case it
 serves), but is not a dependency of this design: on realistic timescales
 the pinned-image approach carries the testbed regardless.
 
-## Identity mapping
+### Identity mapping
 
 `validate_jwt()` resolves the Rucio account from the token's
 `SUB=…,ISS=…` identity. If one subject maps to several accounts, the
@@ -203,7 +205,7 @@ subject token and neither is used in the authz tests.
 one account at the end of init, so a new one is visible rather than
 mysterious.
 
-## Verification
+## Testing
 
 With `RUCIO_OPA_DEBUG_INPUT=1` on `rucio-server`, presenting a seeded
 Keycloak JWT for `ddmlab`:
@@ -230,3 +232,9 @@ the OPA decision, not an auth failure.
 (`rucio-users`) is denied it with `ExceptionClass: AccessDenied`. The
 positive case is the guard for the claims plumbing — the negative case
 would pass with the patches reverted, since empty claims also deny.
+
+## Open questions
+
+Option C (letting OPA decode/verify the raw token itself) is not pursued
+here but remains a longer-term direction if the claims-plumbing patches in
+`patches/rucio/` ever become unsustainable to maintain across upgrades.

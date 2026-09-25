@@ -1,6 +1,6 @@
-# Design 005: Authorization Service API
+# Design-005: Authorization Service API
 
-**Status:** proposed (2026-09-16).
+**Status:** implemented.
 
 **Implements:** the ADR "API-first Authorization Service vs Direct OPA
 Integration" (proposed 2026-07-07).
@@ -23,7 +23,7 @@ Phase 7 of the policy package replaces the direct OPA call with this client.
 The phase 7 Rego (`policies/rego/phase7/authz.rego`) has one dispatch line and
 one named rule per typed endpoint, and a test keeps the two lists equal.
 
-## On the ADR
+### On the ADR
 
 The decision is sound. Its strongest argument is not Rucio: the storage path has
 no plugin model, so without a contract IAM would need its own OPA integration.
@@ -213,7 +213,9 @@ Removing `Subject.properties.token` (see Request model) is a v1→v2 break under
 this rule; it ships as v2, or `Token` stays present-but-unused for one
 deprecation cycle if a hard break is not wanted yet.
 
-## Phase 7 policy package
+## Implementation
+
+### Phase 7 policy package
 
 `phases/phase7-authz/src/rucio_authz_v6_policy/` keeps `has_permission()` as its
 only entry point and becomes an adapter:
@@ -240,7 +242,7 @@ has_permission(issuer, action, kwargs, session)
   `httpx` and `attrs`. Check both against the Rucio server image pins before
   committing to that generator.
 
-## Phase 7 Rego
+### Phase 7 Rego
 
 `policies/rego/phase7/authz.rego`, package `vo.authz.v6`, is the phase 6
 policy restructured around the contract:
@@ -273,7 +275,7 @@ deliberate changes below:
 No privileged decision changed. The only admin-entitled subjects among the
 differences were admins failing `required_acr`, and those are not privileged.
 
-### Replica ownership: prerequisite
+#### Replica ownership: prerequisite
 
 The Rucio gateway passes only `{rse, rse_id}` to `has_permission` for
 `add_replicas` and `delete_replicas`, so today the policy never sees which files
@@ -294,7 +296,9 @@ The contract requires `files` on both replica requests, so the phase 7 service
 adapter cannot build a valid request without the gateway patch. For privileged
 callers too, it is a hard prerequisite for phase 7, not an optional extra.
 
-## Equivalence with phase 6
+## Testing
+
+### Equivalence with phase 6
 
 Contract tests reuse the phase 7 vectors: each `test_phase7_opa.py` case, which
 includes every phase 6 case, becomes a contract request with the same expected
@@ -315,6 +319,15 @@ first:
 | `delete_replicas` by a user | denied: privileged only | allowed for the owner of every file scope with a user entitlement | Replicas inherit ownership from their DID. Requires the gateway patch. |
 | `update_replicas_states` and unlisted actions | listed privileged-only, or catch-all | `privileged-operations` with the action's name | Same decision, now an explicit route. |
 
+## Non-goals
+
+- AuthZEN endpoints (evaluation, batch, search, metadata). They are additive if
+  a PEP needs them.
+- Typed endpoints for account operations. The trigger is account self-service
+  policy, not relevance alone.
+- Signed decisions.
+- Replacing OPA. The adapter boundary allows it, but this design does not do it.
+
 ## Security
 
 - TLS everywhere, and PEPs authenticate with a bearer token, validated offline
@@ -328,12 +341,3 @@ first:
   raw tokens never are.
 - Rate limits and payload limits apply per PEP. Set `maxItems` on list fields
   from observed Rucio usage.
-
-## Non-goals
-
-- AuthZEN endpoints (evaluation, batch, search, metadata). They are additive if
-  a PEP needs them.
-- Typed endpoints for account operations. The trigger is account self-service
-  policy, not relevance alone.
-- Signed decisions.
-- Replacing OPA. The adapter boundary allows it, but this design does not do it.

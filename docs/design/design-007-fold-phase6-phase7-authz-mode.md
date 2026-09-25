@@ -1,10 +1,11 @@
-# Design-007 — Folding phase 6 into phase 7 via a dispatch flag
+# Design-007: Folding phase 6 into phase 7 via a dispatch flag
 
-Status: draft, unreviewed. Prerequisite for the dep-dlm-testbed
-flag question (BACKLOG item 8) and informs whether phase 6 stays a
-separate numbered phase going forward.
+**Status:** implemented.
 
-## Premise
+**Motivates:** BACKLOG item 8 (dep-dlm-testbed's AUTHZ_MODE question)
+and whether phase 6 stays a separate numbered phase going forward.
+
+## Problem
 
 Phase 6 and phase 7 already share one policy: `authz.rego`'s decision
 logic (scope/rule ownership, RSE naming, entitlement-derived
@@ -19,7 +20,7 @@ If dep-dlm-testbed wants both paths available, the natural
 implementation is a dispatch flag inside one `permission.py`, not two
 maintained phase packages.
 
-## Proposed shape
+## Decision
 
 ```
 AUTHZ_MODE=direct   # has_permission() queries OPA directly (phase-6 path)
@@ -35,7 +36,7 @@ avoid `docker/authz.rego` drifting from the root repo's copy (kept in
 sync by hand, single source of truth in intent even if duplicated in
 file), just enforced structurally instead of by convention.
 
-## What folds, what doesn't
+## Implementation
 
 **Folds:**
 - `phases/phase6-opa` and `phases/phase7-opa` → one package
@@ -46,6 +47,8 @@ file), just enforced structurally instead of by convention.
   → one file, since they're already meant to encode the same decisions.
 - `tests/test_phase6_rucio.py` / `test_phase7_rucio.py` → one suite,
   parametrized over `AUTHZ_MODE` rather than duplicated per phase.
+
+## Non-goals
 
 **Does not fold:**
 - `deploy/compose/docker-compose.phase6.yml` vs. `phase7.yml` — these

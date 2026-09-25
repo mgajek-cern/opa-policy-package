@@ -1,6 +1,6 @@
-# Design 002 — Widening the OPA input before the contract is fixed
+# Design-002: Widening the OPA input before the contract is fixed
 
-**Status:** implemented (2026-09-13)
+**Status:** implemented (2026-09-13).
 
 ## Problem
 
@@ -48,10 +48,17 @@ and evaluates `acr` as a policy constraint. The entitlement URN format matches
 this testbed's exactly, so the two are already aligned on subject identity and
 differ only on what else travels alongside it.
 
-## Scope
+## Decision
 
-Three changes, none of which need the persona/use-case work that BACKLOG 5 is
-blocked on:
+Three changes, none of which need the persona/use-case work that BACKLOG 5
+is blocked on: forward the whole claims dict under `token`; add an `acr`
+constraint as the first non-role-membership condition; and give the
+existing entitlement bundle's second tier (`"user"`) somewhere real to be
+consulted. This is not ABAC and does not pre-empt BACKLOG 5 — it only makes
+the existing two-level bundle mean something, which is what a `subject`
+field in the contract has to be able to express.
+
+## Implementation
 
 ### 1. Forward the whole claims dict
 
@@ -102,10 +109,6 @@ satisfies a clause that an account with no entitlement does not — e.g.
 `add_replicas` without needing
 `allow_replica_writes_to_allowlisted_rses` globally on.
 
-This is not ABAC and does not pre-empt BACKLOG 5. It only makes the existing
-two-level bundle mean something, which is what a `subject` field in the
-contract has to be able to express.
-
 ## Non-goals
 
 - Per-RSE / per-scope ABAC, time windows, maintenance windows. BACKLOG 5,
@@ -118,24 +121,14 @@ contract has to be able to express.
   anything long-lived, but it is orthogonal to the input shape and belongs in
   its own decision.
 
-## What this unblocks
-
-When BACKLOG 4 step 1 designs `/v1/authorize`, it will have three distinct
-requirements to design against rather than one:
-
-| Contract field | Grounded in |
-|---|---|
-| `subject` | entitlements *and* a privilege level, not a single admin flag |
-| `context` | `acr`, a real constraint with a real rule consuming it |
-| `resource` | unchanged — still Rucio kwargs, and still the open question |
+## Open questions
 
 `resource` stays the hard part. opa-ri-scale models it as a URI
 (`resource.id`); this package has `kwargs.rse_expression`, `kwargs.scope`,
 `kwargs.rse_id`. Reconciling those is the substance of the Authorization
-Service contract and is out of scope here — but it is easier to argue about
-with the other two fields settled.
-
-## Related, not blocking
+Service contract and is out of scope here — but with `subject`
+(entitlements + privilege level) and `context` (`acr`) now grounded, it is
+easier to argue about.
 
 OPA's own API is unauthenticated in every compose file: it listens on 8181
 inside the docker network with no `--authentication`/`--authorization`, so
