@@ -24,6 +24,15 @@
         { "name": "production", "path": "/atlas/production" },
         { "name": "users", "path": "/atlas/users" }
       ]
+    },
+    {
+      "name": "dep",
+      "path": "/dep",
+      "subGroups": [
+        { "name": "operator", "path": "/dep/operator" },
+        { "name": "end-user", "path": "/dep/end-user" },
+        { "name": "model-developer", "path": "/dep/model-developer" }
+      ]
     }
   ],
   "clients": [
@@ -259,6 +268,69 @@
       "enabled": true,
       "email": "service-account-rucio@rucio",
       "serviceAccountClientId": "rucio"
+    },
+    {
+      "username": "depoperator",
+      "id": "9a1c2e4d-6b3f-4a8e-9d5c-1f7a3b5e8c2d",
+      "enabled": true,
+      "firstName": "DEP",
+      "lastName": "Operator",
+      "email": "depoperator@rucio",
+      "emailVerified": true,
+      "requiredActions": [],
+      "realmRoles": [ "offline_access" ],
+      "credentials": [
+        { "type": "password", "value": "secret", "temporary": false }
+      ],
+      "groups": [ "/dep/operator" ],
+      "attributes": {
+        "entitlements": [
+          "urn:example:aai.example.org:group:dep-operator:role=member"
+        ],
+        "acr": ["https://refeds.org/profile/mfa"]
+      }
+    },
+    {
+      "username": "dependuser",
+      "id": "3e7b9f1a-2c4d-4e6f-8a0b-5d9c3e7f1a2b",
+      "enabled": true,
+      "firstName": "DEP",
+      "lastName": "End User",
+      "email": "dependuser@rucio",
+      "emailVerified": true,
+      "requiredActions": [],
+      "realmRoles": [ "offline_access" ],
+      "credentials": [
+        { "type": "password", "value": "secret", "temporary": false }
+      ],
+      "groups": [ "/dep/end-user" ],
+      "attributes": {
+        "entitlements": [
+          "urn:example:aai.example.org:group:dep-end-user:role=member"
+        ],
+        "acr": ["https://refeds.org/profile/mfa"]
+      }
+    },
+    {
+      "username": "modeldeveloper",
+      "id": "6d4a8c2e-9f1b-4c3d-a7e5-2b8f4d6a9c1e",
+      "enabled": true,
+      "firstName": "Model",
+      "lastName": "Developer",
+      "email": "modeldeveloper@rucio",
+      "emailVerified": true,
+      "requiredActions": [],
+      "realmRoles": [ "offline_access" ],
+      "credentials": [
+        { "type": "password", "value": "secret", "temporary": false }
+      ],
+      "groups": [ "/dep/model-developer" ],
+      "attributes": {
+        "entitlements": [
+          "urn:example:aai.example.org:group:model-developer:role=member"
+        ],
+        "acr": ["https://refeds.org/profile/mfa"]
+      }
     }
   ],
   "clientScopes": [

@@ -30,6 +30,15 @@ AUTHZ_SCOPE = os.environ.get(
     "openid offline_access storage.read:/ storage.modify:/ aud:rucio",
 )
 
+# DEP persona test users (design-008). Must match AUTHZ_TEST_USERS in
+# scripts/init-phase6.sh.
+DEP_OPERATOR_USERNAME = os.environ.get("OIDC_DEP_OPERATOR_USERNAME", "depoperator")
+DEP_OPERATOR_PASSWORD = os.environ.get("OIDC_DEP_OPERATOR_PASSWORD", "secret")
+DEP_END_USER_USERNAME = os.environ.get("OIDC_DEP_END_USER_USERNAME", "dependuser")
+DEP_END_USER_PASSWORD = os.environ.get("OIDC_DEP_END_USER_PASSWORD", "secret")
+MODEL_DEVELOPER_USERNAME = os.environ.get("OIDC_MODEL_DEVELOPER_USERNAME", "modeldeveloper")
+MODEL_DEVELOPER_PASSWORD = os.environ.get("OIDC_MODEL_DEVELOPER_PASSWORD", "secret")
+
 # set_local_account_limit is gated purely on _is_privileged — it is not in
 # _all_known_actions, so it falls to the catch-all. Idempotent, and unlike
 # add_rse it isn't also subject to the phase 6 RSE-name allowlist, so a deny
@@ -65,6 +74,21 @@ def admin_token():
 @pytest.fixture(scope="session")
 def user_token():
     return _token(USER_USERNAME, USER_PASSWORD)
+
+
+@pytest.fixture(scope="session")
+def dep_operator_token():
+    return _token(DEP_OPERATOR_USERNAME, DEP_OPERATOR_PASSWORD)
+
+
+@pytest.fixture(scope="session")
+def dep_end_user_token():
+    return _token(DEP_END_USER_USERNAME, DEP_END_USER_PASSWORD)
+
+
+@pytest.fixture(scope="session")
+def model_developer_token():
+    return _token(MODEL_DEVELOPER_USERNAME, MODEL_DEVELOPER_PASSWORD)
 
 
 def _did_name(prefix):
@@ -228,3 +252,58 @@ class TestRuleSelfService:
             },
         )
         assert resp.status_code != 201, f"rule was created for another account: {resp.text[:200]}"
+
+
+# DEP persona entitlements (design-008) — dedicated URNs mapped onto the
+# existing admin/user tiers. These exercise the real OIDC -> has_permission()
+# -> OPA path end to end for each persona, confirming the mapping lands on
+# its expected tier over real REST calls, not just the OPA-level check in
+# test_phase6_opa.py.
+
+
+class TestDepOperatorAuthorisation:
+    def test_privileged_action_allowed(self, dep_operator_token):
+        resp = rucio_rest(PRIVILEGED_PATH, dep_operator_token, "POST", PRIVILEGED_BODY)
+        assert resp.status_code in (200, 201), f"HTTP {resp.status_code} {deny_reason(resp)}"
+
+
+class TestDepEndUserAuthorisation:
+    def test_privileged_action_denied(self, dep_end_user_token):
+        resp = rucio_rest(PRIVILEGED_PATH, dep_end_user_token, "POST", PRIVILEGED_BODY)
+        assert resp.status_code in (401, 403), f"HTTP {resp.status_code}"
+        assert deny_reason(resp)[0] == "AccessDenied", deny_reason(resp)
+
+    def test_can_create_did_in_own_scope(self, dep_end_user_token):
+        name = _did_name("dependuser")
+        resp = rucio_rest(
+            f"/dids/{DEP_END_USER_USERNAME}/{name}", dep_end_user_token, "POST", {"type": "DATASET"}
+        )
+        assert resp.status_code == 201, f"HTTP {resp.status_code} {deny_reason(resp)}"
+
+
+class TestModelDeveloperAuthorisation:
+    def test_privileged_action_denied(self, model_developer_token):
+        resp = rucio_rest(PRIVILEGED_PATH, model_developer_token, "POST", PRIVILEGED_BODY)
+        assert resp.status_code in (401, 403), f"HTTP {resp.status_code}"
+        assert deny_reason(resp)[0] == "AccessDenied", deny_reason(resp)
+
+    def test_can_add_rule_for_own_account(self, model_developer_token):
+        name = _did_name("modeldevrule")
+        rucio_rest(
+            f"/dids/{MODEL_DEVELOPER_USERNAME}/{name}",
+            model_developer_token,
+            "POST",
+            {"type": "DATASET"},
+        )
+        resp = rucio_rest(
+            "/rules/",
+            model_developer_token,
+            "POST",
+            {
+                "dids": [{"scope": MODEL_DEVELOPER_USERNAME, "name": name}],
+                "copies": 1,
+                "rse_expression": "XRD4",
+                "account": MODEL_DEVELOPER_USERNAME,
+            },
+        )
+        assert resp.status_code == 201, f"HTTP {resp.status_code} {deny_reason(resp)}"

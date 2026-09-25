@@ -32,6 +32,15 @@ ATLAS_PROD = "urn:example:aai.example.org:group:atlas-production:role=member"
 USER = "urn:example:aai.example.org:group:rucio-users:role=member"
 ATLAS_USER = "urn:example:aai.example.org:group:atlas-users:role=member"
 
+# DEP persona entitlements (design-008) — dedicated URNs mapped onto the
+# existing admin/user tiers. No new Rego branch: these tests exist to
+# confirm the mapping lands on the expected tier, not to exercise new
+# permission logic.
+
+DEP_OPERATOR = "urn:example:aai.example.org:group:dep-operator:role=member"
+DEP_END_USER = "urn:example:aai.example.org:group:dep-end-user:role=member"
+MODEL_DEVELOPER = "urn:example:aai.example.org:group:model-developer:role=member"
+
 MFA = "https://refeds.org/profile/mfa"
 
 # Mirrors what scripts/init-phase6.sh creates: randomaccount owns a scope
@@ -855,3 +864,104 @@ class TestEntitlementPolicyBundle:
     def test_bundle_restored_after_override(self):
         """The fixture put the testbed's own mapping back."""
         assert _q("adminuser", "del_rse", entitlements=[ADMIN]) is True
+
+
+class TestDepOperatorAuthorisation:
+    """DEP Operator -> admin tier. Same path as ADMIN/ATLAS_PROD."""
+
+    def test_privileged_action_allowed(self):
+        assert _q("depoperator", "del_rse", entitlements=[DEP_OPERATOR]) is True
+
+    def test_add_rse_allowed(self):
+        assert (
+            _q(
+                "depoperator",
+                "add_rse",
+                entitlements=[DEP_OPERATOR],
+                rse="CERN_DATADISK",
+            )
+            is True
+        )
+
+    def test_catch_all_privileged_action_allowed(self):
+        assert _q("depoperator", "approve_rule", entitlements=[DEP_OPERATOR]) is True
+
+
+class TestDepEndUserAuthorisation:
+    """DEP End User -> user tier. Privileged actions denied; ownership-gated
+    self-service actions behave like any other user-tier entitlement."""
+
+    def test_privileged_action_denied(self):
+        assert _q("dependuser", "del_rse", entitlements=[DEP_END_USER]) is False
+
+    def test_owned_scope_did_allowed(self):
+        assert (
+            _q(
+                "dependuser",
+                "add_did",
+                entitlements=[DEP_END_USER],
+                scope=OWNED,
+                name="file1",
+                owned_scopes=[OWNED],
+            )
+            is True
+        )
+
+    def test_add_replicas_requires_file_ownership_like_any_user_tier(self):
+        assert (
+            _q(
+                "dependuser",
+                "add_replicas",
+                entitlements=[DEP_END_USER],
+                rse="CERN_DATADISK",
+                files=OWNED_FILES,
+                owned_scopes=BOTH_OWNED,
+            )
+            is True
+        )
+        assert (
+            _q(
+                "dependuser",
+                "add_replicas",
+                entitlements=[DEP_END_USER],
+                rse="CERN_DATADISK",
+            )
+            is False
+        )
+
+
+class TestModelDeveloperAuthorisation:
+    """Model Developer -> user tier, identical shape to DEP End User at the
+    Rucio authz boundary. Where these two personas actually diverge is
+    outside Rucio's authz surface entirely (design-008)."""
+
+    def test_privileged_action_denied(self):
+        assert _q("modeldeveloper", "del_rse", entitlements=[MODEL_DEVELOPER]) is False
+
+    def test_owned_scope_did_allowed(self):
+        assert (
+            _q(
+                "modeldeveloper",
+                "add_did",
+                entitlements=[MODEL_DEVELOPER],
+                scope=OWNED,
+                name="file1",
+                owned_scopes=[OWNED],
+            )
+            is True
+        )
+
+    def test_rule_self_service_allowed_for_own_account(self):
+        assert (
+            _q(
+                "modeldeveloper",
+                "add_rule",
+                entitlements=[MODEL_DEVELOPER],
+                account="modeldeveloper",
+                locked=False,
+                rse_expression="CERN_DATADISK",
+                dids=[{"scope": OWNED, "name": "f1"}],
+                owned_scopes=[OWNED],
+            )
+            is True
+        )

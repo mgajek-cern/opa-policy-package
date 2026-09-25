@@ -12,8 +12,9 @@ coexist on one OPA instance. Data bundles differ by phase:
     phase3  + data-driven RSE types (vo/policy)
     phase4  + wlcg.groups -> privilege (vo/group_policy)
     phase5  + URN entitlements -> privilege (vo/entitlement_policy)
-    phase6  + RSE-name allowlist for the transfer testbed
-    phase7  same data as phase 6; Rego aligned with the authz service contract
+    phase6  + RSE-name allowlist for the transfer testbed; the same Rego
+            and data now serve both AUTHZ_MODE=direct and =service — see
+            design-007.
 
 Re-run at any time to update a live OPA without restarting Rucio.
 """
@@ -51,6 +52,11 @@ ENTITLEMENT_POLICY = {
     "urn:example:aai.example.org:group:atlas-production:role=member": "admin",
     "urn:example:aai.example.org:group:rucio-users:role=member": "user",
     "urn:example:aai.example.org:group:atlas-users:role=member": "user",
+    # DEP personas (design-008) — mapped onto the existing admin/user
+    # tiers, not a new privilege level.
+    "urn:example:aai.example.org:group:dep-operator:role=member": "admin",
+    "urn:example:aai.example.org:group:dep-end-user:role=member": "user",
+    "urn:example:aai.example.org:group:model-developer:role=member": "user",
 }
 
 
@@ -100,18 +106,6 @@ PHASES: dict[str, PhaseSpec] = {
                 "known_rse_types": DEFAULT_RSE_TYPES,
                 # XRD3/XRD4/TEAPOT1/TEAPOT2 don't follow the NAME_TYPE
                 # convention; allowlisted rather than relaxing it globally.
-                "allowlisted_rse_names": ["XRD3", "XRD4", "TEAPOT1", "TEAPOT2"],
-            },
-            "vo/entitlement_policy": ENTITLEMENT_POLICY,
-        },
-    ),
-    # Copied from phase6 rather than shared, so the phases can diverge; the
-    # policy (package vo.authz.v6) is what changed, not the data it reads.
-    "phase7": PhaseSpec(
-        policy_id="authz_v6",
-        data={
-            "vo/policy": {
-                "known_rse_types": DEFAULT_RSE_TYPES,
                 "allowlisted_rse_names": ["XRD3", "XRD4", "TEAPOT1", "TEAPOT2"],
             },
             "vo/entitlement_policy": ENTITLEMENT_POLICY,

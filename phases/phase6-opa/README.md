@@ -36,7 +36,7 @@ Common to both modes:
 | Variable | Default |
 |---|---|
 | `OPA_URL` | `http://localhost:8181` |
-| `OPA_POLICY_PATH` | `vo/authz/v6/allow` |
+| `OPA_POLICY_PATH` | `vo/authz/v5/allow` |
 | `OPA_TIMEOUT` | `2` |
 
 `AUTHZ_MODE=service`:
@@ -51,6 +51,21 @@ Common to both modes:
 `AUTHZ_MODE=service` additionally requires an existing OIDC subject
 token on file for the calling account — x509/userpass/SSH/GSS accounts
 get an explicit deny, not a silent fallback to `direct`.
+
+## Test users
+
+Seeded by `scripts/init-phase6.sh` (`AUTHZ_TEST_USERS`), all password
+`secret` unless noted:
+
+| Username | Password | Entitlement | Tier | Purpose |
+|---|---|---|---|---|
+| `adminuser` | `admin123` | `rucio-admins` | admin | privileged-path positive case |
+| `randomaccount` | `secret` | `rucio-users` | user | privileged-path negative case; scope-ownership self-service |
+| `depoperator` | `secret` | `dep-operator` | admin | DEP Operator persona (design-008) |
+| `dependuser` | `secret` | `dep-end-user` | user | DEP End User persona (design-008) |
+| `modeldeveloper` | `secret` | `model-developer` | user | Model Developer persona (design-008) |
+
+The three DEP personas map onto the existing admin/user tiers with no new Rego branch — see [design-008](../../docs/design/design-008-dep-persona-entitlements.md).
 
 ## Layout
 
