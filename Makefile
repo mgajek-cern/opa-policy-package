@@ -6,10 +6,13 @@
 #   make down PHASE=4      stop it (add clean to wipe volumes)
 #   make e2e PHASE=4       up + init + test
 #
-# Every target takes PHASE=1..7. Override RUCIO_URL / OPA_URL / KEYCLOAK_URL
-# to point at a remote stack.
+# Every target takes PHASE=1..6. Phase 6 also takes AUTHZ_MODE=direct|service
+# (default direct). Override RUCIO_URL / OPA_URL / KEYCLOAK_URL to point at a
+# remote stack. Run `make help` for the full list of overridable variables.
+
 
 PHASE ?= 6
+AUTHZ_MODE ?= direct
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
@@ -19,15 +22,18 @@ PKG_3 := phase3-opa
 PKG_4 := phase4-opa
 PKG_5 := phase5-opa
 PKG_6 := phase6-opa
-PKG_7 := phase6-opa
 PKG := $(PKG_$(PHASE))
 
 ifeq ($(PKG),)
-	$(error PHASE=$(PHASE) is not one of 1 2 3 4 5 6 7)
+	$(error PHASE=$(PHASE) is not one of 1 2 3 4 5 6)
 endif
 
 COMPOSE_FILE := deploy/compose/docker-compose.phase$(PHASE).yml
-COMPOSE := docker compose -f $(COMPOSE_FILE)
+ifeq ($(AUTHZ_MODE),service)
+	COMPOSE := AUTHZ_MODE=$(AUTHZ_MODE) docker compose -f $(COMPOSE_FILE) --profile service
+else
+	COMPOSE := AUTHZ_MODE=$(AUTHZ_MODE) docker compose -f $(COMPOSE_FILE)
+endif
 
 RUCIO_URL ?= http://localhost
 OPA_URL ?= http://localhost:8181
@@ -38,17 +44,26 @@ PYTEST_ARGS ?= -v --tb=short
 # wildcard, not a literal path: a phase without a given suite simply has none,
 # and the target says so instead of failing on a missing file.
 OPA_TEST := $(wildcard tests/test_phase$(PHASE)_opa.py)
-RUCIO_TEST := $(wildcard tests/test_phase$(PHASE)_rucio.py)
-TRANSFER_TEST := $(wildcard tests/test_phase$(PHASE)_full_transfer.py)
+ifeq ($(AUTHZ_MODE),service)
+	RUCIO_TEST := $(wildcard tests/test_phase$(PHASE)_rucio_authz_service.py)
+else
+	RUCIO_TEST := $(wildcard tests/test_phase$(PHASE)_rucio.py)
+endif
+# service mode has no transfer suite yet — see README's Test suites table.
+ifeq ($(AUTHZ_MODE),service)
+	TRANSFER_TEST :=
+else
+	TRANSFER_TEST := $(wildcard tests/test_phase$(PHASE)_full_transfer.py)
+endif
 INIT_SCRIPT := $(wildcard scripts/init-phase$(PHASE).sh)
 
 ifeq ($(PHASE),1)
 	UNIT_TESTS := tests/test_phase1_rules.py tests/test_phase1_permission.py
 endif
 
-# Phases 6 and 7 drive Rucio from inside the client container: they need the mounted
+# Phases 6 drive Rucio from inside the client container: they need the mounted
 # certs and in-network DNS to reach FTS and the storage endpoints.
-ifeq ($(PHASE),$(filter $(PHASE),6 7))
+ifeq ($(PHASE),6)
 	TEST_CONTAINER := rucio-client
 endif
 
@@ -60,7 +75,12 @@ endif
 
 .PHONY: help
 help: ## List targets
-	@echo "PHASE=$(PHASE)  package=phases/$(PKG)"
+	@echo "PHASE=$(PHASE)  AUTHZ_MODE=$(AUTHZ_MODE)  package=phases/$(PKG)"
+	@echo
+	@echo "Overridable variables:"
+	@echo "  PHASE=1..6          (default 6)"
+	@echo "  AUTHZ_MODE=direct|service   phase 6 only (default direct)"
+	@echo "  RUCIO_URL, OPA_URL, KEYCLOAK_URL   for a remote stack (non-container test runs)"
 	@echo
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
 	  | awk -F':.*?## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -87,9 +107,6 @@ up: ## Start the phase's stack and wait for healthchecks
 ifeq ($(PHASE),1)
 	@echo "Phase 1 has no stack — run 'make test PHASE=1'."
 else
-ifneq ($(filter $(PHASE),6 7),)
-	@[ -f certs/rucio_ca.pem ] || $(MAKE) certs
-endif
 	$(COMPOSE) up -d --wait
 endif
 
@@ -143,7 +160,7 @@ test-rucio: ## Authorisation tests against Rucio's REST API
 	fi
 
 .PHONY: test-transfer
-test-transfer: ## End-to-end transfer tests (phase 6 only)
+test-transfer: ## End-to-end transfer tests (phase 6, AUTHZ_MODE=direct only)
 	@if [ -z "$(TRANSFER_TEST)" ]; then \
 	  echo "phase $(PHASE): no transfer suite"; \
 	else \
@@ -155,15 +172,15 @@ test: ## Run every suite the phase has, except transfers
 ifeq ($(PHASE),1)
 	$(PYTEST) $(UNIT_TESTS) $(PYTEST_ARGS)
 else
-	$(MAKE) test-opa PHASE=$(PHASE)
-	$(MAKE) test-rucio PHASE=$(PHASE)
+	$(MAKE) test-opa PHASE=$(PHASE) AUTHZ_MODE=$(AUTHZ_MODE)
+	$(MAKE) test-rucio PHASE=$(PHASE) AUTHZ_MODE=$(AUTHZ_MODE)
 endif
 
 .PHONY: e2e
 e2e: ## up, init, test
-	$(MAKE) up PHASE=$(PHASE)
-	$(MAKE) init PHASE=$(PHASE)
-	$(MAKE) test PHASE=$(PHASE)
+	$(MAKE) up PHASE=$(PHASE) AUTHZ_MODE=$(AUTHZ_MODE)
+	$(MAKE) init PHASE=$(PHASE) AUTHZ_MODE=$(AUTHZ_MODE)
+	$(MAKE) test PHASE=$(PHASE) AUTHZ_MODE=$(AUTHZ_MODE)
 
 .PHONY: lint
 lint: ## Run the pre-commit hooks over the whole tree

@@ -20,50 +20,68 @@ migration required.
 
 ## Quick start
 
-Every target takes `PHASE=1..6`; it defaults to 6. Nothing else needs naming —
-the compose file, the policy package, the init script and the test suites are
-all derived from it.
+Every target takes `PHASE=1..6`; it defaults to 6. Phase 6 additionally
+takes `AUTHZ_MODE` — `direct` (default) or `service` — selecting whether
+Rucio queries OPA directly or through the standalone Authorization
+Service. Both modes run from the same compose file; `service` mode
+additionally starts the `authz-service` container via a compose profile.
 
 ```bash
 export PHASE=6
-# Bring a phase up, initialise it, and run its suites
-make e2e
+export AUTHZ_MODE=direct   # or: service
 
-# Or step by step
-make install-dev   # test deps plus phases/phase5-opa in editable mode
-make up            # compose up --wait (generates certs first)
-make init          # accounts, OIDC identities, RSEs, token exchange
-make test          # whichever suites this phase has
-make clean         # down -v
+make e2e   # up, init, test
+```
+
+Step-by-step:
+
+```bash
+make install-dev   # test deps plus the selected phase package
+make up             # compose up --wait
+make init           # accounts, OIDC identities, RSEs, token exchange
+make test           # whichever suites this phase/mode has
+make clean          # down -v
 ```
 
 Phase 1 has no stack — `make test PHASE=1` runs standalone.
 
-Phase 6 additionally runs transfers, which take several minutes. Both `AUTHZ_MODE` paths use the same compose file selection today — see [design-007](docs/design/design-007-fold-phase6-phase7-authz-mode.md) for what's collapsed and what (the compose files themselves) hasn't yet:
+Phase 6 also runs end-to-end transfers, which take several minutes and
+today only run in `direct` mode:
 
 ```bash
 export PHASE=6
+export AUTHZ_MODE=direct
 make e2e
 make test-transfer
 ```
 
-### Test suites
+## Test suites
 
-Each phase has some subset of these; a target for a suite the phase doesn't
-have prints a line and exits clean.
+Each phase/mode has some subset of these; a target for a suite that
+doesn't apply prints a line and exits clean.
 
-| Suite | Boundary | Phases |
+| Suite | Boundary | Applies to |
 |---|---|---|
-| `tests/test_phaseN_opa.py` | OPA directly, with handcrafted input documents | 2–6 |
-| `tests/test_phaseN_rucio.py` | Rucio's REST API, with real tokens | 2–6 |
-| `tests/test_phase6_full_transfer.py` | Rucio → FTS → storage, end to end | 6 |
+| `tests/test_phaseN_opa.py` | OPA directly, with handcrafted input documents | phases 2–6 |
+| `tests/test_phase6_rucio.py` | Rucio's REST API, real tokens, `AUTHZ_MODE=direct` | phase 6, direct |
+| `tests/test_phase6_rucio_authz_service.py` | Rucio's REST API, real tokens, through authz-service | phase 6, service |
+| `tests/test_phaseN_rucio.py` | Rucio's REST API, real tokens | phases 2–5 |
+| `tests/test_phase6_full_transfer.py` | Rucio → FTS → storage, end to end | phase 6, direct only |
 
-Phase 6's suites run inside the `rucio-client` container, which has the certs and in-network DNS; the rest run on the host against `localhost`. The Makefile picks per phase, so the command is the same either way.
+Phase 6's suites run inside the `rucio-client` container, which has the
+certs and in-network DNS; earlier phases run on the host against
+`localhost`. The Makefile picks the right suite for the current
+`PHASE`/`AUTHZ_MODE` automatically.
 
 ## Make targets
 
-```sh
-PHASE=6  package=phases/phase6-opa
+```bash
+PHASE=6  AUTHZ_MODE=direct  package=phases/phase6-opa
+
+Overridable variables:
+  PHASE=1..6          (default 6)
+  AUTHZ_MODE=direct|service   phase 6 only (default direct)
+  RUCIO_URL, OPA_URL, KEYCLOAK_URL   for a remote stack (non-container test runs)
 
   help             List targets
   install          pip install -e the selected phase's package
@@ -79,7 +97,7 @@ PHASE=6  package=phases/phase6-opa
   shell            Open a shell in a container (SERVICE=rucio)
   test-opa         Scenario tests against OPA directly
   test-rucio       Authorisation tests against Rucio's REST API
-  test-transfer    End-to-end transfer tests (phase 6 only)
+  test-transfer    End-to-end transfer tests (phase 6, AUTHZ_MODE=direct only)
   test             Run every suite the phase has, except transfers
   lint             Run the pre-commit hooks over the whole tree
 ```

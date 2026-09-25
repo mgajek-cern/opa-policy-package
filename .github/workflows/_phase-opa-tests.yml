@@ -20,6 +20,10 @@ on:
         type: boolean
         default: false
         description: end-to-end transfer tests (phase 6 only)
+      authz_mode:
+        required: false
+        type: string
+        default: direct
 
 jobs:
   test:
@@ -27,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PHASE: ${{ inputs.phase }}
+      AUTHZ_MODE: ${{ inputs.authz_mode }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
