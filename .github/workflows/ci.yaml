@@ -83,11 +83,11 @@ jobs:
       run_transfer_tests: true
       needs_keycloak: true
 
-  test-phase7:
-    name: Phase 7
+  test-phase6-service:
+    name: Phase 6 (authz-service)
     uses: ./.github/workflows/_phase-opa-tests.yml
     with:
-      phase: "7"
-      phase_label: "Phase 7"
-      run_transfer_tests: true
+      phase: "6"
+      phase_label: "Phase 6 (authz-service)"
+      authz_mode: "service"
       needs_keycloak: true

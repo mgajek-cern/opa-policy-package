@@ -49,11 +49,11 @@
         "wlcg", "fts", "entitlements",
         "storage.read", "storage.modify",
         "storage.read:/data", "storage.modify:/data",
-        "storage.read:/", "storage.modify:/"
+        "storage.read:/", "storage.modify:/", "pep:rucio"
       ],
       "optionalClientScopes": [
         "offline_access",
-        "aud:fts", "aud:xrd3", "aud:xrd4",
+        "aud:fts", "aud:xrd3", "aud:xrd4", "aud:authz-service",
         "aud:teapot1", "aud:teapot2", "aud:rucio"
       ],
       "attributes": {
@@ -167,6 +167,24 @@
       "attributes": {
         "token.exchange.standard.flow.enabled": "true"
       }
+    },
+    {
+      "clientId": "authz-service",
+      "name": "authz-service (token-exchange audience target)",
+      "description": "Registered so token-exchange requests carrying audience=authz-service resolve to a client. Not used for interactive login.",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "authz-service-secret",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [ "aud:authz-service", "pep:rucio", "entitlements" ],
+      "optionalClientScopes": [],
+      "attributes": { "token.exchange.standard.flow.enabled": "true" }
     }
   ],
   "users": [
@@ -341,6 +359,7 @@
       ]
     },
     { "name": "fts", "protocol": "openid-connect" },
+    { "name": "pep:rucio", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" } },
     { "name": "storage.read", "protocol": "openid-connect" },
     { "name": "storage.modify", "protocol": "openid-connect" },
     { "name": "storage.read:/data", "protocol": "openid-connect" },
@@ -473,6 +492,18 @@
           }
         }
       ]
+    },
+    {
+      "name": "aud:authz-service",
+      "description": "Adds authz-service to the token's aud claim for AUTHZ_OIDC_AUDIENCE validation.",
+      "protocol": "openid-connect",
+      "attributes": { "display.on.consent.screen": "false", "include.in.token.scope": "false" },
+      "protocolMappers": [{
+        "name": "aud-authz-service",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-audience-mapper",
+        "config": { "included.custom.audience": "authz-service", "access.token.claim": "true", "id.token.claim": "false" }
+      }]
     }
   ],
   "sslRequired": "none"

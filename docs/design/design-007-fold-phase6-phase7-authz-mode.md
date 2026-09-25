@@ -2,7 +2,7 @@
 
 **Status:** implemented.
 
-**Motivates:** BACKLOG item 8 (dep-dlm-testbed's AUTHZ_MODE question)
+**Motivates:** [BACKLOG item 7 (dep-dlm-testbed's AUTHZ_MODE question)](../../BACKLOG.md)
 and whether phase 6 stays a separate numbered phase going forward.
 
 ## Problem

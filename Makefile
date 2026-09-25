@@ -6,10 +6,11 @@
 #   make down PHASE=4      stop it (add clean to wipe volumes)
 #   make e2e PHASE=4       up + init + test
 #
-# Every target takes PHASE=1..7. Override RUCIO_URL / OPA_URL / KEYCLOAK_URL
+# Every target takes PHASE=1..6. Override RUCIO_URL / OPA_URL / KEYCLOAK_URL
 # to point at a remote stack.
 
 PHASE ?= 6
+AUTHZ_MODE ?= direct
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
@@ -19,15 +20,18 @@ PKG_3 := phase3-opa
 PKG_4 := phase4-opa
 PKG_5 := phase5-opa
 PKG_6 := phase6-opa
-PKG_7 := phase6-opa
 PKG := $(PKG_$(PHASE))
 
 ifeq ($(PKG),)
-	$(error PHASE=$(PHASE) is not one of 1 2 3 4 5 6 7)
+	$(error PHASE=$(PHASE) is not one of 1 2 3 4 5 6)
 endif
 
 COMPOSE_FILE := deploy/compose/docker-compose.phase$(PHASE).yml
-COMPOSE := docker compose -f $(COMPOSE_FILE)
+ifeq ($(AUTHZ_MODE),service)
+	COMPOSE := AUTHZ_MODE=$(AUTHZ_MODE) docker compose -f $(COMPOSE_FILE) --profile service
+else
+	COMPOSE := AUTHZ_MODE=$(AUTHZ_MODE) docker compose -f $(COMPOSE_FILE)
+endif
 
 RUCIO_URL ?= http://localhost
 OPA_URL ?= http://localhost:8181
@@ -38,7 +42,11 @@ PYTEST_ARGS ?= -v --tb=short
 # wildcard, not a literal path: a phase without a given suite simply has none,
 # and the target says so instead of failing on a missing file.
 OPA_TEST := $(wildcard tests/test_phase$(PHASE)_opa.py)
-RUCIO_TEST := $(wildcard tests/test_phase$(PHASE)_rucio.py)
+ifeq ($(AUTHZ_MODE),service) and
+	RUCIO_TEST := $(wildcard tests/test_phase$(PHASE)_rucio_authz_service.py)
+else
+	RUCIO_TEST := $(wildcard tests/test_phase$(PHASE)_rucio.py)
+endif
 TRANSFER_TEST := $(wildcard tests/test_phase$(PHASE)_full_transfer.py)
 INIT_SCRIPT := $(wildcard scripts/init-phase$(PHASE).sh)
 
@@ -46,9 +54,9 @@ ifeq ($(PHASE),1)
 	UNIT_TESTS := tests/test_phase1_rules.py tests/test_phase1_permission.py
 endif
 
-# Phases 6 and 7 drive Rucio from inside the client container: they need the mounted
+# Phases 6 drive Rucio from inside the client container: they need the mounted
 # certs and in-network DNS to reach FTS and the storage endpoints.
-ifeq ($(PHASE),$(filter $(PHASE),6 7))
+ifeq ($(PHASE),6)
 	TEST_CONTAINER := rucio-client
 endif
 
@@ -87,9 +95,6 @@ up: ## Start the phase's stack and wait for healthchecks
 ifeq ($(PHASE),1)
 	@echo "Phase 1 has no stack — run 'make test PHASE=1'."
 else
-ifneq ($(filter $(PHASE),6 7),)
-	@[ -f certs/rucio_ca.pem ] || $(MAKE) certs
-endif
 	$(COMPOSE) up -d --wait
 endif
 

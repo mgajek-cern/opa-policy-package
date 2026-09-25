@@ -180,7 +180,10 @@ services:
       - OPA_POLICY_PATH=vo/authz/v5/allow
       - OPA_TIMEOUT=2
       - RUCIO_OPA_DEBUG_INPUT=1
-      - AUTHZ_MODE=direct
+      - AUTHZ_MODE=${AUTHZ_MODE:-direct}
+      - AUTHZ_SERVICE_URL=${AUTHZ_SERVICE_URL:-http://authz-service:8000}
+      - AUTHZ_OIDC_AUDIENCE=${AUTHZ_OIDC_AUDIENCE:-authz-service}
+      - AUTHZ_REQUIRED_SCOPE=${AUTHZ_REQUIRED_SCOPE:-pep:rucio}
     ports:
       - "8090:80"
     depends_on:
@@ -286,7 +289,10 @@ services:
       - OPA_URL=http://opa:8181
       - OPA_POLICY_PATH=vo/authz/v5/allow
       - OPA_TIMEOUT=2
-      - AUTHZ_MODE=direct
+      - AUTHZ_MODE=${AUTHZ_MODE:-direct}
+      - AUTHZ_SERVICE_URL=${AUTHZ_SERVICE_URL:-http://authz-service:8000}
+      - AUTHZ_OIDC_AUDIENCE=${AUTHZ_OIDC_AUDIENCE:-authz-service}
+      - AUTHZ_REQUIRED_SCOPE=${AUTHZ_REQUIRED_SCOPE:-pep:rucio}
     entrypoint:
       - bash
       - -c
@@ -390,6 +396,37 @@ services:
       timeout: 5s
       start_period: 30s
       retries: 10
+
+  authz-service:
+    profiles: ["service"]
+    build:
+      context: ../../services/authorization-service
+      dockerfile: docker/Dockerfile
+    hostname: authz-service
+    environment:
+      - AUTHZ_PDP=opa
+      - AUTHZ_OPA_URL=http://opa:8181
+      - AUTHZ_OPA_POLICY_PATH=vo/authz/v5/allow
+      - AUTHZ_OIDC_ISSUER=https://keycloak:8443/realms/rucio
+      - AUTHZ_OIDC_AUDIENCE=authz-service
+      - SSL_CERT_FILE=/certs/rucio_ca.pem
+    ports:
+      - "8000:8000"
+    depends_on:
+      opa-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_started
+    networks:
+      - dep-dlm-testbed
+    volumes:
+      - ../../certs/rucio_ca.pem:/certs/rucio_ca.pem:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 20
 
 networks:
   dep-dlm-testbed:

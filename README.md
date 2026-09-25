@@ -20,18 +20,32 @@ migration required.
 
 ## Quick start
 
-Every target takes `PHASE=1..6`; it defaults to 6. Nothing else needs naming —
-the compose file, the policy package, the init script and the test suites are
-all derived from it.
+Every target takes `PHASE=1..6`; it defaults to 6. For Phase 6, `AUTHZ_MODE` selects the authorization transport and defaults to `direct`.
 
 ```bash
 export PHASE=6
+
+# Direct mode: Rucio queries OPA directly
+export AUTHZ_MODE=direct
 # Bring a phase up, initialise it, and run its suites
 make e2e
+```
 
-# Or step by step
-make install-dev   # test deps plus phases/phase5-opa in editable mode
-make up            # compose up --wait (generates certs first)
+or use the authz-service:
+
+```bash
+# Or use the authz-service
+export AUTHZ_MODE=service
+make e2e
+```
+
+The same Phase 6 compose stack is used for both modes. In `direct` mode, only the standard services are started. In `service` mode, the `authz-service` compose profile is enabled.
+
+Step-by-step:
+
+```bash
+make install-dev   # test deps plus the selected phase package
+make up            # compose up --wait
 make init          # accounts, OIDC identities, RSEs, token exchange
 make test          # whichever suites this phase has
 make clean         # down -v
@@ -47,7 +61,7 @@ make e2e
 make test-transfer
 ```
 
-### Test suites
+## Test suites
 
 Each phase has some subset of these; a target for a suite the phase doesn't
 have prints a line and exits clean.
@@ -62,7 +76,7 @@ Phase 6's suites run inside the `rucio-client` container, which has the certs an
 
 ## Make targets
 
-```sh
+```bash
 PHASE=6  package=phases/phase6-opa
 
   help             List targets

@@ -1,5 +1,5 @@
 """
-Phase 7 — exercises the OIDC → has_permission() → authz-service → OPA path
+Phase 6 — exercises the OIDC → has_permission() → authz-service → OPA path
 with real tokens.
 
 Unlike test_phase6_rucio.py, permission.py here calls authz-service over
@@ -7,9 +7,7 @@ HTTP via a generated client (rucio_authz_client, openapi-generator's
 python-legacy target — see services/authorization-service/docs/
 python39-constraint.md for why this generator specifically, over
 openapi-python-client, given rucio-server's Python 3.9 pin). This file
-exercises the full chain through real Rucio REST calls; it doesn't (and
-can't, since opa_client.py is gone) query OPA directly the way
-test_phase7_opa.py's predecessor did.
+exercises the full chain through real Rucio REST calls.
 """
 
 import os
@@ -200,8 +198,7 @@ class TestRuleSelfService:
 
 
 class TestAuthzServiceUnreachable:
-    """New in phase 8 (no equivalent in phase 6/direct-OPA phase 7): the
-    hop through authz-service means a network failure between rucio-server
+    """New here: the hop through authz-service means a network failure between rucio-server
     and authz-service is now a distinct failure mode from Rego denying,
     and it must fail closed the same way. Requires the test runner to be
     able to stop the authz-service container — skip if not applicable to
