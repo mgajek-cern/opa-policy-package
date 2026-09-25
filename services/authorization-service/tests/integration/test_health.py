@@ -38,10 +38,10 @@ def test_healthz_503_when_pdp_unreachable(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_policy_is_loaded(pdp: str) -> None:
-    """The fixture loaded the phase 7 policy and its data, so the alignment
+    """The fixture loaded the phase 6 policy and its data, so the alignment
     check has something to read from the next step onwards."""
     with httpx.Client(base_url=pdp, timeout=5.0) as opa:
-        actions = opa.get("/v1/data/vo/authz/v6/_all_known_actions").json()
+        actions = opa.get("/v1/data/vo/authz/v5/_all_known_actions").json()
         policy = opa.get("/v1/data/vo/policy").json()
 
     assert "add_rule" in actions["result"]

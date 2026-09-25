@@ -1,4 +1,4 @@
-# Design-008 — Folding phase 6 into phase 7 via a dispatch flag
+# Design-007 — Folding phase 6 into phase 7 via a dispatch flag
 
 Status: draft, unreviewed. Prerequisite for the dep-dlm-testbed
 flag question (BACKLOG item 8) and informs whether phase 6 stays a

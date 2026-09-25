@@ -19,7 +19,7 @@ PKG_3 := phase3-opa
 PKG_4 := phase4-opa
 PKG_5 := phase5-opa
 PKG_6 := phase6-opa
-PKG_7 := phase7-opa
+PKG_7 := phase6-opa
 PKG := $(PKG_$(PHASE))
 
 ifeq ($(PKG),)
@@ -87,14 +87,14 @@ up: ## Start the phase's stack and wait for healthchecks
 ifeq ($(PHASE),1)
 	@echo "Phase 1 has no stack — run 'make test PHASE=1'."
 else
-ifeq ($(PHASE),6)
+ifneq ($(filter $(PHASE),6 7),)
 	@[ -f certs/rucio_ca.pem ] || $(MAKE) certs
 endif
 	$(COMPOSE) up -d --wait
 endif
 
 .PHONY: init
-init: ## Register accounts, identities and (phase 6/7) RSEs and token exchange
+init: ## Register accounts, identities and (phase 6) RSEs and token exchange
 	@if [ -z "$(INIT_SCRIPT)" ]; then \
 	  echo "phase $(PHASE): no init script"; \
 	else \

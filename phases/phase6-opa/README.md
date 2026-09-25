@@ -1,92 +1,61 @@
-# rucio-opa-v5-policy
+# rucio-opa-policy
 
-Phase 6 — OPA as PDP, OIDC token-native authorisation via URN entitlements
-(same model as Phase 5), demonstrated end to end against real third-party-copy
-transfers through FTS — XRootD (XRD3 → XRD4), Teapot WebDAV
-(TEAPOT1 → TEAPOT2) and both cross-protocol directions — with OIDC token
-exchange validated on the wire by each storage endpoint's own token
-enforcement.
+Rucio authorization policy package. Dispatches every `has_permission()`
+call to one of two backends, selected by `AUTHZ_MODE`:
 
-## What's new in Phase 6
+| `AUTHZ_MODE` | Path | Needs |
+|---|---|---|
+| `direct` (default) | Queries OPA directly | An OPA server (`OPA_URL`) with `policies/rego/phase6/authz.rego` loaded |
+| `service` | Calls the Authorization Service over HTTP, via the generated `rucio_authz_client` | A running authz-service (`AUTHZ_SERVICE_URL`) — see [services/authorization-service](../../services/authorization-service/) |
 
-| Addition | Detail |
-|----------|--------|
-| Real transfers, not just policy evaluation | Rucio → FTS → XRootD/Teapot third-party copy, driven by RFC 8693 OIDC token exchange, not simulated |
-| Two storage protocols | XRootD SciTokens (`xrd3`/`xrd4`) and Storm-WebDAV (`teapot1`/`teapot2`), plus the cross-protocol pairs |
-| RSE-name allowlist | `XRD3`/`XRD4`/`TEAPOT1`/`TEAPOT2` don't follow the `NAME_TYPE` naming convention Phase 1–5 enforce; added as an explicit allowlist in Rego rather than relaxing the convention globally |
-| Storage-side enforcement | XRootD validates the exchanged SciToken's issuer/audience natively via `scitokens.conf`, Teapot via its Storm-WebDAV storage-area config — separate enforcement points from Rucio's `has_permission()`/OPA, not routed through this package |
-
-**Rego policy path:** `vo/authz/v5/allow` (same package version as Phase 5 — no entitlement-model changes, only the RSE allowlist addition)
-
-## OPA input document
-
-Identical shape to Phase 5 — see [phase5-opa/README.md](../phase5-opa/README.md#opa-input-document).
-No new input fields were added for the transfer path; RSE identity is
-validated by name against the allowlist below, not passed as a separate
-privilege input.
-
-## RSE naming allowlist
-
-```json
-PUT /v1/data/vo/policy
-{
-  "known_rse_types": [ "DATADISK", "TAPE", "SCRATCHDISK" ],
-  "allowlisted_rse_names": ["XRD3", "XRD4", "TEAPOT1", "TEAPOT2"]
-}
-```
-
-These names bypass the `NAME_TYPE` regex check entirely; every other RSE
-name still requires it. Update at runtime without restarting Rucio or OPA.
-
-## Keycloak setup
-
-Same realm model as Phase 5 (`entitlements` claim, per-user attribute), plus
-token-exchange audience clients for the transfer path itself (`xrd3`, `xrd4`,
-`teapot1`, `teapot2`, `fts`) — see [configs/keycloak/phase6/realm.json](../../configs/keycloak/phase6/realm.json).
-
-Two Keycloak-specific details the LS AAI profile in
-[dep-dlm-bbmri](https://github.com/RI-SCALE/dep-dlm-bbmri) doesn't need, both
-handled by `init-phase6.sh`:
-
-- **Token-exchange permissions are per target client.** Keycloak refuses an
-  exchange with `403 access_denied "Client not allowed to exchange"` unless
-  fine-grained authz is enabled on the *target* client and a client policy
-  naming the requester is bound to its `token-exchange` permission. This holds
-  even when requester and target are the same client, so
-  `grant_token_exchange()` runs against every audience client at init time.
-- **Subject tokens are seeded with the password grant.** Keycloak only grants
-  `offline_access` — and only returns a refresh token — for a real user
-  session, so a `client_credentials` service-account token fails the
-  `expected_scope` gate in `get_token_for_account_operation()`. Seeding runs as
-  `randomaccount`. Audience comes from the `aud:<name>` client scopes rather
-  than RFC 8707's `resource` parameter, which Keycloak 23 doesn't implement.
+Both modes decide against the same policy content and the same
+entitlement/scope/rule-ownership model (design-003, design-004); only
+the transport differs. See
+[design-007](../../docs/design/design-007-fold-phase6-phase7-authz-mode.md)
+for why these were folded into one package instead of two, and
+[ADR-005](../../docs/adrs/adr-005-pdp-placement.md) for why `service`
+mode exists at all.
 
 ## Installation
 
 ```bash
-python3 -m pip install -e phases/phase6-opa/
+pip install -e phases/phase6-opa/
 ```
 
 ## Configuration
 
-```ini
-# rucio.cfg
-[policy]
-package = rucio_opa_v5_policy
-```
+Common to both modes:
 
-| Variable | Default | Purpose |
+| Variable | Default | Notes |
 |---|---|---|
-| `OPA_URL` | `http://localhost:8181` | OPA server the policy module queries |
-| `OPA_POLICY_PATH` | `vo/authz/v5/allow` | Rego rule path for this phase |
-| `OPA_TIMEOUT` | `2` | Seconds before `query_opa()` fails closed |
+| `AUTHZ_MODE` | `direct` | `direct` or `service` |
+| `RUCIO_OPA_DEBUG_INPUT` | unset | `1`/`true` logs every outbound request at WARNING |
 
-`Unable to load schema module rucio_opa_v5_policy.schema from policy package,
-falling back to generic` on startup is expected: Rucio's loader looks for an
-optional `schema` submodule, and this phase deliberately doesn't override the
-DID/RSE schema.
+`AUTHZ_MODE=direct`:
 
-## Running it
+| Variable | Default |
+|---|---|
+| `OPA_URL` | `http://localhost:8181` |
+| `OPA_POLICY_PATH` | `vo/authz/v6/allow` |
+| `OPA_TIMEOUT` | `2` |
 
-`make certs && make e2e PHASE=6` then `make test-transfer PHASE=6` — see
-[Quick start](../../README.md#quick-start).
+`AUTHZ_MODE=service`:
+
+| Variable | Default |
+|---|---|
+| `AUTHZ_SERVICE_URL` | `http://localhost:8000` |
+| `AUTHZ_OIDC_AUDIENCE` | `authz-service` |
+| `AUTHZ_REQUIRED_SCOPE` | `pep:rucio` |
+| `AUTHZ_VO` | `def` |
+
+`AUTHZ_MODE=service` additionally requires an existing OIDC subject
+token on file for the calling account — x509/userpass/SSH/GSS accounts
+get an explicit deny, not a silent fallback to `direct`.
+
+## Layout
+
+| Path | Holds |
+|---|---|
+| `src/rucio_opa_policy/permission.py` | `has_permission()`, dispatching on `AUTHZ_MODE` |
+| `src/rucio_opa_policy/opa_client.py` | Thin synchronous OPA REST client, used by `direct` mode |
+| `src/rucio_authz_client/` | Generated client for the Authorization Service, used by `service` mode (see [services/authorization-service/docs/python39-constraint.md](../../services/authorization-service/docs/python39-constraint.md) for why this generator) |

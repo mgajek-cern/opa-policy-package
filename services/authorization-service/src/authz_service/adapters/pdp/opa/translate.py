@@ -1,7 +1,7 @@
 """Evaluation <-> OPA translation.
 
-Evaluation -> OPA input reproduces the document phase 7's _build_input()
-sent, so the unchanged vo.authz.v6 Rego keeps deciding the same way
+Evaluation -> OPA input reproduces the document phase 6's _build_input()
+sent, so the unchanged vo.authz.v5 Rego keeps deciding the same way
 (design-006, "The PDP port"). OPA's response -> Outcome is generic and
 covers every operation.
 
@@ -32,11 +32,7 @@ Replica operations need _has_privilege_level("user") specifically —
 the only place in authz.rego where the user tier, not just admin/
 privileged, is load-bearing — plus every file's scope owned.
 add_replicas additionally requires a valid RSE name; delete_replicas
-does not. design-006's gateway-level prerequisite (phase 7's Rucio
-gateway not yet forwarding `files` to has_permission) doesn't apply
-here: this contract's ReplicaRegisterRequest/ReplicaDeleteRequest
-already require files (minItems: 1), so both builders below always
-have file data to work with.
+does not.
 
 privileged-operations (authz.rego's catch-all, "Deliberately NOT
 listed" in _all_known_actions) is the one place where the OPA input's
@@ -59,7 +55,7 @@ from typing import Any
 
 from authz_service.core.model import Evaluation, Outcome, Resource
 
-# Claims forwarded to OPA, mirroring phase 7's _token_claims() allowlist.
+# Claims forwarded to OPA, mirroring phase 6's _token_claims() allowlist.
 _LIST_CLAIMS = ("entitlements",)
 _SCALAR_CLAIMS = ("acr", "aud", "iss", "sub", "jti")
 

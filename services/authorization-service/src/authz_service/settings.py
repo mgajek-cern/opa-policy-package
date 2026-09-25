@@ -13,7 +13,7 @@ class OpaSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AUTHZ_OPA_", extra="ignore")
 
     url: str
-    policy_path: str = "vo/authz/v6/allow"
+    policy_path: str = "vo/authz/v5/allow"
 
 
 class Settings(BaseSettings):

@@ -19,8 +19,8 @@ Worked example: rules/delete, followed for every operation group since.
    has OPA running with `docker/authz.rego` loaded:
 
    ```bash
-   curl -s http://localhost:8181/v1/data/vo/authz/v6/_all_known_actions | jq
-   curl -s -X POST http://localhost:8181/v1/data/vo/authz/v6/allow \
+   curl -s http://localhost:8181/v1/data/vo/authz/v5/_all_known_actions | jq
+   curl -s -X POST http://localhost:8181/v1/data/vo/authz/v5/allow \
      -H 'Content-Type: application/json' \
      -d '{"input": {"issuer": "root", "action": "<new_action>", "token": {}, "kwargs": {}}}' | jq
    ```
