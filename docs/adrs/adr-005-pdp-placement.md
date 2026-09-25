@@ -5,7 +5,7 @@ decision-makers: WP4, DEP architecture team
 consulted: Rucio policy package maintainers, DEP operations
 informed: DEP component owners
 ---
-# Placement of the Authorization Service and PDP
+# ADR-005: Co-locate the Authorization Service and PDP in the same network as the PEPs
 
 ## Context and Problem Statement
 
@@ -39,15 +39,30 @@ distributed asynchronously, so an outage in that path delays policy updates but
 does not block decisions. External consumers reach the service through a single
 authenticated entry point.
 
-### Consequences
+### Positive Consequences
 
-* Good, because latency is low and predictable, and decision traffic stays within
+* Latency is low and predictable, and decision traffic stays within
   the network.
-* Good, because the PDP shares the fate of the applications it serves, not of an
+* The PDP shares the fate of the applications it serves, not of an
   external network.
-* Bad, because every network that hosts PEPs needs its own deployment and policy
+
+### Negative Consequences
+
+* Every network that hosts PEPs needs its own deployment and policy
   distribution.
-* Bad, because external consumers depend on the entry point's availability.
+* External consumers depend on the entry point's availability.
+
+## Confirmation
+
+Compliance is confirmed by:
+
+* The Authorization Service and its PDP are deployed within the same
+  network segment as the PEPs they serve, not reachable only over an
+  external network.
+* External consumers reach the service through the single authenticated
+  entry point, not directly to the PDP.
+* Policy distribution to the co-located PDP is asynchronous and does not
+  block in-flight decisions during an update.
 
 ## Pros and Cons of the Options
 
