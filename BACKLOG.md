@@ -25,7 +25,12 @@ Per-RSE/per-scope ABAC and time constraints (rule expiry, maintenance windows), 
 
 ## 6. [x] Initial Authorization Service implementation based on ([adr-001-authz-service.md](./docs/adrs/adr-001-authz-service.md))
 
-## 7. [ ] Consolidate knowledge in the [dep-dlm-testbed repository](https://github.com/RI-SCALE/dep-dlm-testbed.git)
+## 7. [ ] Map DEP roles into Keycloak entitlements (DEP Operator, DEP End User, Model Developer)
+
+High priority. Per the C4 architecture overview, the DEP has three first-class personas not currently represented in the
+entitlement model: DEP Operator, DEP End User, Model Developer.
+
+## 8. [ ] Consolidate knowledge in the [dep-dlm-testbed repository](https://github.com/RI-SCALE/dep-dlm-testbed.git)
 
 Capture the relevant implementation details, configuration, integration steps
 and lessons learned in dep-dlm-testbed to make the setup reproducible and
