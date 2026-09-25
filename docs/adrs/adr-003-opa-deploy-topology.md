@@ -5,7 +5,7 @@ decision-makers: WP4, DEP architecture team
 consulted: RI/e-Infra storage operators, DEP component owners
 informed: Rucio policy package maintainers
 ---
-# OPA/Authorization Service Deployment Topology: Sidecar, Sidecarless (Ambient Mesh), or Plain Direct Integration
+# ADR-003: OPA/Authorization Service Deployment Topology: Sidecar, Sidecarless (Ambient Mesh), or Plain Direct Integration
 
 ## Context and Problem Statement
 
@@ -31,20 +31,18 @@ This matters because consumers span different operational realities: DEP-managed
 
 ## Decision Outcome
 
-Chosen option: **Plain direct integration as the current baseline**
-
-All consumers — Rucio and IAM alike — integrate with the Authorization Service as a plain networked OpenAPI call, with no service-mesh layer assumed. This requires no additional infrastructure per consumer and is the only option available to RI/e-Infra storage endpoints under the current (unconfirmed) assumption that they are neither cloud-native nor cluster-resident.
+Chosen option: **3. Plain direct integration**, because it requires no additional infrastructure per consumer and is the only option available to RI/e-Infra storage endpoints under the current (unconfirmed) assumption that they are neither cloud-native nor cluster-resident. All consumers — Rucio and IAM alike — integrate with the Authorization Service as a plain networked OpenAPI call, with no service-mesh layer assumed.
 
 Sidecar and ambient-mesh are deliberately not adopted now, not because they're inferior in principle — ambient mesh in particular is a legitimate way to get infrastructure-owned mTLS/authn/observability without per-pod sidecar overhead — but because they only benefit consumers that share a mesh-enabled cluster, and no such shared cluster membership across DEP components is confirmed yet. If DEP components (Rucio, and any future cloud-native services) later share a mesh-enabled cluster, ambient mesh is worth revisiting ahead of classic per-pod sidecars, since it gives the same unified ownership of these concerns at lower operational cost. This is left open rather than decided now.
 
-## Consequences
+### Positive Consequences
 
-### Positive
 * No new infrastructure dependency introduced beyond the Authorization Service itself.
 * Works uniformly for consumers regardless of deployment model or cluster membership, including non-cloud-native storage endpoints.
 * Consistent with the centralization already decided in the Authorization Service ADR — no divergent integration path to maintain.
 
-### Negative
+### Negative Consequences
+
 * Every authorization check incurs a full network round trip; no local/co-located or node-level fast path.
 * mTLS, authn, and observability for these calls are each consumer's own responsibility rather than infrastructure-owned — more to specify and audit per consumer, with more room for inconsistency across them.
 

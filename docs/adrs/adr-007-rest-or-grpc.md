@@ -6,7 +6,7 @@ consulted: Rucio policy package maintainers, DEP operations, authz-service maint
 informed: DEP component owners, PEP implementers
 ---
 
-# Wire protocol for the Authorization Service: REST/JSON vs gRPC/protobuf
+# ADR-007: Keep REST/JSON as the Authorization Service's wire protocol
 
 ## Context and Problem Statement
 
@@ -43,13 +43,26 @@ cost over an already-built, tested (111 passing) surface.
 
 A default, not a closed question — see "What would change the answer."
 
-### Consequences
+### Positive Consequences
 
-* Good: no migration risk on an already-stable, tested contract.
-* Good: debugging stays one `curl` away.
-* Bad: if load or a second-language consumer materializes, the switch
+* No migration risk on an already-stable, tested contract.
+* Debugging stays one `curl` away.
+
+### Negative Consequences
+
+* If load or a second-language consumer materializes, the switch
   is then a breaking change for every PEP — the cost is deferred, not
   eliminated.
+
+## Confirmation
+
+Compliance is confirmed by:
+
+* All PEP-to-service traffic uses the OpenAPI/REST contract; no gRPC
+  endpoint exists.
+* Any future protocol change is preceded by a measured latency finding or
+  a documented second-language consumer, per "What would change the
+  answer" above — not adopted speculatively.
 
 ## Pros and Cons of the Options
 
