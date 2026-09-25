@@ -18,7 +18,7 @@ from urllib.request import Request, urlopen
 log = logging.getLogger(__name__)
 
 _DEFAULT_URL = "http://localhost:8181"
-_DEFAULT_POLICY_PATH = "vo/authz/v5/allow"
+_DEFAULT_POLICY_PATH = "vo/authz/v6/allow"
 _DEFAULT_TIMEOUT = 2
 
 
