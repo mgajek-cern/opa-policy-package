@@ -1,6 +1,6 @@
-# Design 003 — Resolving scope ownership against the DB
+# Design-003: Resolving scope ownership against the DB
 
-**Status:** implemented (2026-09-14)
+**Status:** implemented (2026-09-14).
 
 ## Problem
 
@@ -72,27 +72,9 @@ only supplies a fact it is the only one able to fetch.
 half, keeps the under-permissive half. Not a fix, but a strictly better
 one-line state than today if (B) stalls.
 
-**Decision: B**, with C as the fallback if the round-trip turns out to matter.
+**Chosen: B**, with C as the fallback if the round-trip turns out to matter.
 
-## Cost
-
-The phase 4/5 READMEs claim "no Rucio DB round-trip per authorisation
-decision". That claim was about resolving *privilege* — replacing the
-`is_root`/`is_admin` lookups with a token claim — and it still holds: nothing
-here touches `_is_privileged`. Ownership is a different question, and one the
-token cannot answer.
-
-Scope of the cost:
-
-- Only DID actions. RSE, rule, protocol and replica actions are untouched.
-- Deduplicate before querying: `add_dids` with 1000 DIDs usually spans one or
-  two scopes, so it is one or two single-row lookups, not 1000.
-- Rucio is about to hit the DB for the action itself regardless.
-
-If it does become measurable, Rucio's `dogpile` regions are the obvious next
-step — but not before there is a number.
-
-## Implementation sketch
+## Implementation
 
 `permission.py`, all of phases 4/5/6 (phases 2/3 already resolve `is_admin`
 in Python and can adopt the same helper):
@@ -112,6 +94,24 @@ unwrap left objects `json.dumps` could not serialise, and every bulk DID action
 failed closed before reaching OPA — including for root. `_externalise()`
 recurses through dicts and lists instead.
 
+## Cost
+
+The phase 4/5 READMEs claim "no Rucio DB round-trip per authorisation
+decision". That claim was about resolving *privilege* — replacing the
+`is_root`/`is_admin` lookups with a token claim — and it still holds: nothing
+here touches `_is_privileged`. Ownership is a different question, and one the
+token cannot answer.
+
+Scope of the cost:
+
+- Only DID actions. RSE, rule, protocol and replica actions are untouched.
+- Deduplicate before querying: `add_dids` with 1000 DIDs usually spans one or
+  two scopes, so it is one or two single-row lookups, not 1000.
+- Rucio is about to hit the DB for the action itself regardless.
+
+If it does become measurable, Rucio's `dogpile` regions are the obvious next
+step — but not before there is a number.
+
 ## Testing
 
 - `test_phase{4,5,6}_opa.py`: `owned_scopes` present and matching → allow;
@@ -122,19 +122,6 @@ recurses through dicts and lists instead.
   the happy path end to end. Add one account owning a scope not named after
   it — the under-permissive case, which no current test can see.
 
-## What this settles for the Authorization Service
-
-adr-001's contract has a `resource` field and this repo has had nothing
-principled to put in it: `kwargs.scope`, `kwargs.rse_expression`,
-`kwargs.rse_id`, raw. opa-ri-scale models `resource` as a URI
-(`resource.id`).
-
-Deciding (B) fixes the shape of the answer before the contract is written: a
-resource identifier plus the subject's relationship to it, resolved by
-whoever can resolve it and evaluated by the PDP. Whether that relationship
-travels as `owned_scopes` or as something more general is the contract's
-problem — but it will not be "the policy re-derives ownership from a string".
-
 ## Non-goals
 
 - Per-RSE/per-scope ABAC, rule expiry, maintenance windows. BACKLOG 4 step 2,
@@ -143,3 +130,13 @@ problem — but it will not be "the policy re-derives ownership from a string".
   two account names the gateway already resolved; it is exact and needs
   nothing.
 - Caching. Named above as the escape hatch, not designed here.
+
+## Open questions
+
+adr-001's contract has a `resource` field and this repo has had nothing
+principled to put in it: `kwargs.scope`, `kwargs.rse_expression`,
+`kwargs.rse_id`, raw. opa-ri-scale models `resource` as a URI
+(`resource.id`). Deciding (B) fixes the shape of the answer before the
+contract is written — a resource identifier plus the subject's relationship
+to it — but whether that relationship travels as `owned_scopes` or as
+something more general is the contract's problem, not settled here.
