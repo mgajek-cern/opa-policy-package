@@ -44,7 +44,7 @@ make run       # local server on :8000
 ```
 
 `make test` starts an OPA container through testcontainers, loads
-`docker/authz.rego` and the phase 7 data from
+`docker/authz.rego` and the phase 6 data from
 `scripts/ingest_policies.py`, and runs the service in-process against it.
 
 `opa-init` is a one-shot container that waits for OPA's health endpoint,
@@ -92,7 +92,7 @@ make generate-client        # -> clients/python/
 | `AUTHZ_PDP` | `opa` | Which adapter `main.build_pdp` selects |
 | `AUTHZ_PDP_TIMEOUT_SECONDS` | `1.0` | Must stay below the PEP's timeout |
 | `AUTHZ_OPA_URL` | required | Adapter-specific, namespaced per adapter |
-| `AUTHZ_OPA_POLICY_PATH` | `vo/authz/v6/allow` | |
+| `AUTHZ_OPA_POLICY_PATH` | `vo/authz/v5/allow` | |
 | `AUTHZ_OIDC_ISSUER`, `AUTHZ_OIDC_AUDIENCE` | unset | Become required when PEP authentication lands |
 | `AUTHZ_REQUIRED_SCOPE` | `pep:rucio` | |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | Without it the OTel API stays a no-op |

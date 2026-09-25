@@ -16,7 +16,7 @@ from authz_service.core.model import Evaluation, Outcome, Resource, Subject
 
 @pytest.fixture
 async def opa_pdp(pdp: str) -> AsyncIterator[OpaPolicyDecisionPoint]:
-    adapter = OpaPolicyDecisionPoint(url=pdp, policy_path="vo/authz/v6/allow", timeout_seconds=5.0)
+    adapter = OpaPolicyDecisionPoint(url=pdp, policy_path="vo/authz/v5/allow", timeout_seconds=5.0)
     yield adapter
     await adapter.aclose()
 
@@ -58,7 +58,7 @@ async def test_non_owner_may_not_delete_rule(opa_pdp: OpaPolicyDecisionPoint) ->
 
 async def test_unreachable_opa_is_indeterminate() -> None:
     adapter = OpaPolicyDecisionPoint(
-        url="http://127.0.0.1:1", policy_path="vo/authz/v6/allow", timeout_seconds=0.5
+        url="http://127.0.0.1:1", policy_path="vo/authz/v5/allow", timeout_seconds=0.5
     )
     try:
         evaluation = _rule_delete(

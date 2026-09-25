@@ -42,7 +42,7 @@ def _put(url: str, body: bytes, content_type: str) -> None:
 
 
 def _phase_data() -> dict[str, dict[str, Any]]:
-    """The service's phase 7 data bundle, read from the ingest script.
+    """The service's phase 6 data bundle, read from the ingest script.
 
     Importing it keeps one source for policy data, so the tests cannot drift
     from what the testbed loads.
@@ -75,7 +75,7 @@ def _free_port() -> int:
 
 @pytest.fixture(scope="session")
 def pdp() -> Iterator[str]:
-    """An OPA container with the phase 7 policy and data loaded."""
+    """An OPA container with the phase 6 policy and data loaded."""
     container = (
         DockerContainer(OPA_IMAGE)
         .with_command("run --server --addr=0.0.0.0:8181")
@@ -95,7 +95,7 @@ def pdp() -> Iterator[str]:
 
 @pytest.fixture(scope="session")
 def keycloak() -> Iterator[tuple[str, DockerContainer]]:
-    """A Keycloak container with the phase 7 realm imported — issuer for
+    """A Keycloak container with the phase 6 realm imported — issuer for
     validated_claims (api/auth.py). Mirrors the `pdp` fixture's shape."""
     container = (
         DockerContainer(KEYCLOAK_IMAGE)
@@ -322,7 +322,7 @@ def service(
     keycloak_url, _container = keycloak
     monkeypatch_session.setenv("AUTHZ_PDP", "opa")
     monkeypatch_session.setenv("AUTHZ_OPA_URL", pdp)
-    monkeypatch_session.setenv("AUTHZ_OPA_POLICY_PATH", "vo/authz/v6/allow")
+    monkeypatch_session.setenv("AUTHZ_OPA_POLICY_PATH", "vo/authz/v5/allow")
     monkeypatch_session.setenv("AUTHZ_OIDC_ISSUER", f"{keycloak_url}/realms/rucio")
     monkeypatch_session.setenv("AUTHZ_OIDC_AUDIENCE", "authz-service")
 
