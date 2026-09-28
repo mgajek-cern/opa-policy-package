@@ -399,9 +399,7 @@ services:
 
   authz-service:
     profiles: ["service"]
-    build:
-      context: ../../services/authorization-service
-      dockerfile: docker/Dockerfile
+    image: mgajekcern/authz-service:${AUTHZ_SERVICE_IMAGE_TAG:-0.1.0}
     hostname: authz-service
     environment:
       - AUTHZ_PDP=opa
