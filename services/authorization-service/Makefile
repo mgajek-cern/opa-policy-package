@@ -95,6 +95,10 @@ lint: venv ## ruff and the import contracts
 typecheck: venv ## mypy
 	$(BIN)/mypy
 
+format: venv ## Auto-fix ruff findings and formatting (src, tests)
+	$(BIN)/ruff check --fix src tests
+	$(BIN)/ruff format src tests
+
 test: venv ## Unit tests, then integration tests (needs Docker)
 	$(BIN)/pytest tests/unit tests/integration
 

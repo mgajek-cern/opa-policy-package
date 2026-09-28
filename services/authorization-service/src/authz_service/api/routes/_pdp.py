@@ -24,6 +24,7 @@ _decisions = metrics.get_meter("authz_service").create_counter(
 )
 _log = logging.getLogger(__name__)
 
+
 def subject_from(body_subject: _SubjectModel, token: TokenClaims) -> Subject:
     return Subject(
         type=body_subject.type.value,

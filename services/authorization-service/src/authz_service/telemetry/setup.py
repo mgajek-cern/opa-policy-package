@@ -1,4 +1,5 @@
 """The only place the OTel SDK is configured (ADR-004)."""
+
 from __future__ import annotations
 
 import logging

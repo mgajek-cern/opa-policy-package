@@ -34,6 +34,7 @@ from authz_service.settings import Settings, get_settings
 
 _log = logging.getLogger(__name__)
 
+
 @dataclass(frozen=True)
 class TokenClaims:
     sub: str

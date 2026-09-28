@@ -96,6 +96,7 @@ carry the operation and outcome only, never token claims or subject ids.
   check-generated          Regenerate and fail if it differs from what's committed (mutates working tree)
   lint                     ruff and the import contracts
   typecheck                mypy
+  format                   Auto-fix ruff findings and formatting (src, tests)
   test                     Unit tests, then integration tests (needs Docker)
   coverage                 Tests with coverage report (needs Docker)
   demo-client              poke a running instance via the generated client (needs `make run` up)
