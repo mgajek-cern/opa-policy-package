@@ -78,9 +78,11 @@ def _owned_scopes(subject_id: str, resources: Iterable[Resource]) -> list[str]:
     compare against, only privilege (and, for protocols, scheme)."""
     return sorted(
         {
-            resource.attributes.get("scope")
+            scope
             for resource in resources
-            if resource.owner == subject_id and resource.attributes.get("scope")
+            if resource.owner == subject_id
+            and isinstance(scope := resource.attributes.get("scope"), str)
+            and scope
         }
     )
 

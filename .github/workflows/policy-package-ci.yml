@@ -20,8 +20,6 @@ jobs:
         run: pip install pre-commit
       - name: Run pre-commit hooks
         run: make lint
-        env:
-          SKIP: authz-service-lint,authz-service-typecheck
 
   test-phase1:
     name: Phase 1 - Tests
