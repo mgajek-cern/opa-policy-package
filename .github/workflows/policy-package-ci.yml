@@ -15,11 +15,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Install pre-commit
         run: pip install pre-commit
       - name: Run pre-commit hooks
         run: make lint
+        env:
+          SKIP: authz-service-lint,authz-service-typecheck
 
   test-phase1:
     name: Phase 1 - Tests
@@ -30,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Install dependencies
         run: make install-dev
       - name: Phase 1 - Unit tests

@@ -1,3 +1,5 @@
+exclude: ^services/authorization-service/(src/authz_service/api/generated|clients)/
+
 repos:
   # General file hygiene
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -19,3 +21,19 @@ repos:
       - id: ruff                   # linter
         args: [--fix]
       - id: ruff-format            # formatter (replaces black)
+
+  - repo: local
+    hooks:
+      - id: authz-service-lint
+        name: authz-service lint (ruff + import contracts)
+        entry: make -C services/authorization-service lint
+        language: system
+        pass_filenames: false
+        files: ^services/authorization-service/(src|tests)/
+
+      - id: authz-service-typecheck
+        name: authz-service mypy
+        entry: make -C services/authorization-service typecheck
+        language: system
+        pass_filenames: false
+        files: ^services/authorization-service/(src|tests)/

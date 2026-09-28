@@ -38,9 +38,6 @@ jobs:
           cache: pip
           cache-dependency-path: services/authorization-service/pyproject.toml
 
-      - name: Create dev environment
-        run: make venv
-
       - name: Validate OpenAPI contract
         run: make spec-validate
 
@@ -67,9 +64,6 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: services/authorization-service/pyproject.toml
-
-      - name: Create dev environment
-        run: make venv
 
       # ubuntu-latest ships Docker Engine; testcontainers (the OPA fixture
       # in tests/integration/conftest.py) needs nothing else set up.
