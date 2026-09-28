@@ -1,4 +1,4 @@
-exclude: ^services/authorization-service/(src/authz_service/api/generated|clients)/
+exclude: ^services/authorization-service/
 
 repos:
   # General file hygiene
