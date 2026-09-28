@@ -54,7 +54,7 @@ class Did:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.scope import Scope  # noqa: PLC0415
+        from ..models.scope import Scope
 
         d = dict(src_dict)
         scope = Scope.from_dict(d.pop("scope"))

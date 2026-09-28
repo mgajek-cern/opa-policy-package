@@ -34,6 +34,7 @@ dev = [
     "pyyaml>=6.0",
     "attrs>=23.1.0",
     "python-dateutil>=2.8.0",
+    "pytest-cov>=5.0",
 ]
 
 # Route/client generators. Kept out of `dev`: fastapi-code-generator pulls
@@ -51,11 +52,13 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 100
+target-version = "py312"
 src = ["src", "tests"]
 extend-exclude = ["src/authz_service/api/generated", "clients"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "S"]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "S",
+          "C4", "PIE", "RET", "RSE", "PERF", "PT", "PTH", "BLE", "N", "A", "RUF", "ASYNC"]
 ignore = ["B008"]
 
 [tool.ruff.lint.per-file-ignores]
@@ -64,6 +67,15 @@ ignore = ["B008"]
     "S106",  # hardcoded passwords: Keycloak test-realm credentials
     "S310",  # urlopen on the test OPA container's http:// URL
 ]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.coverage.run]
+source = ["authz_service"]
+omit = ["src/authz_service/api/generated/*"]
+branch = true
 
 [tool.mypy]
 python_version = "3.12"

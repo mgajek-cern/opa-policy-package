@@ -48,7 +48,7 @@ class Decision:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.decision_context import DecisionContext  # noqa: PLC0415
+        from ..models.decision_context import DecisionContext
 
         d = dict(src_dict)
         decision = d.pop("decision")

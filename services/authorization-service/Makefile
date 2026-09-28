@@ -98,6 +98,10 @@ typecheck: venv ## mypy
 test: venv ## Unit tests, then integration tests (needs Docker)
 	$(BIN)/pytest tests/unit tests/integration
 
+coverage: venv ## Tests with coverage report (needs Docker)
+	$(BIN)/pytest tests/unit tests/integration \
+	  --cov --cov-report=term-missing --cov-report=xml
+
 demo-client: venv ## poke a running instance via the generated client (needs `make run` up)
 	$(BIN)/python scripts/demo_client.py
 

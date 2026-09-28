@@ -48,7 +48,8 @@ def _phase_data() -> dict[str, dict[str, Any]]:
     from what the testbed loads.
     """
     spec = importlib.util.spec_from_file_location("ingest_policies", INGEST_SCRIPT)
-    assert spec and spec.loader
+    assert spec
+    assert spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return dict(module.PHASE.data)

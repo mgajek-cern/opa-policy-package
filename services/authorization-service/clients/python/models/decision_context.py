@@ -53,7 +53,7 @@ class DecisionContext:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.decision_context_policy import DecisionContextPolicy  # noqa: PLC0415
+        from ..models.decision_context_policy import DecisionContextPolicy
 
         d = dict(src_dict)
         decision_id = d.pop("decision_id", UNSET)

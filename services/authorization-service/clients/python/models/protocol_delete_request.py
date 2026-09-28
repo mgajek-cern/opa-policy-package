@@ -61,10 +61,10 @@ class ProtocolDeleteRequest:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.context import Context  # noqa: PLC0415
-        from ..models.protocol import Protocol  # noqa: PLC0415
-        from ..models.rse import Rse  # noqa: PLC0415
-        from ..models.subject import Subject  # noqa: PLC0415
+        from ..models.context import Context
+        from ..models.protocol import Protocol
+        from ..models.rse import Rse
+        from ..models.subject import Subject
 
         d = dict(src_dict)
         subject = Subject.from_dict(d.pop("subject"))

@@ -52,7 +52,7 @@ def _jwks(settings: Settings) -> PyJWKClient:
 
 async def validated_claims(
     request: Request,
-    settings: Settings = Depends(get_settings),  # noqa: B008 — FastAPI DI idiom
+    settings: Settings = Depends(get_settings),  # FastAPI DI idiom
 ) -> TokenClaims:
     header = request.headers.get("authorization", "")
     if not header.lower().startswith("bearer "):
