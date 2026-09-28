@@ -7,9 +7,6 @@ VENV ?= .venv
 BIN ?= $(VENV)/bin
 SPEC := api/openapi.yaml
 
-# Models for the Rucio policy package: pinned generator, Python 3.9 target.
-SVC_MODELS := src/authz_service/api/generated/models.py
-
 # Server stubs scaffolded from the contract
 SERVER_STUBS_OUT := src/authz_service/api/generated
 
@@ -35,32 +32,40 @@ help: ## List targets
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
 	  | awk -F':.*?## ' '{printf "  %-24s %s\n", $$1, $$2}'
 
-venv: ## Create the dev environment
+# Stamp files: the venvs are rebuilt only when missing or when
+# pyproject.toml changed, so targets can depend on them cheaply.
+$(VENV)/.installed: pyproject.toml
 	$(PY) -m venv $(VENV)
 	$(BIN)/pip install -q --upgrade pip setuptools wheel
 	$(BIN)/pip install -q -e ".[dev]"
+	@touch $@
 
-tools: ## Create the isolated env for the route/client generators
+$(TOOLS_VENV)/.installed: pyproject.toml
 	$(PY) -m venv $(TOOLS_VENV)
 	$(TOOLS_BIN)/pip install -q --upgrade pip setuptools wheel
 	$(TOOLS_BIN)/pip install -q -e ".[codegen]"
+	@touch $@
 
-spec-validate: ## Validate the OpenAPI contract
+venv: $(VENV)/.installed ## Create or refresh the dev environment
+
+tools: $(TOOLS_VENV)/.installed ## Create or refresh the isolated env for the route/client generators
+
+spec-validate: venv ## Validate the OpenAPI contract
 	$(BIN)/python -c "import openapi_spec_validator, sys, yaml; \
 	openapi_spec_validator.validate(yaml.safe_load(open('$(SPEC)')))"
 
-generate-server-stubs: tools ## Scaffold per-tag server stubs from the contract (reference only, not wired in — see README)
+generate-server-stubs: tools venv ## Scaffold per-tag server stubs from the contract (reference only, not wired in — see README)
 	rm -rf $(SERVER_STUBS_OUT)
 	@mkdir -p $(SERVER_STUBS_OUT)
 	$(FASTAPI_CODEGEN) --input $(SPEC) --output $(SERVER_STUBS_OUT) \
 	  --output-model-type pydantic_v2.BaseModel --python-version 3.12 \
-	  --generate-routers
+	  --generate-routers --disable-timestamp
 	$(BIN)/ruff format -q $(SERVER_STUBS_OUT)
 
-generate-client: tools ## Generate a standalone typed Python client from the contract
+generate-client: tools venv ## Generate a standalone typed Python client from the contract
 	rm -rf $(CLIENT_OUT)
 	@mkdir -p $(dir $(CLIENT_OUT))
-	$(OPENAPI_PYTHON_CLIENT) generate --path $(SPEC) \
+	PATH="$(abspath $(BIN)):$$PATH" $(OPENAPI_PYTHON_CLIENT) generate --path $(SPEC) \
 	  --output-path $(CLIENT_OUT) --meta none --overwrite
 
 generate-client-phase7: ## Generate phase7's client via openapi-generator python-legacy (3.9-safe)
@@ -77,24 +82,29 @@ generate-client-phase7: ## Generate phase7's client via openapi-generator python
 	rm -rf ../../phases/phase7-opa/src/rucio_authz_client-gen
 	python3 scripts/patch_phase7_client.py ../../phases/phase7-opa/src/rucio_authz_client
 
-lint: ## ruff and the import contracts
+check-generated: generate-server-stubs generate-client ## Regenerate and fail if it differs from what's committed (mutates working tree)
+	@git diff --exit-code -- $(SERVER_STUBS_OUT) $(CLIENT_OUT) \
+	  || { echo "::error::generated code is stale — run 'make generate-server-stubs generate-client' and commit"; exit 1; }
+	@echo "Generated code is up to date."
+
+lint: venv ## ruff and the import contracts
 	$(BIN)/ruff check src tests
 	$(BIN)/ruff format --check src tests
 	$(BIN)/lint-imports
 
-typecheck: ## mypy
+typecheck: venv ## mypy
 	$(BIN)/mypy
 
-test: ## Unit tests, then integration tests (needs Docker)
+test: venv ## Unit tests, then integration tests (needs Docker)
 	$(BIN)/pytest tests/unit tests/integration
 
-demo-client:  ## poke a running instance via the generated client (needs `make run` up)
+demo-client: venv ## poke a running instance via the generated client (needs `make run` up)
 	$(BIN)/python scripts/demo_client.py
 
-test-token-exchange:  ## exercise the realm.json exchange flow and check required claims
+test-token-exchange: ## exercise the realm.json exchange flow and check required claims
 	bash scripts/test_token_exchange.sh
 
-run: ## Run locally
+run: venv ## Run locally
 	$(BIN)/uvicorn authz_service.main:create_app --factory --reload --port 8000
 
 image: ## Build the container image

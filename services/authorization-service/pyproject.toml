@@ -27,7 +27,7 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "testcontainers>=4.5",
-    "ruff>=0.5",
+    "ruff==0.9.10",
     "mypy>=1.10",
     "import-linter>=2.0",
     "openapi-spec-validator>=0.7",
@@ -55,14 +55,28 @@ src = ["src", "tests"]
 extend-exclude = ["src/authz_service/api/generated", "clients"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "S"]
 ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",  # assert is fine in tests
+    "S106",  # hardcoded passwords: Keycloak test-realm credentials
+    "S310",  # urlopen on the test OPA container's http:// URL
+]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 mypy_path = "src"
 packages = ["authz_service"]
+exclude = ["src/authz_service/api/generated/"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "authz_service.api.generated.*"
+follow_imports = "skip"
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

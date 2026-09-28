@@ -18,7 +18,7 @@ from authz_service.telemetry import setup as telemetry
 def build_pdp(settings: Settings) -> PolicyDecisionPoint:
     """The one place a PDP adapter is chosen."""
     if settings.pdp == "opa":
-        opa = OpaSettings()  # type: ignore[call-arg]  # values come from the environment
+        opa = OpaSettings()  # values come from the environment
         return OpaPolicyDecisionPoint(
             url=opa.url,
             policy_path=opa.policy_path,
