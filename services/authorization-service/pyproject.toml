@@ -63,6 +63,13 @@ python_version = "3.12"
 strict = true
 mypy_path = "src"
 packages = ["authz_service"]
+exclude = ["src/authz_service/api/generated/"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "authz_service.api.generated.*"
+follow_imports = "skip"
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
