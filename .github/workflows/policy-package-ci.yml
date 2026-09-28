@@ -1,4 +1,4 @@
-name: CI
+name: Policy Package CI
 
 on:
   push:

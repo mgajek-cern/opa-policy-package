@@ -1,0 +1,114 @@
+name: Authorization Service CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "services/authorization-service/**"
+      - ".github/workflows/authz-service-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/authorization-service/**"
+      - ".github/workflows/authz-service-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  SERVICE_DIR: services/authorization-service
+
+jobs:
+  checks:
+    name: Lint, typecheck, spec
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/authorization-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: services/authorization-service/pyproject.toml
+
+      - name: Create dev environment
+        run: make venv
+
+      - name: Validate OpenAPI contract
+        run: make spec-validate
+
+      - name: Lint (ruff + import contracts)
+        run: make lint
+
+      - name: Typecheck (mypy)
+        run: make typecheck
+
+      - name: Check generated code is current
+        run: make check-generated
+
+  test:
+    name: Unit + integration tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/authorization-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: services/authorization-service/pyproject.toml
+
+      - name: Create dev environment
+        run: make venv
+
+      # ubuntu-latest ships Docker Engine; testcontainers (the OPA fixture
+      # in tests/integration/conftest.py) needs nothing else set up.
+      - name: Run tests
+        run: make test
+
+  build-and-push:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    needs: [checks, test]
+    # if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/authz-service
+          tags: |
+            type=sha,format=long
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.SERVICE_DIR }}
+          file: ${{ env.SERVICE_DIR }}/docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -54,7 +54,7 @@ generate-server-stubs: tools ## Scaffold per-tag server stubs from the contract 
 	@mkdir -p $(SERVER_STUBS_OUT)
 	$(FASTAPI_CODEGEN) --input $(SPEC) --output $(SERVER_STUBS_OUT) \
 	  --output-model-type pydantic_v2.BaseModel --python-version 3.12 \
-	  --generate-routers
+	  --generate-routers --disable-timestamp
 	$(BIN)/ruff format -q $(SERVER_STUBS_OUT)
 
 generate-client: tools ## Generate a standalone typed Python client from the contract
@@ -76,6 +76,11 @@ generate-client-phase7: ## Generate phase7's client via openapi-generator python
 	   ../../phases/phase7-opa/src/rucio_authz_client
 	rm -rf ../../phases/phase7-opa/src/rucio_authz_client-gen
 	python3 scripts/patch_phase7_client.py ../../phases/phase7-opa/src/rucio_authz_client
+
+check-generated: generate-server-stubs generate-client ## Regenerate and fail if it differs from what's committed (mutates working tree)
+	@git diff --exit-code -- $(SERVER_STUBS_OUT) $(CLIENT_OUT) \
+	  || { echo "::error::generated code is stale — run 'make generate-server-stubs generate-client' and commit"; exit 1; }
+	@echo "Generated code is up to date."
 
 lint: ## ruff and the import contracts
 	$(BIN)/ruff check src tests
