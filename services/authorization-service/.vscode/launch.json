@@ -16,7 +16,8 @@
             "env": {
                 "AUTHZ_OPA_URL": "http://localhost:8181",
                 "AUTHZ_OIDC_ISSUER": "http://keycloak:8080/realms/rucio",
-                "AUTHZ_OIDC_AUDIENCE": "authz-service"
+                "AUTHZ_OIDC_AUDIENCE": "authz-service",
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318"
             },
             "jinja": true
         }

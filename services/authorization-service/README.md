@@ -73,7 +73,8 @@ Grafana on top of the dev stack:
 
 ```
 make up-observability                 # dev stack + collector, Tempo, Loki, Prometheus, Grafana
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 make run
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+make run
 make demo-client                      # generate some decisions
 ```
 

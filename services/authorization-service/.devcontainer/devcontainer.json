@@ -6,7 +6,16 @@
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
-  "postCreateCommand": "make venv && make tools",
+  "postCreateCommand": "echo '127.0.0.1 keycloak' | sudo tee -a /etc/hosts && make venv && make tools",
+  "forwardPorts": [8000, 8080, 8181, 3000, 9090, 4318],
+  "portsAttributes": {
+    "8000": { "label": "authz-service (make run)" },
+    "8080": { "label": "Keycloak" },
+    "8181": { "label": "OPA" },
+    "3000": { "label": "Grafana", "onAutoForward": "notify" },
+    "9090": { "label": "Prometheus", "onAutoForward": "silent" },
+    "4318": { "label": "OTLP/HTTP (collector)", "onAutoForward": "silent" }
+  },
   "customizations": {
     "vscode": {
       "extensions": ["ms-python.python", "charliermarsh.ruff"],
