@@ -41,6 +41,7 @@ make up        # start OPA and Keycloak for manual `make run`;
 export AUTHZ_OIDC_ISSUER=http://keycloak:8080/realms/rucio
 export AUTHZ_OIDC_AUDIENCE=authz-service
 export AUTHZ_OPA_URL=http://localhost:8181
+make test-token-exchange
 make run       # local server on :8000
 ```
 
@@ -73,8 +74,12 @@ Grafana on top of the dev stack:
 
 ```
 make up-observability                 # dev stack + collector, Tempo, Loki, Prometheus, Grafana
+export AUTHZ_OIDC_ISSUER=http://keycloak:8080/realms/rucio
+export AUTHZ_OIDC_AUDIENCE=authz-service
+export AUTHZ_OPA_URL=http://localhost:8181
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 make run
+make test-token-exchange
 make demo-client                      # generate some decisions
 ```
 
