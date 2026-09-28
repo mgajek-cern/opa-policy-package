@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Post-generation patches for phase7-opa's rucio_authz_client.
+"""Post-generation patches for phase6-opa's rucio_authz_client.
 
 python-legacy v6.6.0 (compatibleWithPythonLegacy=true) has a template
 bug: string-enum allowed_values render bare unquoted identifiers
@@ -8,7 +8,7 @@ field is actually set. Confirmed on three fields; re-run
 `grep -rn "allowed_values = \\[" .../models/` after regenerating if the
 spec grows more string enums, and add any new broken lines here.
 
-Usage: patch_phase7_client.py <rucio_authz_client_dir>
+Usage: patch_phase6_client.py <rucio_authz_client_dir>
 """
 
 import sys

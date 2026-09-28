@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/test_token_exchange.sh — grants rucio the fine-grained permission
-# to exchange into authz-service (same pattern as the phase7 testbed's
+# to exchange into authz-service (same pattern as the phase6 testbed's
 # grant_token_exchange() for xrd3/xrd4/teapot1/teapot2 — Keycloak 23's
 # legacy token exchange needs this granted explicitly, it isn't implied by
 # token.exchange.standard.flow.enabled alone), then exercises the exchange

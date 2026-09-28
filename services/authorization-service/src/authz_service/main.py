@@ -29,7 +29,7 @@ def build_pdp(settings: Settings) -> PolicyDecisionPoint:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
-    telemetry.configure(settings.service_name)
+    telemetry.configure(settings)
     pdp = build_pdp(settings)
 
     @asynccontextmanager
@@ -57,5 +57,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(replicas.router)
     app.include_router(rses.router)
     app.include_router(rules.router)
-    telemetry.instrument(app)
+    telemetry.instrument(app, settings)
     return app

@@ -25,7 +25,8 @@ See [docs/adding-an-endpoint.md](docs/adding-an-endpoint.md) for the step-by-ste
 | `clients/python/` | Standalone typed client for PEPs (e.g. Rucio), generated from the contract (`make generate-client`). |
 | `tests/unit/` | Pure logic only. |
 | `tests/integration/` | Authoritative. Fixtures own the containers. |
-| `docker/authz.rego`, `docker/realm.json` | The service's own copies for its dev/test OPA and Keycloak — duplicated from the root repo's `policies/rego/phase7/` and `configs/keycloak/phase7/`, not shared, so this service's tests and `make up` need no root-repo checkout. |
+| `docker/authz.rego`, `docker/realm.json` | The service's own copies for its dev/test OPA and Keycloak — duplicated from the root repo's `policies/rego/phase6/` and `configs/keycloak/phase6/`, not shared, so this service's tests and `make up` need no root-repo checkout. |
+
 
 
 ## Getting started
@@ -63,6 +64,25 @@ make generate-server-stubs  # -> src/authz_service/api/generated/
 make generate-client        # -> clients/python/
 ```
 
+## Observability (optional)
+
+Telemetry is off by default and the OTel API stays a no-op. It turns on when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set. The `observability` compose profile adds
+an OTel Collector, Tempo (traces), Loki (logs), Prometheus (metrics) and
+Grafana on top of the dev stack:
+
+```
+make up-observability                 # dev stack + collector, Tempo, Loki, Prometheus, Grafana
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 make run
+make demo-client                      # generate some decisions
+```
+
+Open Grafana at http://localhost:3000 (anonymous admin) and use Explore:
+Tempo for the `authz.decide` span, Loki for `{service_name="authz-service"}`
+and Prometheus for `otel_authz_decisions_total`. Metrics export every 60 s by
+default; set `OTEL_METRIC_EXPORT_INTERVAL=5000` while testing. Spans and logs
+carry the operation and outcome only, never token claims or subject ids.
+
 ## Make Targets
 
 ```bash
@@ -72,7 +92,7 @@ make generate-client        # -> clients/python/
   spec-validate            Validate the OpenAPI contract
   generate-server-stubs    Scaffold per-tag server stubs from the contract (reference only, not wired in — see README)
   generate-client          Generate a standalone typed Python client from the contract
-  generate-client-phase7   Generate phase7's client via openapi-generator python-legacy (3.9-safe)
+  generate-client-phase6   Generate phase6's client via openapi-generator python-legacy (3.9-safe)
   check-generated          Regenerate and fail if it differs from what's committed (mutates working tree)
   lint                     ruff and the import contracts
   typecheck                mypy
@@ -83,6 +103,7 @@ make generate-client        # -> clients/python/
   run                      Run locally
   image                    Build the container image
   up                       Start the service's own dev/test compose stack (OPA + Keycloak)
+  up-observability         Dev stack plus collector, Tempo, Loki, Prometheus, Grafana
   down                     Stop the dev/test compose stack, keeping volumes
   clean                    Stop the dev/test compose stack and wipe volumes
 ```

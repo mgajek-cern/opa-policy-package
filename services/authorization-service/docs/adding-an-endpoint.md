@@ -7,10 +7,10 @@ Worked example: rules/delete, followed for every operation group since.
 2. Rego: add a `_perm_<action>` rule in [authz.rego](../docker/authz.rego),
    plus a dispatch line in `_action_allowed` and the action itself to
    `_all_known_actions`. Mirror the same change in the root repo's
-   `policies/rego/phase7/authz.rego` — this service's copy is duplicated,
+   `policies/rego/phase6/authz.rego` — this service's copy is duplicated,
    not shared, so the two need to be kept in step by hand. There's no
    automated contract/Rego alignment check today (the one that used to run
-   this, `tests/test_phase7_opa.py`, was retired during the authz-service
+   this, `tests/test_phase6_opa.py`, was retired during the authz-service
    rewrite); verify manually that the operationId in openapi.yaml and the
    action name in authz.rego agree, and that
    `PolicyDecisionPoint.known_actions()` (backed by `_all_known_actions`)

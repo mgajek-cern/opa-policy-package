@@ -68,19 +68,19 @@ generate-client: tools venv ## Generate a standalone typed Python client from th
 	PATH="$(abspath $(BIN)):$$PATH" $(OPENAPI_PYTHON_CLIENT) generate --path $(SPEC) \
 	  --output-path $(CLIENT_OUT) --meta none --overwrite
 
-generate-client-phase7: ## Generate phase7's client via openapi-generator python-legacy (3.9-safe)
-	rm -rf /tmp/phase7-spec && mkdir -p /tmp/phase7-spec
-	python3 scripts/prepare_phase7_spec.py api/openapi.yaml /tmp/phase7-spec/openapi.yaml
-	rm -rf ../../phases/phase7-opa/src/rucio_authz_client
-	docker run --rm -v /tmp/phase7-spec:/local \
-	  -v $(CURDIR)/../../phases/phase7-opa/src:/out \
+generate-client-phase6: ## Generate phase6's client via openapi-generator python-legacy (3.9-safe)
+	rm -rf /tmp/phase6-spec && mkdir -p /tmp/phase6-spec
+	python3 scripts/prepare_phase6_spec.py api/openapi.yaml /tmp/phase6-spec/openapi.yaml
+	rm -rf ../../phases/phase6-opa/src/rucio_authz_client
+	docker run --rm -v /tmp/phase6-spec:/local \
+	  -v $(CURDIR)/../../phases/phase6-opa/src:/out \
 	  openapitools/openapi-generator-cli:v6.6.0 generate \
 	  -i /local/openapi.yaml -g python-legacy -o /out/rucio_authz_client-gen \
 	  --additional-properties=packageName=rucio_authz_client,compatibleWithPythonLegacy=true,library=urllib3
-	mv ../../phases/phase7-opa/src/rucio_authz_client-gen/rucio_authz_client \
-	   ../../phases/phase7-opa/src/rucio_authz_client
-	rm -rf ../../phases/phase7-opa/src/rucio_authz_client-gen
-	python3 scripts/patch_phase7_client.py ../../phases/phase7-opa/src/rucio_authz_client
+	mv ../../phases/phase6-opa/src/rucio_authz_client-gen/rucio_authz_client \
+	   ../../phases/phase6-opa/src/rucio_authz_client
+	rm -rf ../../phases/phase6-opa/src/rucio_authz_client-gen
+	python3 scripts/patch_phase6_client.py ../../phases/phase6-opa/src/rucio_authz_client
 
 check-generated: generate-server-stubs generate-client ## Regenerate and fail if it differs from what's committed (mutates working tree)
 	@git diff --exit-code -- $(SERVER_STUBS_OUT) $(CLIENT_OUT) \
@@ -117,8 +117,11 @@ image: ## Build the container image
 up: ## Start the service's own dev/test compose stack (OPA + Keycloak)
 	$(COMPOSE) up -d
 
+up-observability: ## Dev stack plus collector, Tempo, Loki, Prometheus, Grafana
+	$(COMPOSE) --profile observability up -d
+
 down: ## Stop the dev/test compose stack, keeping volumes
-	$(COMPOSE) down
+	$(COMPOSE) --profile observability down
 
 clean: ## Stop the dev/test compose stack and wipe volumes
-	$(COMPOSE) down -v
+	$(COMPOSE) --profile observability down -v
