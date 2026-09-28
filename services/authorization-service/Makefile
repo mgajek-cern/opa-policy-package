@@ -65,7 +65,7 @@ generate-server-stubs: tools venv ## Scaffold per-tag server stubs from the cont
 generate-client: tools venv ## Generate a standalone typed Python client from the contract
 	rm -rf $(CLIENT_OUT)
 	@mkdir -p $(dir $(CLIENT_OUT))
-	$(OPENAPI_PYTHON_CLIENT) generate --path $(SPEC) \
+	PATH="$(abspath $(BIN)):$$PATH" $(OPENAPI_PYTHON_CLIENT) generate --path $(SPEC) \
 	  --output-path $(CLIENT_OUT) --meta none --overwrite
 
 generate-client-phase7: ## Generate phase7's client via openapi-generator python-legacy (3.9-safe)
