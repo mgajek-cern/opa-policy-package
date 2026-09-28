@@ -13,7 +13,7 @@ import httpx
 from authz_service.adapters.pdp.opa import translate
 from authz_service.core.model import Evaluation, Outcome
 
-log = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 
 class OpaPolicyDecisionPoint:
@@ -32,7 +32,7 @@ class OpaPolicyDecisionPoint:
         try:
             input_doc = translate.to_opa_input(evaluation)
         except ValueError:
-            log.warning("no OPA input mapping for action=%s", evaluation.operation)
+            _log.warning("no OPA input mapping for action=%s", evaluation.operation)
             return Outcome.NOT_APPLICABLE
 
         try:
@@ -40,13 +40,13 @@ class OpaPolicyDecisionPoint:
                 f"/v1/data/{self._policy_path}", json={"input": input_doc}
             )
         except httpx.HTTPError as exc:
-            log.warning("PDP evaluate unreachable for action=%s: %s", evaluation.operation, exc)
+            _log.warning("PDP evaluate unreachable for action=%s: %s", evaluation.operation, exc)
             return Outcome.INDETERMINATE
 
         try:
             body = response.json()
         except ValueError:
-            log.warning("PDP evaluate returned non-JSON for action=%s", evaluation.operation)
+            _log.warning("PDP evaluate returned non-JSON for action=%s", evaluation.operation)
             return Outcome.INDETERMINATE
 
         return translate.outcome_from_response(response.status_code, body)
@@ -55,7 +55,7 @@ class OpaPolicyDecisionPoint:
         try:
             response = await self._client.get("/health")
         except httpx.HTTPError as exc:
-            log.warning("PDP unreachable: %s", exc)
+            _log.warning("PDP unreachable: %s", exc)
             return False
         return response.status_code == 200
 
@@ -80,7 +80,7 @@ class OpaPolicyDecisionPoint:
             response = await self._client.get(f"/v1/data/{path}")
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            log.warning("PDP data read failed for %s: %s", path, exc)
+            _log.warning("PDP data read failed for %s: %s", path, exc)
             return None
         body: dict[str, Any] = response.json()
         # OPA answers {} when the path is undefined.

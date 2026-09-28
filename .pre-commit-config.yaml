@@ -1,4 +1,4 @@
-exclude: ^services/authorization-service/
+exclude: ^(services/authorization-service/|phases/phase6-opa/src/rucio_authz_client/)
 
 repos:
   # General file hygiene

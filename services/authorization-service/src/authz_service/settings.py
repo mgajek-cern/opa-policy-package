@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,6 +36,13 @@ class Settings(BaseSettings):
     required_scopes: list[str] = ["pep:rucio"]
 
     service_name: str = "authz-service"
+
+    # Standard OTel variable, not AUTHZ_-prefixed. Unset means telemetry off.
+    otlp_endpoint: str | None = Field(default=None, validation_alias="OTEL_EXPORTER_OTLP_ENDPOINT")
+
+    @property
+    def telemetry_enabled(self) -> bool:
+        return bool(self.otlp_endpoint)
 
 
 @lru_cache

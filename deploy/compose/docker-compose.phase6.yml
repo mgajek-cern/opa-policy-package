@@ -399,7 +399,7 @@ services:
 
   authz-service:
     profiles: ["service"]
-    image: mgajekcern/authz-service:${AUTHZ_SERVICE_IMAGE_TAG:-0.1.0}
+    image: mgajekcern/authz-service:${AUTHZ_SERVICE_IMAGE_TAG:-latest}
     hostname: authz-service
     environment:
       - AUTHZ_PDP=opa

@@ -1,37 +1,55 @@
-"""OpenTelemetry wiring, done once at startup.
-
-Only this module touches the SDK. Without an OTLP endpoint the API stays a
-no-op, so the service runs unchanged with no collector (ADR-004).
-"""
+"""The only place the OTel SDK is configured (ADR-004)."""
 
 from __future__ import annotations
 
-import os
-from typing import Any
+import logging
 
-from opentelemetry import trace
+from fastapi import FastAPI
+from opentelemetry import metrics, trace
+from opentelemetry._logs import set_logger_provider
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
+from authz_service.settings import Settings
 
-def configure(service_name: str) -> None:
-    """Install SDK providers when an OTLP endpoint is configured."""
-    if not os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+
+def configure(settings: Settings) -> None:
+    if not settings.telemetry_enabled:
         return
+    resource = Resource.create({"service.name": settings.service_name})
+    # Endpoint comes from OTEL_EXPORTER_OTLP_ENDPOINT; the HTTP exporters
+    # append /v1/traces, /v1/metrics and /v1/logs themselves.
 
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    tracer_provider = TracerProvider(resource=resource)
+    tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+    trace.set_tracer_provider(tracer_provider)
 
-    resource = Resource.create({"service.name": service_name})
-    provider = TracerProvider(resource=resource)
-    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-    trace.set_tracer_provider(provider)
+    metrics.set_meter_provider(
+        MeterProvider(
+            resource=resource,
+            metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())],
+        )
+    )
+
+    logger_provider = LoggerProvider(resource=resource)
+    logger_provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))
+    set_logger_provider(logger_provider)
+    logging.getLogger().addHandler(LoggingHandler(logger_provider=logger_provider))
+    logging.getLogger().setLevel(logging.INFO)
 
 
-def instrument(app: Any) -> None:
-    """Instrument the web framework and the HTTP client."""
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-
+def instrument(app: FastAPI, settings: Settings) -> None:
+    if not settings.telemetry_enabled:
+        return
     FastAPIInstrumentor.instrument_app(app)
     HTTPXClientInstrumentor().instrument()

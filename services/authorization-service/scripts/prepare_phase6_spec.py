@@ -11,7 +11,7 @@ canonical spec:
    regardless of the actual response. Inlining each response ref's
    contents directly into the operation fixes it.
 
-Usage: prepare_phase7_spec.py <input.yaml> <output.yaml>
+Usage: prepare_phase6_spec.py <input.yaml> <output.yaml>
 """
 
 import re

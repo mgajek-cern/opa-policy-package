@@ -39,7 +39,7 @@ Consequence: permission.py imports rucio_authz_client directly
 python-legacy's client has no asyncio variant, so no event-loop
 wrapping is needed. This is a *second*, independently-generated
 rucio_authz_client from the *same* openapi.yaml — the python-legacy
-one lives under phases/phase7-opa/src/ for rucio-server's Python 3.9;
+one lives under phases/phase6-opa/src/ for rucio-server's Python 3.9;
 authz-service's own clients/python (openapi-python-client, Python
 3.12-only) is unrelated and unaffected by any of this.
 

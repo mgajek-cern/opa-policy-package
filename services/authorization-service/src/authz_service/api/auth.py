@@ -22,6 +22,7 @@ one that requested the exchange. Callers should not treat
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 import jwt
@@ -30,6 +31,8 @@ from jwt import PyJWKClient
 
 from authz_service.api.errors import ProblemError
 from authz_service.settings import Settings, get_settings
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -56,6 +59,7 @@ async def validated_claims(
 ) -> TokenClaims:
     header = request.headers.get("authorization", "")
     if not header.lower().startswith("bearer "):
+        _log.warning("token rejected: reason=missing_bearer")
         raise ProblemError(401, "Missing bearer token")
     token = header.removeprefix("Bearer ").removeprefix("bearer ")
 
@@ -70,12 +74,14 @@ async def validated_claims(
             options={"require": ["exp", "iat", "sub"]},
         )
     except jwt.PyJWTError as exc:
+        _log.warning("token rejected: reason=invalid_token type=%s", type(exc).__name__)
         raise ProblemError(401, f"Invalid token: {exc}") from exc
 
     required_scopes = set(settings.required_scopes)
     token_scopes = set(payload.get("scope", "").split())
 
     if not required_scopes.issubset(token_scopes):
+        _log.warning("token rejected: reason=missing_scope")
         raise ProblemError(403, "Token lacks required scope")
 
     act = payload.get("act")
@@ -85,6 +91,7 @@ async def validated_claims(
         actor_sub = payload.get("azp")
 
     if actor_sub is None:
+        _log.warning("token rejected: reason=missing_actor")
         raise ProblemError(403, "Token lacks required azp or act claim")
 
     return TokenClaims(

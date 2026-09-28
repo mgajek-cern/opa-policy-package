@@ -1,7 +1,7 @@
 
 # Local dev dependencies for authz-service. Not the full DEP testbed —
 # just what this service's dev loop needs (see design-006). Xrootd,
-# FTS, Teapot, Rucio server/daemons live in the phase7 testbed compose
+# FTS, Teapot, Rucio server/daemons live in the phase6 testbed compose
 # and are out of scope here.
 #
 # make run / the VS Code launch config expect AUTHZ_OPA_URL to point
@@ -52,3 +52,47 @@ services:
       - KC_HTTP_ENABLED=true
     ports:
       - "8080:8080"
+
+  # ── Observability (opt-in: --profile observability) ────────────────
+  otel-collector:
+    profiles: ["observability"]
+    image: otel/opentelemetry-collector-contrib:0.140.1
+    command: ["--config=/etc/otel-collector.yml"]
+    volumes:
+      - ./observability/otel-collector.yml:/etc/otel-collector.yml:ro
+    ports:
+      - "4318:4318"   # OTLP/HTTP, what authz-service uses
+      - "4317:4317"   # OTLP/gRPC
+    depends_on: [tempo, loki]
+
+  tempo:
+    profiles: ["observability"]
+    image: grafana/tempo:2.8.2
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./observability/tempo.yml:/etc/tempo.yml:ro
+
+  loki:
+    profiles: ["observability"]
+    image: grafana/loki:3.5.7
+    command: -config.file=/etc/loki/local-config.yaml
+
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v3.8.0
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:12.3.0
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ./observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    ports:
+      - "3000:3000"
+    depends_on: [prometheus, loki, tempo]
