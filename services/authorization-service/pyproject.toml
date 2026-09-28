@@ -55,8 +55,15 @@ src = ["src", "tests"]
 extend-exclude = ["src/authz_service/api/generated", "clients"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "S"]
 ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",  # assert is fine in tests
+    "S106",  # hardcoded passwords: Keycloak test-realm credentials
+    "S310",  # urlopen on the test OPA container's http:// URL
+]
 
 [tool.mypy]
 python_version = "3.12"
