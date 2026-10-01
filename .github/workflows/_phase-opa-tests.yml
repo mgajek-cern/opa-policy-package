@@ -6,11 +6,11 @@ on:
       phase:
         required: true
         type: string
-        description: phase number, e.g. "2" — everything else is derived from it
+        description: phase number, e.g. "6" — everything else is derived from it
       phase_label:
         required: true
         type: string
-        description: e.g. "Phase 2"
+        description: e.g. "Phase 4"
       needs_keycloak:
         required: false
         type: boolean

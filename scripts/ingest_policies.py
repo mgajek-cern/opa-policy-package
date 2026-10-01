@@ -8,8 +8,6 @@ Usage:
 Each phase ingests its Rego under a distinct policy ID, so several phases can
 coexist on one OPA instance. Data bundles differ by phase:
 
-    phase2  admins only (vo/admins)
-    phase3  + data-driven RSE types (vo/policy)
     phase4  + wlcg.groups -> privilege (vo/group_policy)
     phase5  + URN entitlements -> privilege (vo/entitlement_policy)
     phase6  + RSE-name allowlist for the transfer testbed; the same Rego
@@ -76,15 +74,6 @@ class PhaseSpec:
 
 
 PHASES: dict[str, PhaseSpec] = {
-    "phase2": PhaseSpec(
-        policy_id="authz",
-        supports_admins=True,
-    ),
-    "phase3": PhaseSpec(
-        policy_id="authz_v2",
-        data={"vo/policy": {"known_rse_types": DEFAULT_RSE_TYPES}},
-        supports_admins=True,
-    ),
     "phase4": PhaseSpec(
         policy_id="authz_v3",
         data={

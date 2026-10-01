@@ -6,23 +6,23 @@ build-backend = "setuptools.build_meta"
 #
 # pythonpath makes the src layouts importable without installation when
 # running pytest directly from the repo root — but the packages must still
-# be installed (pip install -e phase1-no-opa/ etc.) for imports to resolve
+# be installed (pip install -e phase6-opa/ etc.) for imports to resolve
 # correctly, because Rucio stubs in conftest.py rely on the installed
 # package metadata.  Run:
 #
-#   pip install -e phase1-no-opa/ -e phase2-opa/ -e phase3-opa/
+#   pip install -e phase4-opa/ -e phase5-opa/ -e phase6-opa/
 #
 # before running the full test suite locally.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
-pythonpath = ["phases/phase1-no-opa/src", "phases/phase2-opa/src", "phases/phase3-opa/src", "phases/phase4-opa/src" , "phases/phase5-opa/src", "phases/phase6-opa/src"]
+pythonpath = ["phases/phase4-opa/src" , "phases/phase5-opa/src", "phases/phase6-opa/src"]
 
 [tool.ruff]
 target-version = "py39"
 line-length = 100
-src = ["phases/phase1-no-opa/src", "phases/phase2-opa/src", "phases/phase3-opa/src", "phases/phase4-opa/src" , "phases/phase5-opa/src", "phases/phase6-opa/src", "tests"]
+src = ["phases/phase4-opa/src" , "phases/phase5-opa/src", "phases/phase6-opa/src", "tests"]
 exclude = [".git", ".venv", "__pycache__", "build", "dist", "patches"]
 
 [tool.ruff.lint]
@@ -56,22 +56,6 @@ ignore = [
     "S607",  # partial executable path (opa) is intentional — resolved via PATH
     "S501",
 ]
-"tests/test_phase2_opa.py" = [
-    "S603",
-    "S607",
-]
-"tests/test_phase2_rucio.py" = [
-    "S603",
-    "S607",
-]
-"tests/test_phase3_opa.py" = [
-    "S603",
-    "S607",
-]
-"tests/test_phase3_rucio.py" = [
-    "S603",
-    "S607",
-]
 "tests/test_phase4_opa.py" = [
     "S603",
     "S607",
@@ -98,7 +82,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["rucio_no_opa_policy", "rucio_opa_policy", "rucio_opa_v2_policy", "rucio_opa_v3_policy", "rucio_opa_v4_policy", "rucio_opa_v5_policy"]
+known-first-party = ["rucio_opa_v3_policy", "rucio_opa_v4_policy", "rucio_opa_v5_policy"]
 
 [tool.ruff.format]
 quote-style = "double"
