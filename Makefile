@@ -97,11 +97,7 @@ certs: ## Generate the CA and host certs
 
 .PHONY: up
 up: ## Start the phase's stack and wait for healthchecks
-ifeq ($(PHASE),1)
-	@echo "Phase 1 has no stack — run 'make test PHASE=1'."
-else
 	$(COMPOSE) up -d --wait
-endif
 
 .PHONY: init
 init: ## Register accounts, identities and (phase 6) RSEs and token exchange

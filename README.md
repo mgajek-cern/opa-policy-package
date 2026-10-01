@@ -1,8 +1,10 @@
 # opa-policy-package
 
-Rucio policy packages across six phases of increasing capability. Each phase is
-a drop-in replacement — point Rucio at the package and restart; no data
+Rucio policy packages across phases 4–6 of increasing capability. Each phase is
+a drop-in replacement. Point Rucio at the package and restart; no data
 migration required.
+
+> Phases 1–3 (inline Python PDP, first OPA policies, data-driven config) are superseded and archived under the [`archive/phases-1-3`](https://github.com/mgajek-cern/opa-policy-package/releases/tag/archive%2Fphases-1-3) tag.
 
 | Phase | Package | PDP | Summary |
 |---|---|---|---|
@@ -40,8 +42,6 @@ make test           # whichever suites this phase/mode has
 make clean          # down -v
 ```
 
-Phase 1 has no stack — `make test PHASE=1` runs standalone.
-
 Phase 6 also runs end-to-end transfers, which take several minutes and
 today only run in `direct` mode:
 
@@ -59,10 +59,10 @@ doesn't apply prints a line and exits clean.
 
 | Suite | Boundary | Applies to |
 |---|---|---|
-| `tests/test_phaseN_opa.py` | OPA directly, with handcrafted input documents | phases 2–6 |
+| `tests/test_phaseN_opa.py` | OPA directly, with handcrafted input documents | phases 4–6 |
 | `tests/test_phase6_rucio.py` | Rucio's REST API, real tokens, `AUTHZ_MODE=direct` | phase 6, direct |
 | `tests/test_phase6_rucio_authz_service.py` | Rucio's REST API, real tokens, through authz-service | phase 6, service |
-| `tests/test_phaseN_rucio.py` | Rucio's REST API, real tokens | phases 2–5 |
+| `tests/test_phaseN_rucio.py` | Rucio's REST API, real tokens | phases 4–5 |
 | `tests/test_phase6_full_transfer.py` | Rucio → FTS → storage, end to end | phase 6, direct only |
 
 Phase 6's suites run inside the `rucio-client` container, which has the
