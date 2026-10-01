@@ -1,12 +1,12 @@
 # Task runner for opa-policy-package.
 #
-#   make up PHASE=4        start that phase's stack
-#   make init PHASE=4      run its init script, if it has one
-#   make test PHASE=4      run whichever suites that phase has
-#   make down PHASE=4      stop it (add clean to wipe volumes)
-#   make e2e PHASE=4       up + init + test
+#   make up PHASE=6        start that phase's stack
+#   make init PHASE=6      run its init script, if it has one
+#   make test PHASE=6      run whichever suites that phase has
+#   make down PHASE=6      stop it (add clean to wipe volumes)
+#   make e2e PHASE=6       up + init + test
 #
-# Every target takes PHASE=1..6. Phase 6 also takes AUTHZ_MODE=direct|service
+# Every target takes PHASE=4..6. Phase 6 also takes AUTHZ_MODE=direct|service
 # (default direct). Override RUCIO_URL / OPA_URL / KEYCLOAK_URL to point at a
 # remote stack. Run `make help` for the full list of overridable variables.
 
@@ -16,9 +16,6 @@ AUTHZ_MODE ?= direct
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-PKG_1 := phase1-no-opa
-PKG_2 := phase2-opa
-PKG_3 := phase3-opa
 PKG_4 := phase4-opa
 PKG_5 := phase5-opa
 PKG_6 := phase6-opa
@@ -57,10 +54,6 @@ else
 endif
 INIT_SCRIPT := $(wildcard scripts/init-phase$(PHASE).sh)
 
-ifeq ($(PHASE),1)
-	UNIT_TESTS := tests/test_phase1_rules.py tests/test_phase1_permission.py
-endif
-
 # Phases 6 drive Rucio from inside the client container: they need the mounted
 # certs and in-network DNS to reach FTS and the storage endpoints.
 ifeq ($(PHASE),6)
@@ -78,7 +71,7 @@ help: ## List targets
 	@echo "PHASE=$(PHASE)  AUTHZ_MODE=$(AUTHZ_MODE)  package=phases/$(PKG)"
 	@echo
 	@echo "Overridable variables:"
-	@echo "  PHASE=1..6          (default 6)"
+	@echo "  PHASE=4..6          (default 6)"
 	@echo "  AUTHZ_MODE=direct|service   phase 6 only (default direct)"
 	@echo "  RUCIO_URL, OPA_URL, KEYCLOAK_URL   for a remote stack (non-container test runs)"
 	@echo
@@ -169,12 +162,8 @@ test-transfer: ## End-to-end transfer tests (phase 6, AUTHZ_MODE=direct only)
 
 .PHONY: test
 test: ## Run every suite the phase has, except transfers
-ifeq ($(PHASE),1)
-	$(PYTEST) $(UNIT_TESTS) $(PYTEST_ARGS)
-else
 	$(MAKE) test-opa PHASE=$(PHASE) AUTHZ_MODE=$(AUTHZ_MODE)
 	$(MAKE) test-rucio PHASE=$(PHASE) AUTHZ_MODE=$(AUTHZ_MODE)
-endif
 
 .PHONY: e2e
 e2e: ## up, init, test

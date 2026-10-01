@@ -176,14 +176,8 @@ def admin_account(make_account, monkeypatch):
     """An account that has the 'admin' attribute set."""
     import rucio.core.account as ra
 
-    import rucio_no_opa_policy.permission as p1_perm
-
     account = make_account("adminuser")
-
-    # Patch in both the rucio module and the phase1 permission module's import
     monkeypatch.setattr(ra, "has_account_attribute", lambda **kw: True)
-    monkeypatch.setattr(p1_perm, "_is_admin", lambda issuer, *, session=None: True)
-
     return account
 
 

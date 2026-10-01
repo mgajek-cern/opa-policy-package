@@ -6,9 +6,6 @@ migration required.
 
 | Phase | Package | PDP | Summary |
 |---|---|---|---|
-| 1 | [`rucio-no-opa-policy`](phases/phase1-no-opa/README.md) | Rucio | RSE naming enforced in pure Python, no external dependencies. |
-| 2 | [`rucio-opa-policy`](phases/phase2-opa/README.md) | OPA | Policy logic moves to OPA/Rego, delegating a wider set of actions. |
-| 3 | [`rucio-opa-v2-policy`](phases/phase3-opa/README.md) | OPA | Data-driven configuration, self-service rule management, protocol scheme enforcement. |
 | 4 | [`rucio-opa-v3-policy`](phases/phase4-opa/README.md) | OPA | `is_root`/`is_admin` DB lookup replaced by `wlcg.groups` from the token. |
 | 5 | [`rucio-opa-v4-policy`](phases/phase5-opa/README.md) | OPA | WLCG group paths replaced by URN `entitlements`. |
 | 6 | [`rucio-opa-v5-policy`](phases/phase6-opa/README.md) | OPA or authz-service | Same entitlement model, proven end to end against real TPC transfers through FTS. `AUTHZ_MODE` selects the transport: `direct` (default) queries OPA directly; `service` calls a standalone Authorization Service over HTTP, which queries the same policy — see [design-007](docs/design/design-007-fold-phase6-phase7-authz-mode.md). |
@@ -20,7 +17,7 @@ migration required.
 
 ## Quick start
 
-Every target takes `PHASE=1..6`; it defaults to 6. Phase 6 additionally
+Every target takes `PHASE=4..6`; it defaults to 6. Phase 6 additionally
 takes `AUTHZ_MODE` — `direct` (default) or `service` — selecting whether
 Rucio queries OPA directly or through the standalone Authorization
 Service. Both modes run from the same compose file; `service` mode
@@ -79,7 +76,7 @@ certs and in-network DNS; earlier phases run on the host against
 PHASE=6  AUTHZ_MODE=direct  package=phases/phase6-opa
 
 Overridable variables:
-  PHASE=1..6          (default 6)
+  PHASE=4..6          (default 6)
   AUTHZ_MODE=direct|service   phase 6 only (default direct)
   RUCIO_URL, OPA_URL, KEYCLOAK_URL   for a remote stack (non-container test runs)
 

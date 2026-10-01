@@ -21,43 +21,6 @@ jobs:
       - name: Run pre-commit hooks
         run: make lint
 
-  test-phase1:
-    name: Phase 1 - Tests
-    runs-on: ubuntu-latest
-    env:
-      PHASE: 1
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install dependencies
-        run: make install-dev
-      - name: Phase 1 - Unit tests
-        run: |
-          make test PYTEST_ARGS="-v --tb=short \
-            --cov=phases/phase1-no-opa/src \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage-phase1.xml"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-phase1
-          path: coverage-phase1.xml
-
-  test-phase2:
-    name: Phase 2
-    uses: ./.github/workflows/_phase-opa-tests.yml
-    with:
-      phase: "2"
-      phase_label: "Phase 2"
-
-  test-phase3:
-    name: Phase 3
-    uses: ./.github/workflows/_phase-opa-tests.yml
-    with:
-      phase: "3"
-      phase_label: "Phase 3"
-
   test-phase4:
     name: Phase 4
     uses: ./.github/workflows/_phase-opa-tests.yml
