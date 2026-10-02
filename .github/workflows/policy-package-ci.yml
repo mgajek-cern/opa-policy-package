@@ -18,8 +18,21 @@ jobs:
           python-version: "3.12"
       - name: Install pre-commit
         run: pip install pre-commit
+      - uses: open-policy-agent/setup-opa@v2
+        with:
+          version: 1.21.1
       - name: Run pre-commit hooks
         run: make lint
+
+  rego:
+    name: Rego - unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: open-policy-agent/setup-opa@v2
+        with:
+          version: 1.21.1
+      - run: make test-rego
 
   test-phase4:
     name: Phase 4

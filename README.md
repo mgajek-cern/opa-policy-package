@@ -95,6 +95,7 @@ Overridable variables:
   test-opa         Scenario tests against OPA directly
   test-rucio       Authorisation tests against Rucio's REST API
   test-transfer    End-to-end transfer tests (phase 6, AUTHZ_MODE=direct only)
+  test-rego        Rego unit tests (all phases, no stack needed)
   test             Run every suite the phase has, except transfers
   lint             Run the pre-commit hooks over the whole tree
 ```

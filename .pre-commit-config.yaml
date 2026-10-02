@@ -21,3 +21,16 @@ repos:
       - id: ruff                   # linter
         args: [--fix]
       - id: ruff-format            # formatter (replaces black)
+
+  - repo: local
+    hooks:
+      - id: opa-fmt
+        name: opa fmt
+        entry: opa fmt --list --fail
+        language: system
+        files: \.rego$
+      - id: opa-check
+        name: opa check
+        entry: opa check --strict
+        language: system
+        files: \.rego$

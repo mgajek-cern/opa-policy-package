@@ -29,7 +29,7 @@ REGO_PATH = SERVICE_ROOT / "docker" / "authz.rego"
 INGEST_SCRIPT = SERVICE_ROOT / "scripts" / "ingest_policies.py"
 REALM_JSON = SERVICE_ROOT / "docker" / "realm.json"
 COMPOSE_FILE = SERVICE_ROOT / "docker" / "docker-compose.yml"
-OPA_IMAGE = "openpolicyagent/opa:1.8.0"
+OPA_IMAGE = "openpolicyagent/opa:1.21.1"
 KEYCLOAK_IMAGE = "quay.io/keycloak/keycloak:23.0.1"
 
 
