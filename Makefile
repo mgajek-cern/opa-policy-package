@@ -156,6 +156,17 @@ test-transfer: ## End-to-end transfer tests (phase 6, AUTHZ_MODE=direct only)
 	  $(call run_tests,$(TRANSFER_TEST)); \
 	fi
 
+.PHONY: test-rego
+test-rego: ## Rego unit tests (all phases, no stack needed)
+	@command -v opa >/dev/null || { echo "opa not on PATH — see https://www.openpolicyagent.org/docs#1-download-opa"; exit 1; }
+	opa test policies/rego -v
+
+.PHONY: fmt-rego
+fmt-rego: ## Format all Rego files in place (fixes the opa-fmt pre-commit hook)
+	@command -v opa >/dev/null || { echo "opa not on PATH — see https://www.openpolicyagent.org/docs#1-download-opa"; exit 1; }
+	opa fmt -w policies/rego
+	opa check --strict policies/rego
+
 .PHONY: test
 test: ## Run every suite the phase has, except transfers
 	$(MAKE) test-opa PHASE=$(PHASE) AUTHZ_MODE=$(AUTHZ_MODE)

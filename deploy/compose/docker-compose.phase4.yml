@@ -25,7 +25,7 @@ services:
 
   # OPA — Policy Decision Point
   opa:
-    image: openpolicyagent/opa:1.8.0
+    image: openpolicyagent/opa:1.21.1
     container_name: rucio-opa
     ports:
       - "8181:8181"
